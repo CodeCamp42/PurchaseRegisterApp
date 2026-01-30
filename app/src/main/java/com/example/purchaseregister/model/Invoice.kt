@@ -14,6 +14,7 @@ data class Invoice(
     val igv: String = "",
     val tipoCambio: String = "",
     val importeTotal: String = "",
+    var estado: String = "CONSULTADO",
     var isSelected: Boolean = false,
     val productos: List<ProductItem> = emptyList()
 )

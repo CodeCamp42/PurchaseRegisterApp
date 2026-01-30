@@ -7,9 +7,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
-import android.webkit.CookieManager
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,178 +31,18 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import com.example.purchaseregister.model.Invoice
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
-import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
 import com.example.purchaseregister.navigation.DetailRoute
-
-// --- 1. PERSISTENCIA: FUNCIONES PARA EL HASH ---
-//fun guardarSesionSunat(context: Context, hash: String) {
-//    val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
-//    prefs.edit().putString("sunat_hash", hash).apply()
-//}
-//
-//fun obtenerSesionSunat(context: Context): String? {
-//    val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
-//    return prefs.getString("sunat_hash", null)
-//}
-
-fun guardarRucSunat(context: Context, ruc: String) {
-    val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
-    prefs.edit().putString("sunat_ruc", ruc).apply()
-}
-
-fun guardarUsuarioSunat(context: Context, usuario: String) {
-    val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
-    prefs.edit().putString("sunat_usuario", usuario).apply()
-}
-
-fun guardarTokenSunat(context: Context, token: String) {
-    val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
-    prefs.edit().putString("sunat_token", token).apply()
-}
-
-fun obtenerTokenSunat(context: Context): String? {
-    val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
-    return prefs.getString("sunat_token", null)
-}
-
-fun obtenerRucSunat(context: Context): String? {
-    val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
-    return prefs.getString("sunat_ruc", null)
-}
-
-fun obtenerUsuarioSunat(context: Context): String? {
-    val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
-    return prefs.getString("sunat_usuario", null)
-}
-
-// --- 2. DIÁLOGO CON WEBVIEW PARA SUNAT ---
-@Composable
-fun SunatLoginDialog(
-    onDismiss: () -> Unit,
-    onLoginSuccess: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("CANCELAR", color = Color.Red)
-            }
-        },
-        text = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(500.dp)
-            ) {
-                AndroidView(factory = { context ->
-                    WebView(context).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-
-                        webViewClient = object : WebViewClient() {
-
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                super.onPageFinished(view, url)
-
-                                // 1) OBTENER COOKIES (AQUÍ ES EL PASO 1)
-                                val cookieManager = CookieManager.getInstance()
-                                val cookies = cookieManager.getCookie(url ?: "")
-
-                                val token = cookies?.split(";")
-                                    ?.map { it.trim() }
-                                    ?.firstOrNull { it.startsWith("ITMENUSESSION=") }
-                                    ?.split("=")
-                                    ?.get(1)
-
-                                println("TOKEN ITMENUSESSION: $token")
-
-                                if (!token.isNullOrEmpty()) {
-                                    guardarTokenSunat(context, token)
-                                }
-
-                                // 2) EJECUTAMOS JS PARA EXTRAER RUC Y USUARIO DEL DROPDOWN
-                                view?.evaluateJavascript(
-                                    """
-                                    (function () {
-                                        // 1) Abrir dropdown "Bienvenido..."
-                                        const menuButton = [...document.querySelectorAll('*')]
-                                            .find(el => el.innerText && el.innerText.includes('Bienvenido'));
-
-                                        if (menuButton) {
-                                            menuButton.click();
-                                        }
-
-                                        // 2) Extraer RUC y Usuario del menú desplegable
-                                        const items = document.querySelectorAll("ul.dropdown-menu li.dropdown-header strong");
-                                        let ruc = null;
-                                        let usuario = null;
-
-                                        items.forEach(el => {
-                                            const text = el.innerText.trim();
-
-                                            if (text.startsWith("RUC:")) {
-                                                ruc = text.replace("RUC:", "").trim();
-                                            }
-
-                                            if (text.startsWith("Usuario:")) {
-                                                usuario = text.replace("Usuario:", "").trim();
-                                            }
-                                        });
-
-                                        return JSON.stringify({ ruc, usuario });
-                                    })();
-                                    """
-                                ) { result ->
-
-                                    if (result != null && result != "null") {
-                                        try {
-                                            val clean = result
-                                                .removePrefix("\"")
-                                                .removeSuffix("\"")
-                                                .replace("\\\"", "\"")
-
-                                            val json = JSONObject(clean)
-
-                                            val ruc = json.optString("ruc", null)
-                                            val usuario = json.optString("usuario", null)
-
-                                            println("RUC OBTENIDO: $ruc")
-                                            println("USUARIO OBTENIDO: $usuario")
-
-                                            // Guardamos solo si hay RUC y Usuario reales
-                                            if (!ruc.isNullOrEmpty() && ruc.length == 11 && !usuario.isNullOrEmpty()) {
-                                                guardarRucSunat(context, ruc)
-                                                guardarUsuarioSunat(context, usuario)
-
-                                                Handler(Looper.getMainLooper())
-                                                    .postDelayed({
-                                                        onLoginSuccess()
-                                                    }, 500)
-                                            }
-
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        loadUrl(
-                            "https://api-seguridad.sunat.gob.pe/v1/clientessol/4f3b88b3-d9d6-402a-b85d-6a0bc857746a/oauth2/loginMenuSol?lang=es-PE&showDni=true&showLanguages=false&originalUrl=https://e-menu.sunat.gob.pe/cl-ti-itmenu/AutenticaMenuInternet.htm&state=rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcAUH2sHDFmDRAwACRgAKbG9hZEZhY3RvckkACXRocmVzaG9sZHhwP0AAAAAAAAx3CAAAABAAAAADdAADZXhlcHQABnBhcmFtc3QASyomKiYvY2wtdGktaXRtZW51L01lbnVJbnRlcm5ldC5odG0mYjY0ZDI2YThiNWFmMDkxOTIzYjIzYjY0MDdhMWMxZGI0MWU3MzNhNnQABGV4ZWNweA=="
-                        )
-                    }
-                })
-            }
-        }
-    )
-}
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.purchaseregister.viewmodel.InvoiceViewModel
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
+import com.example.purchaseregister.utils.SunatPrefs
+import com.example.purchaseregister.utils.SunatLoginDialog
 
 // --- FUNCIÓN AUXILIAR PARA FORMATEAR FECHA ---
 fun Long?.toFormattedDate(): String {
@@ -216,27 +53,52 @@ fun Long?.toFormattedDate(): String {
     format.timeZone = TimeZone.getTimeZone("UTC")
     return format.format(calendar.time)
 }
+val LongSaver = Saver<Long, Any>(
+    save = { it },
+    restore = { (it as? Long) ?: 0L }
+)
 
 enum class Section { COMPRAS, VENTAS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PurchaseDetailScreen(
+    viewModel: InvoiceViewModel,
     onComprasClick: () -> Unit,
     onVentasClick: () -> Unit,
     onNavigateToRegistrar: () -> Unit,
     onNavigateToDetalle: (DetailRoute) -> Unit
 ) {
+    println("🔄 [PurchaseDetailScreen] INICIO - Pantalla se está COMPONIENDO/RECREANDO")
     val context = LocalContext.current
     var sectionActive by remember { mutableStateOf(Section.COMPRAS) }
-    var isListVisible by remember { mutableStateOf(false) }
+    var isListVisible by rememberSaveable { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
-
-    // --- NUEVO ESTADO PARA EL LOGIN ---
     var showSunatLogin by remember { mutableStateOf(false) }
-
-    // --- ESTADOS PARA EL CALENDARIO ---
     var showDatePicker by remember { mutableStateOf(false) }
+    var hasLoadedSunatData by rememberSaveable {
+        mutableStateOf(SunatPrefs.getToken(context) != null)
+    }
+
+    var selectedStartMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var selectedEndMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+
+    LaunchedEffect(Unit) {
+        // Si hay token, asumimos que los datos están cargados
+        if (SunatPrefs.getToken(context) != null && !hasLoadedSunatData) {
+            hasLoadedSunatData = true
+            println("🔑 [PurchaseDetailScreen] Token encontrado, marcando datos como cargados")
+        }
+    }
+
+    LaunchedEffect(selectedStartMillis) {
+        if (selectedStartMillis != null && !isListVisible && hasLoadedSunatData) {
+            println("🔄 Mostrando lista automáticamente (fecha seleccionada: ${selectedStartMillis!!.toFormattedDate()})")
+            isListVisible = true
+        }
+    }
+
+
     val hoyMillis = remember {
         Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
             set(Calendar.HOUR_OF_DAY, 0)
@@ -245,60 +107,45 @@ fun PurchaseDetailScreen(
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
     }
-    var selectedDateRangeText by remember {
-        val fechaFormateada = hoyMillis.toFormattedDate()
-        // Como al inicio start y end son hoyMillis, solo mostramos una vez
-        mutableStateOf(fechaFormateada)
-    }
     val dateRangePickerState = rememberDateRangePickerState(
-        initialSelectedStartDateMillis = hoyMillis, initialSelectedEndDateMillis = hoyMillis
+        initialSelectedStartDateMillis = selectedStartMillis ?: hoyMillis,
+        initialSelectedEndDateMillis = selectedEndMillis ?: hoyMillis
     )
-
-    // 1. LISTA DE DATOS (Fake API)
-    val facturasCompras = remember {
-        mutableStateListOf<Invoice>().apply {
-            for (i in 1..10) {
-                add(
-                    Invoice(
-                        id = i,
-                        ruc = "2060123456$i",
-                        serie = "F001",
-                        numero = "$i",
-                        fechaEmision = "22/01/2026",
-                        razonSocial = "PROV COMPRAS $i",
-                        tipoDocumento = "FACTURA",
-                        moneda = "Dòlares (USD)",
-                        costoTotal = "100.00",
-                        igv = "18.00",
-                        importeTotal = "118.00",
-                        isSelected = false
-                    )
-                )
+    var selectedDateRangeText by remember(selectedStartMillis, selectedEndMillis) {
+        mutableStateOf(
+            if (selectedStartMillis != null) {
+                val startStr = selectedStartMillis!!.toFormattedDate()
+                val endStr = selectedEndMillis?.toFormattedDate() ?: startStr
+                if (startStr == endStr) startStr else "$startStr - $endStr"
+            } else {
+                hoyMillis.toFormattedDate()
             }
+        )
+    }
+
+    val facturasCompras by viewModel.facturasCompras.collectAsStateWithLifecycle()
+    val facturasVentas by viewModel.facturasVentas.collectAsStateWithLifecycle()
+
+    LaunchedEffect(facturasCompras) {
+        println("📊 [PurchaseDetailScreen] facturasCompras actualizadas: ${facturasCompras.size} elementos")
+        facturasCompras.take(3).forEach { factura ->  // Mostrar solo las primeras 3
+            println("📊 [PurchaseDetailScreen] Factura COMPRA: ID=${factura.id}, Estado=${factura.estado}")
         }
     }
 
-    val facturasVentas = remember {
-        mutableStateListOf<Invoice>().apply {
-            for (i in 1..8) {
-                add(
-                    Invoice(
-                        id = i,
-                        ruc = "1040987654$i",
-                        serie = "V001",
-                        numero = "$i",
-                        fechaEmision = "22/01/2026",
-                        razonSocial = "CLIENTE VENTAS $i",
-                        tipoDocumento = "FACTURA",
-                        moneda = "Soles (PEN)",
-                        costoTotal = "200.00",
-                        igv = "36.00",
-                        importeTotal = "236.00",
-                        isSelected = false
-                    )
-                )
-            }
+    LaunchedEffect(facturasVentas) {
+        println("📊 [PurchaseDetailScreen] facturasVentas actualizadas: ${facturasVentas.size} elementos")
+        facturasVentas.take(3).forEach { factura ->  // Mostrar solo las primeras 3
+            println("📊 [PurchaseDetailScreen] Factura VENTA: ID=${factura.id}, Estado=${factura.estado}")
         }
+    }
+
+    val facturasComprasMutable = remember(facturasCompras) {
+        facturasCompras.toMutableStateList()
+    }
+
+    val facturasVentasMutable = remember(facturasVentas) {
+        facturasVentas.toMutableStateList()
     }
 
     // --- LÓGICA DE FILTRADO ---
@@ -307,27 +154,25 @@ fun PurchaseDetailScreen(
     val listaFiltrada by remember(
         sectionActive,
         isListVisible,
-        listaActualBase.map { it.isSelected },
-        dateRangePickerState.selectedStartDateMillis,
-        dateRangePickerState.selectedEndDateMillis
+        selectedStartMillis,
+        selectedEndMillis,
+        hasLoadedSunatData
     ) {
         derivedStateOf {
+            if (!hasLoadedSunatData) return@derivedStateOf emptyList<Invoice>()
             if (!isListVisible) return@derivedStateOf emptyList<Invoice>()
-            val start = dateRangePickerState.selectedStartDateMillis
-            // Si el usuario solo marcó una fecha, 'end' será igual a 'start' para el filtro
-            val end = dateRangePickerState.selectedEndDateMillis ?: start
 
-            if (start != null && end != null) {
-                val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
-                    timeZone = TimeZone.getTimeZone("UTC")
-                }
-                listaActualBase.filter { factura ->
-                    val fechaFacturaTime = sdf.parse(factura.fechaEmision)?.time ?: 0L
-                    // Ahora el rango siempre es válido (ej. del 15 al 15)
-                    fechaFacturaTime in start..end
-                }
-            } else {
-                listaActualBase
+            // Usar las fechas guardadas, no las del DatePickerState
+            val start = selectedStartMillis ?: hoyMillis
+            val end = selectedEndMillis ?: start
+
+            val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+
+            listaActualBase.filter { factura ->
+                val fechaFacturaTime = sdf.parse(factura.fechaEmision)?.time ?: 0L
+                fechaFacturaTime in start..end
             }
         }
     }
@@ -344,6 +189,7 @@ fun PurchaseDetailScreen(
             onDismiss = { showSunatLogin = false },
             onLoginSuccess = {
                 showSunatLogin = false
+                hasLoadedSunatData = true
                 isLoading = true
 
                 // Simulamos que la App está bajando las facturas de SUNAT
@@ -358,41 +204,56 @@ fun PurchaseDetailScreen(
 
     // --- LÓGICA DEL DIÁLOGO DEL CALENDARIO ---
     if (showDatePicker) {
-        DatePickerDialog(onDismissRequest = { showDatePicker = false }, confirmButton = {
-            TextButton(onClick = {
-                val startMillis = dateRangePickerState.selectedStartDateMillis
-                val endMillis = dateRangePickerState.selectedEndDateMillis
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    // OBTENER FECHAS DEL PICKER
+                    val startMillisFromPicker = dateRangePickerState.selectedStartDateMillis
+                    val endMillisFromPicker = dateRangePickerState.selectedEndDateMillis
 
-                if (startMillis != null) {
-                    val startStr = startMillis.toFormattedDate()
-                    // Si el fin es nulo, asumimos que es el mismo día que el inicio
-                    val endStr = endMillis?.toFormattedDate() ?: startStr
+                    println("📅 [DATEPICKER] Fecha seleccionada - Start: $startMillisFromPicker, End: $endMillisFromPicker")
 
-                    selectedDateRangeText = if (startStr == endStr) {
-                        startStr
-                    } else {
-                        "$startStr - $endStr"
+                    if (startMillisFromPicker != null) {
+                        // ¡GUARDAR EN LAS VARIABLES!
+                        selectedStartMillis = startMillisFromPicker
+                        selectedEndMillis = endMillisFromPicker
+
+                        println("📅 [DATEPICKER] Fechas GUARDADAS en variables")
+
+                        // ACTUALIZAR TEXTO VISUAL
+                        val startStr = startMillisFromPicker.toFormattedDate()
+                        val endStr = endMillisFromPicker?.toFormattedDate() ?: startStr
+                        selectedDateRangeText = if (startStr == endStr) {
+                            startStr
+                        } else {
+                            "$startStr - $endStr"
+                        }
+                        println("📅 [DATEPICKER] Texto actualizado: $selectedDateRangeText")
                     }
+                    showDatePicker = false
+                }) {
+                    Text(
+                        text = "Aceptar",
+                        color = Color(0xFF1FB8B9),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                showDatePicker = false
-            }) {
-                Text(
-                    text = "Aceptar", color = Color(0xFF1FB8B9),
-                    fontWeight = FontWeight.Bold
-                )
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text(
+                        text = "Cancelar",
+                        color = Color(0xFFFF5A00),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
-        }, dismissButton = {
-            TextButton(onClick = { showDatePicker = false }) {
-                Text(
-                    text = "Cancelar", color = Color(0xFFFF5A00),
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }) {
+        ) {
             DateRangePicker(
                 state = dateRangePickerState,
                 title = { Text("Selecciona el rango", modifier = Modifier.padding(16.dp)) },
-                showModeToggle = false, // Esto quita el icono de edición de texto que a veces causa bugs de entrada
+                showModeToggle = false,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -473,10 +334,10 @@ fun PurchaseDetailScreen(
             ) {
                 CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
                     Checkbox(checked = isSelectAllChecked, onCheckedChange = { checked ->
-                        listaFiltrada.forEach { factura ->
-                            val index = listaActualBase.indexOfFirst { it.id == factura.id }
-                            if (index != -1) listaActualBase[index] =
-                                listaActualBase[index].copy(isSelected = checked)
+                        if (sectionActive == Section.COMPRAS) {
+                            viewModel.seleccionarTodasCompras(checked)
+                        } else {
+                            viewModel.seleccionarTodasVentas(checked)
                         }
                     })
                 }
@@ -678,11 +539,13 @@ fun PurchaseDetailScreen(
                                         Checkbox(
                                             checked = factura.isSelected,
                                             onCheckedChange = { checked ->
-                                                val index =
-                                                    listaActualBase.indexOfFirst { it.id == factura.id }
-                                                if (index != -1) listaActualBase[index] =
-                                                    listaActualBase[index].copy(isSelected = checked)
-                                            })
+                                                if (sectionActive == Section.COMPRAS) {
+                                                    viewModel.actualizarSeleccionCompras(factura.id, checked)
+                                                } else {
+                                                    viewModel.actualizarSeleccionVentas(factura.id, checked)
+                                                }
+                                            }
+                                        )
                                     }
                                     SimpleTableCell(factura.ruc, 120.dp)
                                     SimpleTableCell(factura.serie, 70.dp)
@@ -693,9 +556,14 @@ fun PurchaseDetailScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            "REGISTRADO",
+                                            factura.estado,
                                             fontSize = 10.sp,
-                                            color = Color(0xFF4CAF50),
+                                            color = when (factura.estado) {
+                                                "CONSULTADO" -> Color(0xFF2196F3)
+                                                "CON DETALLE" -> Color(0xFFFF5A00)
+                                                "REGISTRADO" -> Color(0xFF4CAF50)
+                                                else -> Color.Gray
+                                            },
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -706,6 +574,7 @@ fun PurchaseDetailScreen(
                                         TextButton(onClick = {
                                             onNavigateToDetalle(
                                                 DetailRoute(
+                                                    id = factura.id,
                                                     rucProveedor = factura.ruc,
                                                     serie = factura.serie,
                                                     numero = factura.numero,
@@ -717,7 +586,8 @@ fun PurchaseDetailScreen(
                                                     igv = factura.igv,
                                                     importeTotal = factura.importeTotal,
                                                     anio = factura.anio,
-                                                    tipoCambio = factura.tipoCambio
+                                                    tipoCambio = factura.tipoCambio,
+                                                    esCompra = (sectionActive == Section.COMPRAS)
                                                 )
                                             )
                                         }) {
@@ -771,14 +641,17 @@ fun PurchaseDetailScreen(
         ) {
             Button(
                 onClick = {
-                    val token = obtenerTokenSunat(context)
-                    val ruc = obtenerRucSunat(context)
-                    val usuario = obtenerUsuarioSunat(context)
+                    val token = SunatPrefs.getToken(context)
+                    val ruc = SunatPrefs.getRuc(context)
+                    val user = SunatPrefs.getUser(context)
 
-                    println("SUNAT DATA → RUC: $ruc | USUARIO: $usuario | TOKEN: $token")
+                    println("SUNAT DATA → RUC: $ruc | USUARIO: $user | TOKEN: $token")
                     if (token == null) {
                         showSunatLogin = true // Abre el WebView si no hay hash
                     } else {
+                        if (!hasLoadedSunatData) {
+                            hasLoadedSunatData = true
+                        }
                         isLoading = true
                         Handler(Looper.getMainLooper()).postDelayed({
                             isListVisible = true
@@ -837,8 +710,10 @@ fun SimpleTableCell(text: String, width: Dp) {
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun PurchaseScreenPreview() {
+    val viewModel: InvoiceViewModel = viewModel()
     // Usamos funciones vacías { } para el preview porque no necesitamos lógica aquí
     PurchaseDetailScreen(
+        viewModel = viewModel,
         onComprasClick = { },
         onVentasClick = { },
         onNavigateToRegistrar = { },

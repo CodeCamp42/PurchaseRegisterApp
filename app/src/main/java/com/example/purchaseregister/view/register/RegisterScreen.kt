@@ -38,7 +38,7 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
-import com.example.purchaseregister.view.puchase.obtenerRucSunat
+import com.example.purchaseregister.utils.SunatPrefs
 import java.util.concurrent.TimeUnit
 
 // FUNCIONES AUXILIARES OPTIMIZADAS
@@ -345,7 +345,7 @@ fun formatearMoneda(moneda: String): String {
 fun RegistroCompraScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     LaunchedEffect(Unit) {
-        val ruc = obtenerRucSunat(context)
+        val ruc = SunatPrefs.getRuc(context)
         if (ruc.isNullOrEmpty()) {
             Toast.makeText(
                 context,
@@ -526,7 +526,7 @@ fun RegistroCompraScreen(onBack: () -> Unit) {
                         costoTotal = limpiarMonto(json.optString("costo_total"))
                         igv = limpiarMonto(json.optString("igv"))
                         importeTotal = limpiarMonto(json.optString("importe_total"))
-                        rucPropio = obtenerRucSunat(context) ?: ""
+                        rucPropio = SunatPrefs.getRuc(context) ?: ""
 
                         // Procesar productos
                         listaProductos.clear()

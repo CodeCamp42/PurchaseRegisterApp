@@ -17,11 +17,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.purchaseregister.model.ProductoItem
 import com.example.purchaseregister.view.components.ReadOnlyField
-import com.example.purchaseregister.view.puchase.obtenerRucSunat
+import com.example.purchaseregister.utils.SunatPrefs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
+    id: Int,
     onBack: () -> Unit,
     rucProveedor: String?,
     serie: String?,
@@ -34,12 +35,17 @@ fun DetailScreen(
     costoTotal: String?,
     igv: String?,
     tipoCambio: String?,
-    importeTotal: String?
+    importeTotal: String?,
+    esCompra: Boolean = true,
+    onAceptar: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
+    println("🎯 [DetailScreen] ID recibido: $id")
+    println("🎯 [DetailScreen] esCompra: $esCompra")
+
     // 1. Obtiene el RUC del usuario logueado. Si es null, muestra vacío.
-    val rucPropio = remember { obtenerRucSunat(context) ?: "" }
+    val rucPropio = remember { SunatPrefs.getRuc(context) ?: "" }
 
     // 3. Lista de productos (puedes dejarla vacía o con un ítem base)
     val listaProductos = remember {
@@ -247,29 +253,31 @@ fun DetailScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // --- BOTONES FINALES ---
+            // --- BOTÓN ÚNICO ACEPTAR ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.Center
             ) {
                 Button(
-                    onClick = { /* Lógica Registrar */ },
+                    onClick = {
+                        println("🎯 [DetailScreen] Presionando ACEPTAR")
+                        println("🎯 [DetailScreen] ID de factura: $id")
+                        println("🎯 [DetailScreen] esCompra: $esCompra")
+                        // Llama a la función para cambiar el estado
+                        onAceptar()
+                        // Vuelve atrás
+                        onBack()
+                    },
                     modifier = Modifier
-                        .weight(1f)
+                        .width(200.dp)
                         .height(48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9)),
                     shape = MaterialTheme.shapes.medium
-                ) { Text("REGISTRAR", fontWeight = FontWeight.Bold) }
-
-                Button(
-                    onClick = { /* Lógica Editar */ },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Gray),
-                    shape = MaterialTheme.shapes.medium
-                ) { Text("EDITAR", fontWeight = FontWeight.Bold) }
+                ) {
+                    Text("ACEPTAR", fontWeight = FontWeight.Bold)
+                }
             }
+
             Spacer(modifier = Modifier.height(5.dp))
         }
     }
@@ -279,6 +287,7 @@ fun DetailScreen(
 @Composable
 fun DetailScreenPreview() {
     DetailScreen(
+        id = 1,
         onBack = { },
         rucProveedor = "20551234891",
         serie = "F001",
@@ -291,6 +300,7 @@ fun DetailScreenPreview() {
         costoTotal = "100.00",
         igv = "18.00",
         tipoCambio = "3.75",
-        importeTotal = "118.00"
+        importeTotal = "118.00",
+        esCompra = true
     )
 }
