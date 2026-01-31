@@ -1,7 +1,9 @@
 package com.example.purchaseregister.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.material3.Text // ← AÑADIR ESTE IMPORT
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.material3.Text
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -46,11 +48,19 @@ fun AppNavHost() {
             println("🎯 [AppNavHost] - ID: ${args.id}")
             println("🎯 [AppNavHost] - esCompra: ${args.esCompra}")
 
+            val facturasCompras = viewModel.facturasCompras.collectAsState()
+            val facturasVentas = viewModel.facturasVentas.collectAsState()
+
             // Buscar la factura completa en el ViewModel usando el ID
             val factura = if (args.esCompra) {
-                viewModel.facturasCompras.value.firstOrNull { it.id == args.id }
+                facturasCompras.value.firstOrNull { it.id == args.id }
             } else {
-                viewModel.facturasVentas.value.firstOrNull { it.id == args.id }
+                facturasVentas.value.firstOrNull { it.id == args.id }
+            }
+
+            LaunchedEffect(args.id, args.esCompra) {
+                println("🔄 [AppNavHost] Actualizando estado al ENTRAR al detalle")
+                viewModel.actualizarEstadoFactura(args.id, "CON DETALLE", args.esCompra)
             }
 
             if (factura != null) {
@@ -75,12 +85,7 @@ fun AppNavHost() {
                     esCompra = args.esCompra,
                     productos = factura.productos, // ← PASAR LISTA REAL DE PRODUCTOS
                     onAceptar = {
-                        println("✅ [AppNavHost] onAceptar llamado")
-                        println("✅ [AppNavHost] Actualizando factura ID: ${factura.id}")
-                        println("✅ [AppNavHost] Estado nuevo: CON DETALLE")
-                        println("✅ [AppNavHost] esCompra: ${args.esCompra}")
-                        // ¡AQUÍ ACTUALIZAMOS EL ESTADO!
-                        viewModel.actualizarEstadoFactura(factura.id, "CON DETALLE", args.esCompra)
+                        println("✅ [AppNavHost] Botón ACEPTAR presionado")
                     }
                 )
             } else {

@@ -578,10 +578,12 @@ fun PurchaseDetailScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         TextButton(onClick = {
+                                            val currentId = factura.id
+                                            val currentIsCompra = (sectionActive == Section.COMPRAS)
                                             onNavigateToDetalle(
                                                 DetailRoute(
                                                     id = factura.id,
-                                                    esCompra = (sectionActive == Section.COMPRAS)
+                                                    esCompra = currentIsCompra
                                                 )
                                             )
                                         }) {

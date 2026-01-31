@@ -33,7 +33,27 @@ data class SunatResponse(
 
 data class SunatResultado(
     val periodo: String,
-    val contenido: String
+    val contenido: List<ContenidoItem>
+)
+
+data class ContenidoItem(
+    val rucEmisor: String,
+    val razonSocialEmisor: String,
+    val periodo: String,
+    val carSunat: String,
+    val fechaEmision: String,
+    val tipoCP: String,
+    val serie: String,
+    val numero: String,
+    val tipoDocReceptor: String,
+    val nroDocReceptor: String,
+    val nombreReceptor: String,
+    val baseGravada: Double,
+    val igv: Double,
+    val montoNoGravado: Double,
+    val total: Double,
+    val moneda: String,
+    val estado: String
 )
 
 class InvoiceViewModel : ViewModel() {
@@ -68,7 +88,6 @@ class InvoiceViewModel : ViewModel() {
                 val response = sunatApiService.obtenerFacturas(periodoInicio, periodoFin)
 
                 if (response.success) {
-                    // 7. Parsear los datos del contenido
                     val facturas = parsearContenidoSunat(response.resultados)
 
                     if (esCompra) {
@@ -96,45 +115,95 @@ class InvoiceViewModel : ViewModel() {
         val facturas = mutableListOf<Invoice>()
         var idCounter = 1
 
+        // Obtener facturas existentes para preservar estados
+        val facturasExistentesCompras = _facturasCompras.value
+        val facturasExistentesVentas = _facturasVentas.value
+
+        // Combinar todas las facturas existentes
+        val todasFacturasExistentes = facturasExistentesCompras + facturasExistentesVentas
+
+        // Encontrar el máximo ID actual para continuar desde ahí
+        val maxIdActual = todasFacturasExistentes.maxOfOrNull { it.id } ?: 0
+        idCounter = maxIdActual + 1
+
         resultados.forEach { resultado ->
-            // El contenido tiene líneas separadas por saltos de línea
-            val lineas = resultado.contenido.split("\n")
-
-            // La primera línea son los encabezados, las siguientes son datos
-            if (lineas.size > 1) {
-                for (i in 1 until lineas.size) { // Empezar desde 1 para saltar encabezados
-                    val linea = lineas[i].trim()
-                    if (linea.isNotEmpty()) {
-                        val campos = linea.split("|")
-
-                        if (campos.size >= 25) { // Verificar que tenga los campos mínimos
-                            val factura = Invoice(
-                                id = idCounter++,
-                                ruc = campos.getOrElse(12) { "" }, // Nro Doc Identidad
-                                serie = campos.getOrElse(7) { "" }, // Serie del CDP
-                                numero = campos.getOrElse(9) { "" }, // Nro CP o Doc
-                                fechaEmision = campos.getOrElse(4) { "" }, // Fecha de emisión
-                                razonSocial = campos.getOrElse(13) { "" }, // Razón Social
-                                tipoDocumento = when(campos.getOrElse(6) { "" }) { // Tipo CP/Doc
-                                    "01" -> "FACTURA"
-                                    "03" -> "BOLETA"
-                                    else -> "DOCUMENTO"
-                                },
-                                moneda = campos.getOrElse(25) { "PEN" }, // Moneda
-                                costoTotal = campos.getOrElse(14) { "0.00" }, // BI Gravado DG
-                                igv = campos.getOrElse(15) { "0.00" }, // IGV / IPM DG
-                                importeTotal = campos.getOrElse(24) { "0.00" }, // Total CP
-                                estado = "CONSULTADO",
-                                isSelected = false
-                            )
-                            facturas.add(factura)
-                        }
-                    }
+            resultado.contenido.forEach { item ->
+                // Buscar si ya existe una factura con estos datos
+                val facturaExistente = todasFacturasExistentes.firstOrNull { factura ->
+                    factura.ruc == item.nroDocReceptor &&
+                            factura.serie == item.serie &&
+                            factura.numero == item.numero &&
+                            factura.fechaEmision == item.fechaEmision
                 }
+
+                val id = if (facturaExistente != null) {
+                    // Usar el ID existente
+                    facturaExistente.id
+                } else {
+                    // Crear nuevo ID
+                    idCounter++
+                }
+
+                val factura = Invoice(
+                    id = id,
+                    ruc = item.nroDocReceptor,
+                    serie = item.serie,
+                    numero = item.numero,
+                    fechaEmision = item.fechaEmision,
+                    razonSocial = item.nombreReceptor,
+                    tipoDocumento = when (item.tipoCP) {
+                        "01" -> "FACTURA"
+                        "03" -> "BOLETA"
+                        else -> "DOCUMENTO"
+                    },
+                    moneda = when (item.moneda) {
+                        "PEN" -> "Soles"
+                        "USD" -> "Dólares"
+                        else -> item.moneda
+                    },
+                    costoTotal = String.format("%.2f", item.baseGravada),
+                    igv = String.format("%.2f", item.igv),
+                    importeTotal = String.format("%.2f", item.total),
+                    estado = facturaExistente?.estado ?: "CONSULTADO",  // ← ¡USAR ESTADO EXISTENTE!
+                    isSelected = facturaExistente?.isSelected ?: false,  // ← ¡USAR SELECCIÓN EXISTENTE!
+                    // Si la factura existente tenía productos, preservarlos
+                    productos = facturaExistente?.productos ?: emptyList(),
+                    anio = facturaExistente?.anio ?: item.periodo.take(4),
+                    tipoCambio = facturaExistente?.tipoCambio ?: "3.75"
+                )
+                facturas.add(factura)
             }
         }
 
-        return facturas
+        return facturas.sortedBy { factura ->
+            try {
+                SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(factura.fechaEmision)?.time ?: 0L
+            } catch (e: Exception) {
+                0L
+            }
+        }
+    }
+
+    private fun encontrarIdExistente(item: ContenidoItem): Int? {
+        // Buscar en compras
+        val facturaExistenteCompras = _facturasCompras.value.firstOrNull { factura ->
+            factura.ruc == item.nroDocReceptor &&
+                    factura.serie == item.serie &&
+                    factura.numero == item.numero &&
+                    factura.fechaEmision == item.fechaEmision
+        }
+
+        if (facturaExistenteCompras != null) return facturaExistenteCompras.id
+
+        // Buscar en ventas
+        val facturaExistenteVentas = _facturasVentas.value.firstOrNull { factura ->
+            factura.ruc == item.nroDocReceptor &&
+                    factura.serie == item.serie &&
+                    factura.numero == item.numero &&
+                    factura.fechaEmision == item.fechaEmision
+        }
+
+        return facturaExistenteVentas?.id
     }
 
     fun agregarNuevaFacturaCompra(
@@ -231,6 +300,7 @@ class InvoiceViewModel : ViewModel() {
             }
         }
     }
+
     // Funciones para los checkboxes
     fun actualizarSeleccionCompras(id: Int, isSelected: Boolean) {
         println("🔄 [ViewModel] actualizarSeleccionCompras - ID: $id, Selected: $isSelected")

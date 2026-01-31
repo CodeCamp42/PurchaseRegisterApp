@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.example.purchaseregister.model.ProductItem
 import com.example.purchaseregister.view.components.ReadOnlyField
 import com.example.purchaseregister.utils.SunatPrefs
+import androidx.activity.compose.BackHandler
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,6 +43,11 @@ fun DetailScreen(
 ) {
     val context = LocalContext.current
 
+    BackHandler {
+        println("📱 [DetailScreen] BackHandler presionado (botón celular)")
+        onBack()
+    }
+
     println("🎯 [DetailScreen] ID recibido: $id")
     println("🎯 [DetailScreen] esCompra: $esCompra")
     println("🎯 [DetailScreen] Número de productos recibidos: ${productos.size}")
@@ -62,7 +68,12 @@ fun DetailScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Flecha de retroceso a la izquierda
-                IconButton(onClick = onBack) {
+                IconButton(
+                    onClick = {
+                        println("◀️ [DetailScreen] Icono flecha presionado")
+                        onBack()
+                    }
+                ) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = "Volver",
@@ -114,13 +125,7 @@ fun DetailScreen(
                     value = numero ?: "",
                     onValueChange = { },
                     label = "N°",
-                    modifier = Modifier.weight(1f)
-                )
-                ReadOnlyField(
-                    value = fecha ?: "",
-                    onValueChange = { },
-                    label = "Fecha Emisión",
-                    modifier = Modifier.weight(2.8f)
+                    modifier = Modifier.weight(2f)
                 )
             }
 
@@ -131,6 +136,12 @@ fun DetailScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ReadOnlyField(
+                    value = fecha ?: "",
+                    onValueChange = { },
+                    label = "Fecha Emisión",
+                    modifier = Modifier.weight(1.8f)
+                )
+                ReadOnlyField(
                     value = tipoDocumento ?: "",
                     onValueChange = { },
                     label = "Tipo de Documento",
@@ -140,7 +151,7 @@ fun DetailScreen(
                     value = anio ?: "",
                     onValueChange = { },
                     label = "Año",
-                    modifier = Modifier.weight(0.4f)
+                    modifier = Modifier.weight(1f)
                 )
             }
 
@@ -299,8 +310,6 @@ fun DetailScreen(
                         println("🎯 [DetailScreen] Presionando ACEPTAR")
                         println("🎯 [DetailScreen] ID de factura: $id")
                         println("🎯 [DetailScreen] esCompra: $esCompra")
-                        // Llama a la función para cambiar el estado
-                        onAceptar()
                         // Vuelve atrás
                         onBack()
                     },
