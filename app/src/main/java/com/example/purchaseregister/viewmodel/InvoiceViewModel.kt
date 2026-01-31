@@ -53,6 +53,7 @@ data class ContenidoItem(
     val montoNoGravado: Double,
     val total: Double,
     val moneda: String,
+    val tipodecambio: Double?,
     val estado: String
 )
 
@@ -144,6 +145,20 @@ class InvoiceViewModel : ViewModel() {
                     idCounter++
                 }
 
+                val tipoCambio = when {
+                    // Si hay tipodecambio del backend, usarlo formateado
+                    item.tipodecambio != null -> {
+                        // Si es 1.0, podría ser vacío para Soles
+                        if (item.moneda == "PEN" && item.tipodecambio == 1.0) {
+                            ""
+                        } else {
+                            String.format("%.2f", item.tipodecambio)
+                        }
+                    }
+                    // Si no hay, usar el existente o dejar vacío
+                    else -> facturaExistente?.tipoCambio ?: ""
+                }
+
                 val factura = Invoice(
                     id = id,
                     ruc = item.nroDocReceptor,
@@ -157,8 +172,8 @@ class InvoiceViewModel : ViewModel() {
                         else -> "DOCUMENTO"
                     },
                     moneda = when (item.moneda) {
-                        "PEN" -> "Soles"
-                        "USD" -> "Dólares"
+                        "PEN" -> "Soles (PEN)"
+                        "USD" -> "Dólares (USD)"
                         else -> item.moneda
                     },
                     costoTotal = String.format("%.2f", item.baseGravada),
@@ -169,7 +184,7 @@ class InvoiceViewModel : ViewModel() {
                     // Si la factura existente tenía productos, preservarlos
                     productos = facturaExistente?.productos ?: emptyList(),
                     anio = facturaExistente?.anio ?: item.periodo.take(4),
-                    tipoCambio = facturaExistente?.tipoCambio ?: "3.75"
+                    tipoCambio = tipoCambio
                 )
                 facturas.add(factura)
             }

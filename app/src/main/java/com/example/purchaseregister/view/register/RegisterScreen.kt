@@ -865,7 +865,7 @@ fun RegistroCompraScreen(
                         ReadOnlyField(
                             value = tipoCambio,
                             onValueChange = { tipoCambio = it },
-                            label = "T.C",
+                            label = "T. Cambio",
                             isReadOnly = !modoEdicion,
                             modifier = Modifier.weight(0.8f)
                         )

@@ -268,7 +268,7 @@ fun DetailScreen(
                 ReadOnlyField(
                     value = tipoCambio ?: "",
                     onValueChange = { },
-                    label = "T.C.",
+                    label = "T. Cambio",
                     modifier = Modifier.weight(1f)
                 )
             }
