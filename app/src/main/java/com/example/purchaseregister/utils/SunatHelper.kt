@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import org.json.JSONObject
+import android.util.Base64
 
 // --- PERSISTENCIA SUNAT ---
 object SunatPrefs {
@@ -23,6 +24,38 @@ object SunatPrefs {
     private const val KEY_RUC = "sunat_ruc"
     private const val KEY_USER = "sunat_usuario"
     private const val KEY_TOKEN = "sunat_token"
+    private const val KEY_COOKIES = "sunat_cookies"
+    private const val KEY_CLAVE_SOL = "sunat_clave_sol"
+
+    fun saveClaveSol(context: Context, claveSol: String) {
+        try {
+            // Cifrado simple Base64 de Android
+            val encrypted = Base64.encodeToString(claveSol.toByteArray(), Base64.NO_WRAP)
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_CLAVE_SOL, encrypted).apply()
+            println("🔐 Clave SOL guardada (cifrada)")
+        } catch (e: Exception) {
+            // Fallback: guardar sin cifrar (no recomendado en producción)
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_CLAVE_SOL, claveSol).apply()
+            println("⚠️ Clave SOL guardada sin cifrar")
+        }
+    }
+
+    // Obtener clave SOL descifrada
+    fun getClaveSol(context: Context): String? {
+        val encrypted = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_CLAVE_SOL, null)
+
+        return encrypted?.let {
+            try {
+                String(Base64.decode(it, Base64.NO_WRAP))
+            } catch (e: Exception) {
+                // Si no es Base64, devolver como está (texto plano)
+                it
+            }
+        }
+    }
 
     fun saveRuc(context: Context, ruc: String) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -39,6 +72,12 @@ object SunatPrefs {
             .edit().putString(KEY_TOKEN, token).apply()
     }
 
+    fun saveCookies(context: Context, cookies: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(KEY_COOKIES, cookies).apply()
+        println("🍪 Cookies guardadas (${cookies.length} chars)")
+    }
+
     fun getToken(context: Context): String? {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_TOKEN, null)
@@ -52,6 +91,22 @@ object SunatPrefs {
     fun getUser(context: Context): String? {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_USER, null)
+    }
+
+    fun getCookies(context: Context): String? {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_COOKIES, null)
+    }
+
+    fun clearAll(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .remove(KEY_RUC)
+            .remove(KEY_USER)
+            .remove(KEY_TOKEN)
+            .remove(KEY_COOKIES)
+            .apply()
+        println("🧹 [SunatPrefs] Todas las credenciales limpiadas")
     }
 }
 
@@ -106,14 +161,20 @@ private fun procesarCookiesYTokens(
     url: String?,
     onLoginSuccess: () -> Unit
 ) {
-    // 1. Obtener token de cookies
     val cookieManager = CookieManager.getInstance()
     val cookies = cookieManager.getCookie(url ?: "")
+
+    if (!cookies.isNullOrEmpty()) {
+        SunatPrefs.saveCookies(context, cookies)
+        println("🍪 [SunatHelper] Cookies guardadas: ${cookies.take(100)}...")
+    }
+
     val token = extractTokenFromCookies(cookies)
+    token?.let {
+        SunatPrefs.saveToken(context, it)
+        println("🔑 [SunatHelper] Token guardado: ${it.take(20)}...")
+    }
 
-    token?.let { SunatPrefs.saveToken(context, it) }
-
-    // 2. Extraer RUC y usuario via JavaScript
     view?.evaluateJavascript(EXTRACT_USER_SCRIPT) { result ->
         procesarResultadoJavaScript(context, result, onLoginSuccess)
     }

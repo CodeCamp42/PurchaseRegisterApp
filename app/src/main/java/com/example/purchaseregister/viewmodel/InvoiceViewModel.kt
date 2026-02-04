@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.purchaseregister.model.Invoice
 import com.example.purchaseregister.model.ProductItem
+import com.example.purchaseregister.utils.SunatPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,8 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Query
+import retrofit2.http.POST
+import retrofit2.http.Body
 
 interface SunatApiService {
     @GET("sunat/facturas")
@@ -23,22 +26,43 @@ interface SunatApiService {
         @Query("periodoFin") periodoFin: String
     ): SunatResponse
 
-    @GET("sunat/detalle-factura")
-    suspend fun obtenerDetalleFactura(
-        @Query("rucEmisor") rucEmisor: String,
-        @Query("serie") serie: String,
-        @Query("numero") numero: String
-    ): DetalleResponse
+    @POST("sunat/descargar-xml")
+    suspend fun obtenerDetalleFacturaXml(
+        @Body request: DetalleFacturaRequest
+    ): DetalleFacturaXmlResponse
 }
 
-data class DetalleResponse(
-    val success: Boolean,
-    val detalles: List<ProductoDetalle>
+data class DetalleFacturaRequest(
+    val rucEmisor: String,
+    val serie: String,
+    val numero: String,
+    val ruc: String,
+    val usuario_sol: String,
+    val clave_sol: String
 )
 
-data class ProductoDetalle(
+data class DetalleFacturaXmlResponse(
+    val id: String,
+    val fechaEmision: String?,
+    val horaEmision: String?,
+    val moneda: String?,
+    val emisor: EmisorResponse?,
+    val receptor: ReceptorResponse?,
+    val subtotal: Double?,
+    val igv: Double?,
+    val total: Double?,
+    val items: List<ItemResponse>?,
+    val archivoXml: String?
+)
+
+data class EmisorResponse(val ruc: String?, val nombre: String?)
+data class ReceptorResponse(val ruc: String?, val nombre: String?)
+
+data class ItemResponse(
+    val cantidad: Double,
+    val unidad: String,
+    val codigo: String?,
     val descripcion: String,
-    val cantidad: Int,
     val valorUnitario: Double
 )
 
@@ -97,6 +121,7 @@ class InvoiceViewModel : ViewModel() {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+    private val _rucEmisores = mutableMapOf<Int, String>()
 
     fun cargarFacturasDesdeAPI(periodoInicio: String, periodoFin: String, esCompra: Boolean = true) {
         viewModelScope.launch {
@@ -177,6 +202,8 @@ class InvoiceViewModel : ViewModel() {
                     else -> facturaExistente?.tipoCambio ?: ""
                 }
 
+                _rucEmisores[id] = item.rucEmisor
+
                 val factura = Invoice(
                     id = id,
                     ruc = item.nroDocReceptor,
@@ -217,67 +244,176 @@ class InvoiceViewModel : ViewModel() {
         }
     }
 
-    fun cargarDetalleFactura(rucEmisor: String, serie: String, numero: String) {
+    // Función para obtener los 4 datos del XML
+    fun cargarDetalleFacturaXml(
+        rucEmisor: String,
+        serie: String,
+        numero: String,
+        ruc: String,
+        usuarioSol: String,
+        claveSol: String,
+        facturaId: Int,
+        esCompra: Boolean
+    ) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // ESTO NO FUNCIONARÁ HASTA QUE EL SERVIDOR TENGA EL ENDPOINT
-                val detalle = sunatApiService.obtenerDetalleFactura(rucEmisor, serie, numero)
+                println("📤 [ViewModel] Enviando solicitud XML:")
+                println("📤 RUC Emisor: $rucEmisor")
+                println("📤 Serie: $serie, Número: $numero")
+                println("📤 RUC Receptor: $ruc")
+                println("📤 Usuario: $usuarioSol")
 
-                if (detalle.success) {
-                    // Convertir a ProductItem para tu pantalla
-                    val productos = detalle.detalles.map { det ->
+                val request = DetalleFacturaRequest(
+                    rucEmisor = rucEmisor,
+                    serie = serie,
+                    numero = numero,
+                    ruc = ruc,
+                    usuario_sol = usuarioSol,
+                    clave_sol = claveSol
+                )
+
+                println("📤 Request completo: $request")
+
+                val detalle = sunatApiService.obtenerDetalleFacturaXml(request)
+
+                println("📥 [ViewModel] Respuesta recibida del API:")
+                println("📥 ID: ${detalle.id}")
+                println("📥 Fecha: ${detalle.fechaEmision}")
+                println("📥 Moneda: ${detalle.moneda}")
+                println("📥 Emisor: ${detalle.emisor?.ruc} - ${detalle.emisor?.nombre}")
+                println("📥 Receptor: ${detalle.receptor?.ruc} - ${detalle.receptor?.nombre}")
+                println("📥 Subtotal: ${detalle.subtotal}")
+                println("📥 IGV: ${detalle.igv}")
+                println("📥 Total: ${detalle.total}")
+                println("📥 Número de items: ${detalle.items?.size ?: 0}")
+
+                detalle.items?.forEachIndexed { index, item ->
+                    println("📥 Item $index:")
+                    println("📥   Cantidad: ${item.cantidad}")
+                    println("📥   Unidad: ${item.unidad}")
+                    println("📥   Descripción: ${item.descripcion}")
+                    println("📥   Valor Unitario: ${item.valorUnitario}")
+                }
+
+                if (detalle.items != null && detalle.items.isNotEmpty()) {
+                    // Convertir los items a ProductItem
+                    val productos = detalle.items.map { item ->
                         ProductItem(
-                            descripcion = det.descripcion,
-                            cantidad = det.cantidad.toString(),
-                            costoUnitario = String.format("%.2f", det.valorUnitario)
+                            descripcion = item.descripcion,
+                            cantidad = item.cantidad.toString(),
+                            costoUnitario = String.format("%.2f", item.valorUnitario),
+                            unidadMedida = item.unidad
                         )
                     }
-                    // Aquí debes actualizar la factura correspondiente con estos productos
-                    println("✅ Detalles obtenidos: ${productos.size} productos")
+
+                    println("✅ [ViewModel] Productos convertidos: ${productos.size}")
+                    productos.forEachIndexed { index, producto ->
+                        println("✅   Producto $index: ${producto.descripcion}, ${producto.cantidad} ${producto.unidadMedida}, S/.${producto.costoUnitario}")
+                    }
+
+                    // Actualizar la factura con los productos
+                    actualizarProductosFactura(facturaId, productos, esCompra)
+
+                    println("✅ Detalles XML obtenidos: ${productos.size} productos")
+                } else {
+                    println("⚠️ El XML no contiene items")
+                    _errorMessage.value = "El XML no contiene detalles de productos"
                 }
             } catch (e: Exception) {
-                println("❌ Error obteniendo detalles: ${e.message}")
-                // Por ahora usa MOCK hasta que el servidor tenga el endpoint
-                usarDatosMock(rucEmisor, serie, numero)
+                println("❌ Error obteniendo detalles XML: ${e.message}")
+                _errorMessage.value = "Error al obtener detalles: ${e.message}"
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    // Función temporal con datos de ejemplo
-    private fun usarDatosMock(rucEmisor: String, serie: String, numero: String) {
-        val productosMock = listOf(
-            ProductItem(
-                descripcion = "Prima SOAT (07/01/2026-07/01/2027)",
-                costoUnitario = "42.37",
-                cantidad = "1"
-            )
-        )
-        println("📝 Usando datos MOCK para $serie-$numero")
+    // Función para actualizar una factura con sus productos
+    private fun actualizarProductosFactura(
+        facturaId: Int,
+        productos: List<ProductItem>,
+        esCompra: Boolean
+    ) {
+        viewModelScope.launch {
+            if (esCompra) {
+                _facturasCompras.update { lista ->
+                    lista.map { factura ->
+                        if (factura.id == facturaId) {
+                            factura.copy(productos = productos)
+                        } else {
+                            factura
+                        }
+                    }
+                }
+            } else {
+                _facturasVentas.update { lista ->
+                    lista.map { factura ->
+                        if (factura.id == facturaId) {
+                            factura.copy(productos = productos)
+                        } else {
+                            factura
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    private fun encontrarIdExistente(item: ContenidoItem): Int? {
-        // Buscar en compras
-        val facturaExistenteCompras = _facturasCompras.value.firstOrNull { factura ->
-            factura.ruc == item.nroDocReceptor &&
-                    factura.serie == item.serie &&
-                    factura.numero == item.numero &&
-                    factura.fechaEmision == item.fechaEmision
+    fun getRucEmisor(facturaId: Int): String? = _rucEmisores[facturaId]
+
+    fun cargarDetalleFacturaXmlConUsuario(
+        facturaId: Int,
+        esCompra: Boolean,
+        rucEmisor: String,
+        context: android.content.Context
+    ) {
+        val miRuc = SunatPrefs.getRuc(context)
+        val usuario = SunatPrefs.getUser(context)
+        val claveSol = SunatPrefs.getClaveSol(context)
+
+        println("🔍 [ViewModel] Datos para consulta XML:")
+        println("🔍 RUC (YO): $miRuc")
+        println("🔍 RUC Emisor recibido: $rucEmisor")  // ← Usa el que te pasan
+        println("🔍 Tipo operación: ${if (esCompra) "COMPRA" else "VENTA"}")
+        println("🔍 Usuario SOL: $usuario")
+
+        if (miRuc == null || usuario == null || claveSol == null) {
+            _errorMessage.value = "Complete sus credenciales SUNAT primero"
+            return
         }
 
-        if (facturaExistenteCompras != null) return facturaExistenteCompras.id
-
-        // Buscar en ventas
-        val facturaExistenteVentas = _facturasVentas.value.firstOrNull { factura ->
-            factura.ruc == item.nroDocReceptor &&
-                    factura.serie == item.serie &&
-                    factura.numero == item.numero &&
-                    factura.fechaEmision == item.fechaEmision
+        // Buscar serie y número de la factura
+        val factura = if (esCompra) {
+            _facturasCompras.value.firstOrNull { it.id == facturaId }
+        } else {
+            _facturasVentas.value.firstOrNull { it.id == facturaId }
         }
 
-        return facturaExistenteVentas?.id
+        if (factura == null) {
+            _errorMessage.value = "Factura no encontrada"
+            return
+        }
+
+        val rucReceptor = if (esCompra) miRuc else factura.ruc
+
+        println("🔍 [ViewModel] Enviando a API:")
+        println("🔍 RUC Emisor: $rucEmisor")
+        println("🔍 RUC Receptor: $rucReceptor")
+        println("🔍 Serie: ${factura.serie}")
+        println("🔍 Número: ${factura.numero}")
+
+        // Llamar a la función original
+        cargarDetalleFacturaXml(
+            rucEmisor = rucEmisor,
+            serie = factura.serie,
+            numero = factura.numero,
+            ruc = rucReceptor,
+            usuarioSol = usuario,
+            claveSol = claveSol,
+            facturaId = facturaId,
+            esCompra = esCompra
+        )
     }
 
     fun agregarNuevaFacturaCompra(
