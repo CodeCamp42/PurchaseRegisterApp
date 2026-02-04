@@ -64,14 +64,17 @@ fun AppNavHost() {
 
             println("🎯 [AppNavHost] Recibiendo DetailRoute: ID=${args.id}, esCompra=${args.esCompra}")
 
-            val facturasCompras = viewModel.facturasCompras.collectAsState()
-            val facturasVentas = viewModel.facturasVentas.collectAsState()
+            // ✅ OBSERVAR REACTIVAMENTE LOS CAMBIOS
+            val facturasCompras by viewModel.facturasCompras.collectAsState()
+            val facturasVentas by viewModel.facturasVentas.collectAsState()
 
-            // Buscar la factura
-            val factura = if (args.esCompra) {
-                facturasCompras.value.firstOrNull { it.id == args.id }
-            } else {
-                facturasVentas.value.firstOrNull { it.id == args.id }
+            // ✅ BUSCAR LA FACTURA REACTIVAMENTE (se actualiza cuando cambia el StateFlow)
+            val factura = remember(facturasCompras, facturasVentas, args.id, args.esCompra) {
+                if (args.esCompra) {
+                    facturasCompras.firstOrNull { it.id == args.id }
+                } else {
+                    facturasVentas.firstOrNull { it.id == args.id }
+                }
             }
 
             // Estado para el diálogo de clave SOL
@@ -79,7 +82,7 @@ fun AppNavHost() {
             var claveSolInput by remember { mutableStateOf("") }
 
             // CARGAR DETALLE XML SI NO TIENE PRODUCTOS Y TENEMOS CREDENCIALES
-            LaunchedEffect(args.id, args.esCompra, factura) {
+            LaunchedEffect(args.id, args.esCompra, factura?.productos?.isEmpty()) {
                 if (factura != null && factura.productos.isEmpty()) {
                     val ruc = SunatPrefs.getRuc(context)
                     val usuario = SunatPrefs.getUser(context)
@@ -95,7 +98,6 @@ fun AppNavHost() {
                             context = context
                         )
                     } else if (ruc != null && usuario != null) {
-                        // ❌ FALTA CLAVE SOL - Mostrar diálogo
                         println("⚠️ [AppNavHost] Faltan credenciales completas")
                         showClaveSolDialog = true
                     } else {

@@ -18,6 +18,9 @@ import retrofit2.http.GET
 import retrofit2.http.Query
 import retrofit2.http.POST
 import retrofit2.http.Body
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import java.util.concurrent.TimeUnit
 
 interface SunatApiService {
     @GET("sunat/facturas")
@@ -101,9 +104,23 @@ data class ContenidoItem(
 
 class InvoiceViewModel : ViewModel() {
 
+    private fun createOkHttpClient(): OkHttpClient {
+        val logging = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY // Ver REQUEST y RESPONSE completos
+        }
+
+        return OkHttpClient.Builder()
+            .addInterceptor(logging) // Agregar logging
+            .connectTimeout(90, TimeUnit.SECONDS) // 90 segundos para conectar
+            .readTimeout(90, TimeUnit.SECONDS)    // 90 segundos para leer respuesta
+            .writeTimeout(90, TimeUnit.SECONDS)   // 90 segundos para escribir
+            .build()
+    }
+
     private val retrofit = Retrofit.Builder()
         .baseUrl("http://192.168.1.39:3043/") // Cambia a tu URL real
         .addConverterFactory(GsonConverterFactory.create())
+        .client(createOkHttpClient())
         .build()
 
     private val sunatApiService = retrofit.create(SunatApiService::class.java)
@@ -335,16 +352,30 @@ class InvoiceViewModel : ViewModel() {
         productos: List<ProductItem>,
         esCompra: Boolean
     ) {
+        println("🔥 [ViewModel] actualizarProductosFactura INICIADO")
+        println("🔥 [ViewModel] facturaId: $facturaId")
+        println("🔥 [ViewModel] esCompra: $esCompra")
+        println("🔥 [ViewModel] productos.size: ${productos.size}")
         viewModelScope.launch {
             if (esCompra) {
+                println("🔥 [ViewModel] Lista ANTES de actualizar: ${_facturasCompras.value.size} facturas")
+                _facturasCompras.value.forEach { f ->
+                    println("🔥   Factura ID=${f.id}, productos=${f.productos.size}")
+                }
+
                 _facturasCompras.update { lista ->
                     lista.map { factura ->
                         if (factura.id == facturaId) {
+                            println("🔥 [ViewModel] ¡ENCONTRADA! Actualizando factura ID=$facturaId con ${productos.size} productos")
                             factura.copy(productos = productos)
                         } else {
                             factura
                         }
                     }
+                }
+                println("🔥 [ViewModel] Lista DESPUÉS de actualizar:")
+                _facturasCompras.value.forEach { f ->
+                    println("🔥   Factura ID=${f.id}, productos=${f.productos.size}")
                 }
             } else {
                 _facturasVentas.update { lista ->
@@ -395,20 +426,24 @@ class InvoiceViewModel : ViewModel() {
             return
         }
 
-        val rucReceptor = if (esCompra) miRuc else factura.ruc
+        val rucEmisorReal = _rucEmisores[facturaId] ?: miRuc
+
+        // Para COMPRAS:
+        // - rucEmisor debe ser el RUC del PROVEEDOR (factura.ruc)
+        // - ruc debe ser tu RUC (miRuc)
+        val rucEmisorParaAPI = if (esCompra) factura.ruc else miRuc
+        val rucReceptorParaAPI = if (esCompra) miRuc else factura.ruc
 
         println("🔍 [ViewModel] Enviando a API:")
-        println("🔍 RUC Emisor: $rucEmisor")
-        println("🔍 RUC Receptor: $rucReceptor")
-        println("🔍 Serie: ${factura.serie}")
-        println("🔍 Número: ${factura.numero}")
+        println("🔍 RUC Emisor: $rucEmisorParaAPI")
+        println("🔍 RUC Receptor: $rucReceptorParaAPI")
 
         // Llamar a la función original
         cargarDetalleFacturaXml(
-            rucEmisor = rucEmisor,
+            rucEmisor = rucEmisorParaAPI,
             serie = factura.serie,
             numero = factura.numero,
-            ruc = rucReceptor,
+            ruc = rucReceptorParaAPI,
             usuarioSol = usuario,
             claveSol = claveSol,
             facturaId = facturaId,

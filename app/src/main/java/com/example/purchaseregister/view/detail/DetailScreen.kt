@@ -52,6 +52,7 @@ fun DetailScreen(
             "MILIMETRO", "MILIMETROS", "MM", "MMS" -> "Mm"
             "PAQUETE", "PAQUETES", "PQ", "PQT", "PQTS" -> "Pq"
             "CAJA", "CAJAS", "CJ", "CJA", "CJAS" -> "Cj"
+            "GALON", "GALONES", "GAL", "GALS" -> "Gal"
             else -> if (unidad.isNotBlank()) unidad else ""
         }
 
@@ -134,19 +135,22 @@ fun DetailScreen(
                     value = rucPropio,
                     onValueChange = { },
                     label = "RUC Propio",
-                    modifier = Modifier.weight(2.8f)
+                    modifier = Modifier.weight(2.8f),
+                    textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
                     value = serie ?: "",
                     onValueChange = { },
                     label = "Serie",
-                    modifier = Modifier.weight(1.5f)
+                    modifier = Modifier.weight(1.5f),
+                    textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
                     value = numero ?: "",
                     onValueChange = { },
                     label = "N°",
-                    modifier = Modifier.weight(2f)
+                    modifier = Modifier.weight(2f),
+                    textAlign = TextAlign.Center
                 )
             }
 
@@ -160,19 +164,22 @@ fun DetailScreen(
                     value = fecha ?: "",
                     onValueChange = { },
                     label = "Fecha Emisión",
-                    modifier = Modifier.weight(1.8f)
+                    modifier = Modifier.weight(1.8f),
+                    textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
                     value = tipoDocumento ?: "",
                     onValueChange = { },
                     label = "Tipo de Documento",
-                    modifier = Modifier.weight(1.8f)
+                    modifier = Modifier.weight(1.8f),
+                    textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
                     value = anio ?: "",
                     onValueChange = { },
                     label = "Año",
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center
                 )
             }
 
@@ -190,6 +197,7 @@ fun DetailScreen(
                     modifier = Modifier
                         .weight(1.5f)
                         .fillMaxHeight(),
+                    textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
                     value = razonSocial ?: "",
@@ -218,7 +226,8 @@ fun DetailScreen(
                             label = if (index == 0) "Cant" else "",
                             modifier = Modifier
                                 .weight(1.2f)
-                                .fillMaxHeight()
+                                .fillMaxHeight(),
+                            textAlign = TextAlign.Center
                         )
                         ReadOnlyField(
                             value = producto.descripcion,
@@ -227,7 +236,8 @@ fun DetailScreen(
                             modifier = Modifier
                                 .weight(2.5f)
                                 .fillMaxHeight(),
-                            isSingleLine = false
+                            isSingleLine = false,
+                            textAlign = TextAlign.Center
                         )
                         ReadOnlyField(
                             value = producto.costoUnitario,
@@ -235,7 +245,8 @@ fun DetailScreen(
                             label = if (index == 0) "Costo Unit." else "",
                             modifier = Modifier
                                 .weight(1.2f)
-                                .fillMaxHeight()
+                                .fillMaxHeight(),
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
@@ -253,7 +264,8 @@ fun DetailScreen(
                         label = "Cant",
                         modifier = Modifier
                             .weight(1.2f)
-                            .fillMaxHeight()
+                            .fillMaxHeight(),
+                        textAlign = TextAlign.Center
                     )
                     ReadOnlyField(
                         value = "",
@@ -262,7 +274,8 @@ fun DetailScreen(
                         modifier = Modifier
                             .weight(2.5f)
                             .fillMaxHeight(),
-                        isSingleLine = false
+                        isSingleLine = false,
+                        textAlign = TextAlign.Center
                     )
                     ReadOnlyField(
                         value = "",
@@ -270,7 +283,8 @@ fun DetailScreen(
                         label = "Costo Unit.",
                         modifier = Modifier
                             .weight(1.2f)
-                            .fillMaxHeight()
+                            .fillMaxHeight(),
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -284,13 +298,15 @@ fun DetailScreen(
                     value = moneda ?: "",
                     onValueChange = { },
                     label = "Moneda",
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
                     value = tipoCambio ?: "",
                     onValueChange = { },
                     label = "T. Cambio",
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center
                 )
             }
 
@@ -303,19 +319,22 @@ fun DetailScreen(
                     value = costoTotal ?: "",
                     onValueChange = { },
                     label = "Costo Total",
-                    modifier = Modifier.weight(1.8f)
+                    modifier = Modifier.weight(1.8f),
+                    textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
                     value = igv ?: "",
                     onValueChange = { },
                     label = "IGV",
-                    modifier = Modifier.weight(1.5f)
+                    modifier = Modifier.weight(1.5f),
+                    textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
                     value = importeTotal ?: "",
                     onValueChange = { },
                     label = "IMPORTE TOTAL",
-                    modifier = Modifier.weight(2f)
+                    modifier = Modifier.weight(2f),
+                    textAlign = TextAlign.Center
                 )
             }
 
