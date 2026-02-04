@@ -6,5 +6,6 @@ import kotlinx.serialization.Serializable
 data class ProductItem(
     val descripcion: String,
     val costoUnitario: String,
-    val cantidad: String
+    val cantidad: String,
+    val unidadMedida: String = ""
 )

@@ -41,6 +41,27 @@ fun DetailScreen(
     productos: List<ProductItem> = emptyList(),
     onAceptar: () -> Unit = {}
 ) {
+    fun formatearUnidadMedida(cantidad: String, unidad: String): String {
+        val unidadFormateada = when (unidad.uppercase()) {
+            "KILO", "KILOS", "KILOGRAMO", "KILOGRAMOS", "KG", "KGS" -> "Kg"
+            "GRAMO", "GRAMOS", "GR", "GRS", "G" -> "Gr"
+            "LITRO", "LITROS", "L", "LT", "LTS" -> "Lt"
+            "UNIDAD", "UNIDADES", "UN", "UND", "UNDS" -> "UN"
+            "METRO", "METROS", "M", "MT", "MTS" -> "M"
+            "CENTIMETRO", "CENTIMETROS", "CM", "CMS" -> "Cm"
+            "MILIMETRO", "MILIMETROS", "MM", "MMS" -> "Mm"
+            "PAQUETE", "PAQUETES", "PQ", "PQT", "PQTS" -> "Pq"
+            "CAJA", "CAJAS", "CJ", "CJA", "CJAS" -> "Cj"
+            else -> if (unidad.isNotBlank()) unidad else ""
+        }
+
+        return if (unidadFormateada.isNotBlank()) {
+            "$cantidad $unidadFormateada"
+        } else {
+            cantidad
+        }
+    }
+
     val context = LocalContext.current
 
     BackHandler {
@@ -182,7 +203,7 @@ fun DetailScreen(
                 )
             }
 
-            // --- FILA 4: DESCRIPCIÓN, COSTO UNIT, CANTIDAD ---
+            // --- FILA 4: DESCRIPCIÓN GENERAL (DESC + UNIDAD + CANTIDAD), COSTO UNITARIO ---
             if (productos.isNotEmpty()) {
                 productos.forEachIndexed { index, producto ->
                     Row(
@@ -192,11 +213,19 @@ fun DetailScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         ReadOnlyField(
+                            value = formatearUnidadMedida(producto.cantidad, producto.unidadMedida),
+                            onValueChange = { },
+                            label = if (index == 0) "Cant" else "",
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .fillMaxHeight()
+                        )
+                        ReadOnlyField(
                             value = producto.descripcion,
                             onValueChange = { },
                             label = if (index == 0) "Descripción" else "",
                             modifier = Modifier
-                                .weight(3f)
+                                .weight(2.5f)
                                 .fillMaxHeight(),
                             isSingleLine = false
                         )
@@ -206,14 +235,6 @@ fun DetailScreen(
                             label = if (index == 0) "Costo Unit." else "",
                             modifier = Modifier
                                 .weight(1.2f)
-                                .fillMaxHeight()
-                        )
-                        ReadOnlyField(
-                            value = producto.cantidad,
-                            onValueChange = { },
-                            label = if (index == 0) "Cant." else "",
-                            modifier = Modifier
-                                .weight(0.8f)
                                 .fillMaxHeight()
                         )
                     }
@@ -229,9 +250,17 @@ fun DetailScreen(
                     ReadOnlyField(
                         value = "",
                         onValueChange = { },
+                        label = "Cant",
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .fillMaxHeight()
+                    )
+                    ReadOnlyField(
+                        value = "",
+                        onValueChange = { },
                         label = "Descripción",
                         modifier = Modifier
-                            .weight(3f)
+                            .weight(2.5f)
                             .fillMaxHeight(),
                         isSingleLine = false
                     )
@@ -241,14 +270,6 @@ fun DetailScreen(
                         label = "Costo Unit.",
                         modifier = Modifier
                             .weight(1.2f)
-                            .fillMaxHeight()
-                    )
-                    ReadOnlyField(
-                        value = "",
-                        onValueChange = { },
-                        label = "Cant.",
-                        modifier = Modifier
-                            .weight(0.8f)
                             .fillMaxHeight()
                     )
                 }
@@ -347,9 +368,12 @@ fun DetailScreenPreview() {
         tipoCambio = "3.75",
         importeTotal = "118.00",
         esCompra = true,
-        productos = listOf(  // ← AÑADE PRODUCTOS PARA EL PREVIEW
-            ProductItem("Laptop Dell", "850.00", "1"),
-            ProductItem("Mouse Inalámbrico", "25.00", "2")
+        productos = listOf(
+            ProductItem("Laptop Dell", "850.00", "3", "UN"),
+            ProductItem("Arroz Extra", "15.00", "30", "KG"),
+            ProductItem("Aceite Vegetal", "8.50", "5", "L"),
+            ProductItem("Tornillos", "0.50", "500", "GR"),
+            ProductItem("Cable HDMI", "12.00", "10", "UN")
         )
     )
 }

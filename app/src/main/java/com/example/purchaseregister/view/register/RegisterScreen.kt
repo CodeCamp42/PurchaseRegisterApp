@@ -348,6 +348,26 @@ fun RegistroCompraScreen(
     onBack: () -> Unit,
     viewModel: InvoiceViewModel
 ) {
+    fun formatearUnidadMedida(cantidad: String, unidad: String): String {
+        val unidadFormateada = when (unidad.uppercase()) {
+            "KILO", "KILOS", "KILOGRAMO", "KILOGRAMOS", "KG", "KGS" -> "Kg"
+            "GRAMO", "GRAMOS", "GR", "GRS", "G" -> "Gr"
+            "LITRO", "LITROS", "L", "LT", "LTS" -> "Lt"
+            "UNIDAD", "UNIDADES", "UN", "UND", "UNDS" -> "UN"
+            "METRO", "METROS", "M", "MT", "MTS" -> "M"
+            "CENTIMETRO", "CENTIMETROS", "CM", "CMS" -> "Cm"
+            "MILIMETRO", "MILIMETROS", "MM", "MMS" -> "Mm"
+            "PAQUETE", "PAQUETES", "PQ", "PQT", "PQTS" -> "Pq"
+            "CAJA", "CAJAS", "CJ", "CJA", "CJAS" -> "Cj"
+            else -> if (unidad.isNotBlank()) unidad else ""
+        }
+
+        return if (unidadFormateada.isNotBlank()) {
+            "$cantidad $unidadFormateada"
+        } else {
+            cantidad
+        }
+    }
     val context = LocalContext.current
     LaunchedEffect(Unit) {
         val ruc = SunatPrefs.getRuc(context)
@@ -451,6 +471,7 @@ fun RegistroCompraScreen(
             {
               "descripcion": "Nombre del producto",
               "cantidad": "Cantidad (solo números)",
+              "unidad_medida": "KG, L, UN, etc",
               "costo_unitario": "Precio unitario (solo números)"
             }
           ],
@@ -575,7 +596,8 @@ fun RegistroCompraScreen(
                                     ProductItem(
                                         p.optString("descripcion"),
                                         p.optString("costo_unitario"),
-                                        p.optString("cantidad")
+                                        p.optString("cantidad"),
+                                        unidadMedida = p.optString("unidad_medida")
                                     )
                                 )
                             }
@@ -813,6 +835,39 @@ fun RegistroCompraScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         ReadOnlyField(
+                            value = formatearUnidadMedida(producto.cantidad, producto.unidadMedida),
+                            onValueChange = { nuevoValor ->
+                                // Separar cantidad y unidad del texto ingresado
+                                val partes = nuevoValor.split(" ")
+                                val cantidad = partes.firstOrNull() ?: ""
+
+                                // Para reconstruir la unidad: tomar todo lo después del primer espacio
+                                val unidadRaw = if (partes.size > 1) partes.drop(1).joinToString(" ") else ""
+
+                                // Convertir la unidad ingresada a su versión formateada para almacenar
+                                val unidadParaAlmacenar = when (unidadRaw.uppercase().trim()) {
+                                    "KG", "KGS", "KILO", "KILOS" -> "KILOGRAMOS"
+                                    "L", "LT", "LTS", "LITRO", "LITROS" -> "LITROS"
+                                    "UN", "UND", "UNDS", "UNIDAD", "UNIDADES" -> "UNIDADES"
+                                    "GR", "GRS", "GRAMO", "GRAMOS" -> "GRAMOS"
+                                    "M", "MT", "MTS", "METRO", "METROS" -> "METROS"
+                                    "CM", "CMS", "CENTIMETRO", "CENTIMETROS" -> "CENTIMETROS"
+                                    "MM", "MMS", "MILIMETRO", "MILIMETROS" -> "MILIMETROS"
+                                    else -> unidadRaw
+                                }
+
+                                listaProductos[index] = producto.copy(
+                                    cantidad = cantidad,
+                                    unidadMedida = unidadParaAlmacenar
+                                )
+                            },
+                            label = if (index == 0) "Cant" else "",
+                            isReadOnly = !modoEdicion,
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .fillMaxHeight()
+                        )
+                        ReadOnlyField(
                             value = producto.descripcion,
                             onValueChange = { nuevaDesc ->
                                 listaProductos[index] = producto.copy(descripcion = nuevaDesc)
@@ -820,7 +875,7 @@ fun RegistroCompraScreen(
                             label = if (index == 0) "Descripción" else "",
                             isReadOnly = !modoEdicion,
                             modifier = Modifier
-                                .weight(3f)
+                                .weight(2.5f)
                                 .fillMaxHeight(),
                             isSingleLine = false
                         )
@@ -833,17 +888,6 @@ fun RegistroCompraScreen(
                             isReadOnly = !modoEdicion,
                             modifier = Modifier
                                 .weight(1.2f)
-                                .fillMaxHeight()
-                        )
-                        ReadOnlyField(
-                            value = producto.cantidad,
-                            onValueChange = { nuevaCant ->
-                                listaProductos[index] = producto.copy(cantidad = nuevaCant)
-                            },
-                            label = if (index == 0) "Cant." else "",
-                            isReadOnly = !modoEdicion,
-                            modifier = Modifier
-                                .weight(0.8f)
                                 .fillMaxHeight()
                         )
                     }

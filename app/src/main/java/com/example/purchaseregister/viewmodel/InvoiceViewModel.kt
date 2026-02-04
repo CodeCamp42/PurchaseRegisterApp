@@ -22,7 +22,25 @@ interface SunatApiService {
         @Query("periodoInicio") periodoInicio: String,
         @Query("periodoFin") periodoFin: String
     ): SunatResponse
+
+    @GET("sunat/detalle-factura")
+    suspend fun obtenerDetalleFactura(
+        @Query("rucEmisor") rucEmisor: String,
+        @Query("serie") serie: String,
+        @Query("numero") numero: String
+    ): DetalleResponse
 }
+
+data class DetalleResponse(
+    val success: Boolean,
+    val detalles: List<ProductoDetalle>
+)
+
+data class ProductoDetalle(
+    val descripcion: String,
+    val cantidad: Int,
+    val valorUnitario: Double
+)
 
 data class SunatResponse(
     val success: Boolean,
@@ -197,6 +215,47 @@ class InvoiceViewModel : ViewModel() {
                 0L
             }
         }
+    }
+
+    fun cargarDetalleFactura(rucEmisor: String, serie: String, numero: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                // ESTO NO FUNCIONARÁ HASTA QUE EL SERVIDOR TENGA EL ENDPOINT
+                val detalle = sunatApiService.obtenerDetalleFactura(rucEmisor, serie, numero)
+
+                if (detalle.success) {
+                    // Convertir a ProductItem para tu pantalla
+                    val productos = detalle.detalles.map { det ->
+                        ProductItem(
+                            descripcion = det.descripcion,
+                            cantidad = det.cantidad.toString(),
+                            costoUnitario = String.format("%.2f", det.valorUnitario)
+                        )
+                    }
+                    // Aquí debes actualizar la factura correspondiente con estos productos
+                    println("✅ Detalles obtenidos: ${productos.size} productos")
+                }
+            } catch (e: Exception) {
+                println("❌ Error obteniendo detalles: ${e.message}")
+                // Por ahora usa MOCK hasta que el servidor tenga el endpoint
+                usarDatosMock(rucEmisor, serie, numero)
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    // Función temporal con datos de ejemplo
+    private fun usarDatosMock(rucEmisor: String, serie: String, numero: String) {
+        val productosMock = listOf(
+            ProductItem(
+                descripcion = "Prima SOAT (07/01/2026-07/01/2027)",
+                costoUnitario = "42.37",
+                cantidad = "1"
+            )
+        )
+        println("📝 Usando datos MOCK para $serie-$numero")
     }
 
     private fun encontrarIdExistente(item: ContenidoItem): Int? {
