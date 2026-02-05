@@ -518,9 +518,15 @@ fun PurchaseDetailScreen(
                                         )
                                     }
 
+                                    val mensaje = when (facturasARegistrar.size) {
+                                        0 -> "No hay facturas con detalle para registrar"
+                                        1 -> "✅ Se ha registrado 1 factura exitosamente"
+                                        else -> "✅ Se han registrado ${facturasARegistrar.size} facturas exitosamente"
+                                    }
+
                                     Toast.makeText(
                                         context,
-                                        "✅ Se ha registrado ${facturasARegistrar.size} factura(s) exitosamente",
+                                        mensaje,
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 },

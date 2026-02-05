@@ -88,7 +88,7 @@ fun ReadOnlyField(
                     color = Color.Black
                 ),
                 singleLine = isSingleLine,
-                maxLines = if (isSingleLine) 1 else 3,
+                maxLines = if (isSingleLine) 1 else 8,
                 decorationBox = { innerTextField ->
                     // Permite centrar el texto
                     Box(

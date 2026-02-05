@@ -82,6 +82,14 @@ fun DetailScreen(
     // 1. Obtiene el RUC del usuario logueado. Si es null, muestra vacío.
     val rucPropio = remember { SunatPrefs.getRuc(context) ?: "" }
 
+    val esOperacionInafecta = igv?.toDoubleOrNull() == 0.0 && costoTotal?.toDoubleOrNull() == 0.0
+
+    val valorVentaInafecto = if (esOperacionInafecta) {
+        importeTotal ?: "0.00"
+    } else {
+        costoTotal ?: "0.00"
+    }
+
     Scaffold(
         topBar = {
             Row(
@@ -312,31 +320,57 @@ fun DetailScreen(
             }
 
             // --- FILA 6: COSTO TOTAL, IGV, IMPORTE TOTAL---
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ReadOnlyField(
-                    value = costoTotal ?: "",
-                    onValueChange = { },
-                    label = "Costo Total",
-                    modifier = Modifier.weight(1.8f),
-                    textAlign = TextAlign.Center
-                )
-                ReadOnlyField(
-                    value = igv ?: "",
-                    onValueChange = { },
-                    label = "IGV",
-                    modifier = Modifier.weight(1.5f),
-                    textAlign = TextAlign.Center
-                )
-                ReadOnlyField(
-                    value = importeTotal ?: "",
-                    onValueChange = { },
-                    label = "IMPORTE TOTAL",
-                    modifier = Modifier.weight(2f),
-                    textAlign = TextAlign.Center
-                )
+            if (esOperacionInafecta) {
+                // Para operaciones inafectas (sin IGV)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // VALOR VENTA INAFECTO
+                    ReadOnlyField(
+                        value = valorVentaInafecto,
+                        onValueChange = { },
+                        label = "VALOR VENTA INAFECTO",
+                        modifier = Modifier.weight(2f),
+                        textAlign = TextAlign.Center
+                    )
+                    // IMPORTE TOTAL
+                    ReadOnlyField(
+                        value = importeTotal ?: "",
+                        onValueChange = { },
+                        label = "IMPORTE TOTAL",
+                        modifier = Modifier.weight(2f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                // Para operaciones normales (con IGV)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ReadOnlyField(
+                        value = costoTotal ?: "",
+                        onValueChange = { },
+                        label = "Costo Total",
+                        modifier = Modifier.weight(1.8f),
+                        textAlign = TextAlign.Center
+                    )
+                    ReadOnlyField(
+                        value = igv ?: "",
+                        onValueChange = { },
+                        label = "IGV",
+                        modifier = Modifier.weight(1.5f),
+                        textAlign = TextAlign.Center
+                    )
+                    ReadOnlyField(
+                        value = importeTotal ?: "",
+                        onValueChange = { },
+                        label = "IMPORTE TOTAL",
+                        modifier = Modifier.weight(2f),
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
