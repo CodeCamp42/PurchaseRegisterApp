@@ -127,6 +127,12 @@ fun PurchaseDetailScreen(
             println("✅ [PurchaseDetailScreen] Registro completado exitosamente")
             registroStatus = "✅ Registro completado exitosamente"
 
+            if (sectionActive == Section.COMPRAS) {
+                viewModel.seleccionarTodasCompras(false)
+            } else {
+                viewModel.seleccionarTodasVentas(false)
+            }
+
             // Esperar 2 segundos y cerrar el diálogo
             Handler(Looper.getMainLooper()).postDelayed({
                 showRegistroDialog = false
@@ -262,7 +268,7 @@ fun PurchaseDetailScreen(
 
             println("🔍 [PurchaseDetailScreen] Filtradas: ${facturasFiltradas.size} de ${listaActualBase.size}")
 
-            facturasFiltradas.sortedBy { factura ->
+            facturasFiltradas.sortedByDescending { factura ->
                 try {
                     sdf.parse(factura.fechaEmision)?.time ?: 0L
                 } catch (e: Exception) {
@@ -292,15 +298,22 @@ fun PurchaseDetailScreen(
         facturasVentas
     ) {
         derivedStateOf {
-            listaFiltrada.filter { factura ->
+            listaFiltrada.filter { facturaFiltrada ->
+                // 1. Verificar si está seleccionada (obtener estado ACTUAL del ViewModel)
                 val estaSeleccionada = if (sectionActive == Section.COMPRAS) {
-                    facturasCompras.firstOrNull { it.id == factura.id }?.isSelected
-                        ?: false
+                    facturasCompras.firstOrNull { it.id == facturaFiltrada.id }?.isSelected ?: false
                 } else {
-                    facturasVentas.firstOrNull { it.id == factura.id }?.isSelected
-                        ?: false
+                    facturasVentas.firstOrNull { it.id == facturaFiltrada.id }?.isSelected ?: false
                 }
-                estaSeleccionada && factura.estado == "CON DETALLE"
+
+                // 2. Verificar el estado ACTUAL (no el de facturaFiltrada)
+                val estadoActual = if (sectionActive == Section.COMPRAS) {
+                    facturasCompras.firstOrNull { it.id == facturaFiltrada.id }?.estado ?: "CONSULTADO"
+                } else {
+                    facturasVentas.firstOrNull { it.id == facturaFiltrada.id }?.estado ?: "CONSULTADO"
+                }
+
+                estaSeleccionada && estadoActual == "CON DETALLE"  // ← Usar estadoActual
             }
         }
     }

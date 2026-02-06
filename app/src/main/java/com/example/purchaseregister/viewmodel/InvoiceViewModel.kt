@@ -19,10 +19,10 @@ import retrofit2.http.Query
 import retrofit2.http.POST
 import retrofit2.http.Body
 import retrofit2.http.Headers
+import retrofit2.http.Path
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit
-import java.util.Date
 import android.content.Context
 
 interface SunatApiService {
@@ -42,6 +42,11 @@ interface SunatApiService {
     suspend fun registrarFacturasEnBD(
         @Body request: RegistroFacturasRequest
     ): RegistroFacturasResponse
+
+    @GET("factura/{numeroComprobante}")
+    suspend fun verificarFacturaRegistrada(
+        @Path("numeroComprobante") numeroComprobante: String
+    ): FacturaRegistradaResponse
 }
 
 data class DetalleFacturaRequest(
@@ -148,6 +153,34 @@ data class ResultadoRegistro(
     val numeroComprobante: String
 )
 
+data class FacturaRegistradaResponse(
+    val idFactura: Int,
+    val numeroComprobante: String,
+    val fechaEmision: String,
+    val estado: String,
+    val proveedorRuc: String,
+    val costoTotal: String,
+    val igv: String,
+    val importeTotal: String,
+    val moneda: String,
+    val numero: String,
+    val serie: String,
+    val detalles: List<DetalleRegistrado>?,
+    val proveedor: ProveedorRegistrado?
+)
+
+data class DetalleRegistrado(
+    val descripcion: String,
+    val cantidad: String,
+    val costoUnitario: String,
+    val unidadMedida: String
+)
+
+data class ProveedorRegistrado(
+    val rucProveedor: String,
+    val razonSocial: String
+)
+
 class InvoiceViewModel : ViewModel() {
 
     private fun createOkHttpClient(): OkHttpClient {
@@ -164,7 +197,7 @@ class InvoiceViewModel : ViewModel() {
     }
 
     private val retrofit = Retrofit.Builder()
-        .baseUrl("http://192.168.1.85:3043/") // Cambia a tu URL real
+        .baseUrl("http://192.168.1.55:3043/") // Cambia a tu URL real
         .addConverterFactory(GsonConverterFactory.create())
         .client(createOkHttpClient())
         .build()
@@ -303,7 +336,7 @@ class InvoiceViewModel : ViewModel() {
     }
 
     // 9. Función para parsear el contenido del API
-    private fun parsearContenidoSunat(resultados: List<SunatResultado>): List<Invoice> {
+    private suspend fun parsearContenidoSunat(resultados: List<SunatResultado>): List<Invoice> {
         val facturas = mutableListOf<Invoice>()
         var idCounter = 1
 
@@ -320,12 +353,35 @@ class InvoiceViewModel : ViewModel() {
 
         resultados.forEach { resultado ->
             resultado.contenido.forEach { item ->
-                // Buscar si ya existe una factura con estos datos
+                val numeroComprobante = "${item.serie}-${item.numero}"
+                var estadoDesdeBD = "CONSULTADO"
+                var productosDesdeBD: List<ProductItem> = emptyList()
+                try {
+                    val facturaRegistrada = sunatApiService.verificarFacturaRegistrada(numeroComprobante)
+                    estadoDesdeBD = facturaRegistrada.estado
+
+                    // Si ya está registrada, cargar sus productos
+                    if (facturaRegistrada.estado == "REGISTRADO" && facturaRegistrada.detalles != null) {
+                        productosDesdeBD = facturaRegistrada.detalles.map { detalle ->
+                            ProductItem(
+                                descripcion = detalle.descripcion,
+                                cantidad = detalle.cantidad,
+                                costoUnitario = detalle.costoUnitario,
+                                unidadMedida = detalle.unidadMedida
+                            )
+                        }
+                    }
+                    println("✅ Factura $numeroComprobante ya está en BD con estado: $estadoDesdeBD")
+                } catch (e: Exception) {
+                    // Si da 404 u otro error, significa que no está registrada
+                    println("ℹ️ Factura $numeroComprobante no está registrada en BD aún")
+                }
+
+                // Buscar si ya existe en memoria
                 val facturaExistente = todasFacturasExistentes.firstOrNull { factura ->
                     factura.ruc == item.nroDocReceptor &&
                             factura.serie == item.serie &&
-                            factura.numero == item.numero &&
-                            factura.fechaEmision == item.fechaEmision
+                            factura.numero == item.numero
                 }
 
                 val id = if (facturaExistente != null) {
@@ -372,10 +428,9 @@ class InvoiceViewModel : ViewModel() {
                     costoTotal = String.format("%.2f", item.baseGravada),
                     igv = String.format("%.2f", item.igv),
                     importeTotal = String.format("%.2f", item.total),
-                    estado = facturaExistente?.estado ?: "CONSULTADO",  // ← ¡USAR ESTADO EXISTENTE!
-                    isSelected = facturaExistente?.isSelected ?: false,  // ← ¡USAR SELECCIÓN EXISTENTE!
-                    // Si la factura existente tenía productos, preservarlos
-                    productos = facturaExistente?.productos ?: emptyList(),
+                    estado = estadoDesdeBD,
+                    isSelected = facturaExistente?.isSelected ?: false,
+                    productos = productosDesdeBD,
                     anio = facturaExistente?.anio ?: item.periodo.take(4),
                     tipoCambio = tipoCambio
                 )
@@ -560,10 +615,23 @@ class InvoiceViewModel : ViewModel() {
             return
         }
 
+        if (factura.estado == "CON DETALLE" || factura.estado == "REGISTRADO") {
+            println("✅ [ViewModel] Factura ya tiene estado '${factura.estado}' - Mostrando datos existentes")
+            if (factura.productos.isNotEmpty()) {
+                println("✅ [ViewModel] Ya tiene ${factura.productos.size} productos cargados")
+                onLoadingComplete(true, "Detalles ya cargados")
+            } else {
+                println("⚠️ [ViewModel] Estado es '${factura.estado}' pero no tiene productos")
+                _errorMessage.value = "No hay detalles disponibles"
+                onLoadingComplete(false, "No hay detalles disponibles")
+            }
+            return
+        }
+
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Aquí puedes actualizar el estado a "PROCESANDO..." si quieres
+                // Solo actualizar a "PROCESANDO..." si realmente va a hacer scraping
                 actualizarEstadoFactura(facturaId, "PROCESANDO...", esCompra)
 
                 val rucEmisorParaAPI = if (esCompra) factura.ruc else miRuc
@@ -591,7 +659,17 @@ class InvoiceViewModel : ViewModel() {
                     }
 
                     actualizarProductosFactura(facturaId, productos, esCompra)
-                    actualizarEstadoFactura(facturaId, "CON DETALLE", esCompra)
+
+                    val estadoActual = if (esCompra) {
+                        _facturasCompras.value.firstOrNull { it.id == facturaId }?.estado
+                    } else {
+                        _facturasVentas.value.firstOrNull { it.id == facturaId }?.estado
+                    }
+
+                    // Solo cambiar a "CON DETALLE" si NO está "REGISTRADO"
+                    if (estadoActual != "REGISTRADO") {
+                        actualizarEstadoFactura(facturaId, "CON DETALLE", esCompra)
+                    }
 
                     onLoadingComplete(true, "Detalles obtenidos exitosamente")
                 } else {
@@ -628,6 +706,14 @@ class InvoiceViewModel : ViewModel() {
             println("📝 Razón Social=$razonSocial, Tipo Doc=$tipoDocumento")
             println("📝 Productos: ${productos.size} productos")
 
+            val estadoInicial = if (productos.isNotEmpty()) {
+                "CON DETALLE"
+            } else {
+                "CONSULTADO"
+            }
+
+            println("📝 Estado asignado: $estadoInicial")
+
             _facturasCompras.update { lista ->
                 // Generar un nuevo ID (máximo actual + 1)
                 val nuevoId = if (lista.isEmpty()) 1 else lista.maxOf { it.id } + 1
@@ -646,7 +732,7 @@ class InvoiceViewModel : ViewModel() {
                     igv = igv,
                     tipoCambio = tipoCambio,
                     importeTotal = importeTotal,
-                    estado = "CONSULTADO", // Estado inicial
+                    estado = estadoInicial, // Estado inicial
                     isSelected = false,
                     productos = productos // Por ahora vacío
                 )

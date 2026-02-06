@@ -165,12 +165,6 @@ fun AppNavHost() {
                 )
             }
 
-            // Actualizar estado de la factura
-            LaunchedEffect(args.id, args.esCompra) {
-                println("🔄 [AppNavHost] Actualizando estado al ENTRAR al detalle")
-                viewModel.actualizarEstadoFactura(args.id, "CON DETALLE", args.esCompra)
-            }
-
             if (factura != null) {
                 DetailScreen(
                     id = factura.id,

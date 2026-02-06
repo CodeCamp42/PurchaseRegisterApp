@@ -962,6 +962,14 @@ fun RegistroCompraScreen(
                                 return@Button
                             }
 
+                            println("🔄 [RegistroScreen] Enviando productos al ViewModel:")
+                            listaProductos.forEachIndexed { index, producto ->
+                                println("   Producto $index: ${producto.descripcion}, " +
+                                        "Cantidad=${producto.cantidad}, " +
+                                        "Unidad=${producto.unidadMedida}, " +
+                                        "Costo=${producto.costoUnitario}")
+                            }
+
                             // Agregar factura al ViewModel
                             viewModel.agregarNuevaFacturaCompra(
                                 ruc = rucProveedor,
@@ -976,12 +984,14 @@ fun RegistroCompraScreen(
                                 importeTotal = importeTotal,
                                 anio = if (esImportacion) anioImportacion else "",
                                 tipoCambio = tipoCambio,
-                                productos = listaProductos
+                                productos = listaProductos.filter {
+                                    it.descripcion.isNotBlank() && it.cantidad.isNotBlank()
+                                }
                             )
 
                             Toast.makeText(
                                 context,
-                                "✅ Factura registrada exitosamente",
+                                "✅ Factura listada exitosamente",
                                 Toast.LENGTH_LONG
                             ).show()
 
@@ -996,7 +1006,7 @@ fun RegistroCompraScreen(
                         enabled = fotoTomada && !isLoading
                     ) {
                         Text(
-                            text = if (isLoading) "PROCESANDO..." else "REGISTRAR",
+                            text = "REGISTRAR",
                             fontWeight = FontWeight.Bold
                         )
                     }
