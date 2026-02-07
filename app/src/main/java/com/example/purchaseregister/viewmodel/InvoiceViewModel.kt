@@ -1,6 +1,5 @@
 package com.example.purchaseregister.viewmodel
 
-import java.util.Locale
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.purchaseregister.model.Invoice
@@ -12,304 +11,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.GET
-import retrofit2.http.Query
-import retrofit2.http.POST
-import retrofit2.http.Body
-import retrofit2.http.Headers
-import retrofit2.http.Path
-import retrofit2.http.PUT
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
-import java.util.concurrent.TimeUnit
+import java.util.Locale
 import android.content.Context
-
-interface SunatApiService {
-    @GET("sunat/facturas")
-    suspend fun obtenerFacturas(
-        @Query("periodoInicio") periodoInicio: String,
-        @Query("periodoFin") periodoFin: String
-    ): SunatResponse
-
-    @POST("sunat/descargar-xml")
-    suspend fun obtenerDetalleFacturaXml(
-        @Body request: DetalleFacturaRequest
-    ): DetalleFacturaXmlResponse
-
-    @PUT("factura/scraping-completado/{numeroComprobante}")
-    @Headers("Content-Type: application/json")
-    suspend fun marcarScrapingCompletado(
-        @Path("numeroComprobante") numeroComprobante: String,
-        @Body request: ScrapingCompletadoRequest? = null
-    ): ScrapingCompletadoResponse
-
-    @POST("factura/guardar-productos/{numeroComprobante}")
-    @Headers("Content-Type: application/json")
-    suspend fun guardarProductosFactura(
-        @Path("numeroComprobante") numeroComprobante: String,
-        @Body request: GuardarProductosRequest
-    ): GuardarProductosResponse
-
-    @POST("factura/procesarFactura")
-    @Headers("Content-Type: application/json")
-    suspend fun registrarFacturasEnBD(
-        @Body request: RegistroFacturasRequest
-    ): RegistroFacturasResponse
-
-    @GET("factura/{numeroComprobante}")
-    suspend fun verificarFacturaRegistrada(
-        @Path("numeroComprobante") numeroComprobante: String
-    ): FacturaRegistradaResponse
-
-    @POST("factura/registrar-desde-sunat")
-    @Headers("Content-Type: application/json")
-    suspend fun registrarFacturaDesdeSunat(
-        @Body request: RegistrarFacturaDesdeSunatRequest
-    ): RegistrarFacturaDesdeSunatResponse
-
-    @GET("factura/ui/{numeroComprobante}")
-    suspend fun obtenerFacturaParaUI(
-        @Path("numeroComprobante") numeroComprobante: String
-    ): FacturaUIResponse
-
-    @GET("factura/ui/usuario/{usuarioId}")
-    suspend fun obtenerFacturasUsuarioParaUI(
-        @Path("usuarioId") usuarioId: String
-    ): FacturasUIResponse
-}
-
-// Nuevas clases de datos para productos
-data class ProductoRequest(
-    val descripcion: String,
-    val cantidad: Double,
-    val costoUnitario: Double,
-    val unidadMedida: String
-)
-
-data class GuardarProductosRequest(
-    val productos: List<ProductoRequest>
-)
-
-data class GuardarProductosResponse(
-    val success: Boolean,
-    val message: String,
-    val productosGuardados: Int,
-    val facturaId: Int?,
-    val estadoActualizado: Boolean?
-)
-
-data class ScrapingCompletadoRequest(
-    val productos: List<ProductoRequest>? = null
-)
-
-data class FacturaUIResponse(
-    val success: Boolean,
-    val message: String,
-    val factura: FacturaRegistradaResponse,
-    val nota: String
-)
-
-data class FacturasUIResponse(
-    val success: Boolean,
-    val message: String,
-    val count: Int,
-    val distribucionEstados: Map<String, Int>,
-    val facturas: List<FacturaRegistradaResponse>,
-    val nota: String
-)
-
-data class DetalleFacturaRequest(
-    val rucEmisor: String,
-    val serie: String,
-    val numero: String,
-    val ruc: String,
-    val usuario_sol: String,
-    val clave_sol: String
-)
-
-data class DetalleFacturaXmlResponse(
-    val id: String,
-    val fechaEmision: String?,
-    val horaEmision: String?,
-    val moneda: String?,
-    val emisor: EmisorResponse?,
-    val receptor: ReceptorResponse?,
-    val subtotal: Double?,
-    val igv: Double?,
-    val total: Double?,
-    val items: List<ItemResponse>?,
-    val archivoXml: String?
-)
-
-data class EmisorResponse(val ruc: String?, val nombre: String?)
-data class ReceptorResponse(val ruc: String?, val nombre: String?)
-
-data class ItemResponse(
-    val cantidad: Double,
-    val unidad: String,
-    val codigo: String?,
-    val descripcion: String,
-    val valorUnitario: Double
-)
-
-data class SunatResponse(
-    val success: Boolean,
-    val periodoInicio: String,
-    val periodoFin: String,
-    val resultados: List<SunatResultado>
-)
-
-data class SunatResultado(
-    val periodo: String,
-    val contenido: List<ContenidoItem>
-)
-
-data class ContenidoItem(
-    val rucEmisor: String,
-    val razonSocialEmisor: String,
-    val periodo: String,
-    val carSunat: String,
-    val fechaEmision: String,
-    val tipoCP: String,
-    val serie: String,
-    val numero: String,
-    val tipoDocReceptor: String,
-    val nroDocReceptor: String,
-    val nombreReceptor: String,
-    val baseGravada: Double,
-    val igv: Double,
-    val montoNoGravado: Double,
-    val total: Double,
-    val moneda: String,
-    val tipodecambio: Double?,
-    val estado: String
-)
-
-data class ProductoParaRegistrar(
-    val descripcion: String,
-    val cantidad: String,
-    val costoUnitario: String,
-    val unidadMedida: String
-)
-
-data class FacturaParaRegistrar(
-    val id: Int,
-    val rucEmisor: String,
-    val serie: String,
-    val numero: String,
-    val fechaEmision: String,
-    val razonSocial: String,
-    val tipoDocumento: String,
-    val moneda: String,
-    val costoTotal: String,
-    val igv: String,
-    val importeTotal: String,
-    val productos: List<ProductoParaRegistrar>
-)
-
-data class RegistroFacturasRequest(
-    val facturas: List<FacturaParaRegistrar>
-)
-
-data class RegistroFacturasResponse(
-    val message: String,
-    val resultados: List<ResultadoRegistro>
-)
-
-data class ResultadoRegistro(
-    val success: Boolean,
-    val id: Int,
-    val numeroComprobante: String
-)
-
-data class FacturaRegistradaResponse(
-    val idFactura: Int,
-    val numeroComprobante: String,
-    val fechaEmision: String,
-    val estado: String,
-    val proveedorRuc: String,
-    val costoTotal: String,
-    val igv: String,
-    val importeTotal: String,
-    val moneda: String,
-    val numero: String,
-    val serie: String,
-    val detalles: List<DetalleRegistrado>?,
-    val proveedor: ProveedorRegistrado?
-)
-
-data class DetalleRegistrado(
-    val descripcion: String,
-    val cantidad: String,
-    val costoUnitario: String,
-    val unidadMedida: String
-)
-
-data class ProveedorRegistrado(
-    val rucProveedor: String,
-    val razonSocial: String
-)
-
-data class ScrapingCompletadoResponse(
-    val message: String,
-    val timestamp: String,
-    val factura: FacturaScrapingResponse?,
-    val estado: String?,
-    val productosGuardados: Int?,
-    val advertencia: String?
-)
-
-data class FacturaScrapingResponse(
-    val idFactura: Int,
-    val numeroComprobante: String,
-    val estado: String
-)
-
-data class RegistrarFacturaDesdeSunatRequest(
-    val rucEmisor: String,
-    val serie: String,
-    val numero: String,
-    val fechaEmision: String,
-    val razonSocial: String,
-    val tipoDocumento: String,
-    val moneda: String,
-    val costoTotal: String,
-    val igv: String,
-    val importeTotal: String,
-    val usuarioId: Int = 1
-)
-
-data class RegistrarFacturaDesdeSunatResponse(
-    val success: Boolean,
-    val idFactura: Int?,
-    val numeroComprobante: String,
-    val message: String
-)
+import com.example.purchaseregister.api.RetrofitClient
+import com.example.purchaseregister.api.*
+import com.example.purchaseregister.api.requests.*
+import com.example.purchaseregister.api.responses.*
 
 class InvoiceViewModel : ViewModel() {
-
-    private fun createOkHttpClient(): OkHttpClient {
-        val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        }
-
-        return OkHttpClient.Builder()
-            .addInterceptor(logging)
-            .connectTimeout(90, TimeUnit.SECONDS)
-            .readTimeout(90, TimeUnit.SECONDS)
-            .writeTimeout(90, TimeUnit.SECONDS)
-            .build()
-    }
-
-    private val retrofit = Retrofit.Builder()
-        .baseUrl("http://192.168.1.76:3043/")
-        .addConverterFactory(GsonConverterFactory.create())
-        .client(createOkHttpClient())
-        .build()
-
-    private val sunatApiService = retrofit.create(SunatApiService::class.java)
+    private val apiService = RetrofitClient.sunatApiService
 
     private val _facturasCompras = MutableStateFlow<List<Invoice>>(emptyList())
     val facturasCompras: StateFlow<List<Invoice>> = _facturasCompras.asStateFlow()
@@ -339,8 +49,6 @@ class InvoiceViewModel : ViewModel() {
             _registroCompletado.value = false
 
             try {
-                println("📤 [ViewModel] Preparando ${facturas.size} facturas para registrar en BD...")
-
                 val facturasParaRegistrar = facturas.map { factura ->
                     FacturaParaRegistrar(
                         id = factura.id,
@@ -365,20 +73,14 @@ class InvoiceViewModel : ViewModel() {
                     )
                 }
 
-                println("📤 [ViewModel] Enviando ${facturasParaRegistrar.size} facturas a BD...")
-
                 val request = RegistroFacturasRequest(facturas = facturasParaRegistrar)
-                val response = sunatApiService.registrarFacturasEnBD(request)
+                val response = apiService.registrarFacturasEnBD(request)
 
                 val todosExitosos = response.resultados.all { it.success }
                 val facturasRegistradas = response.resultados.count { it.success }
 
                 if (todosExitosos) {
-                    println("✅ [ViewModel] Facturas registradas en BD: $facturasRegistradas")
-                    println("✅ Mensaje del servidor: ${response.message}")
-
                     response.resultados.forEach { resultado ->
-                        println("✅   Factura ${resultado.numeroComprobante} registrada con ID: ${resultado.id}")
                     }
 
                     facturas.forEach { factura ->
@@ -390,13 +92,11 @@ class InvoiceViewModel : ViewModel() {
                 } else {
                     val errores = response.resultados.filter { !it.success }
                     val errorMsg = "Algunas facturas no se pudieron registrar: ${errores.map { it.numeroComprobante }}"
-                    println("❌ [ViewModel] $errorMsg")
                     _errorMessage.value = errorMsg
                 }
 
             } catch (e: Exception) {
                 val errorMsg = "Error de conexión al registrar en BD: ${e.message}"
-                println("❌ [ViewModel] $errorMsg")
                 _errorMessage.value = errorMsg
             } finally {
                 _isLoading.value = false
@@ -414,7 +114,7 @@ class InvoiceViewModel : ViewModel() {
             _errorMessage.value = null
 
             try {
-                val response = sunatApiService.obtenerFacturas(periodoInicio, periodoFin)
+                val response = apiService.obtenerFacturas(periodoInicio, periodoFin)
 
                 if (response.success) {
                     val facturas = parsearContenidoSunat(response.resultados)
@@ -457,7 +157,7 @@ class InvoiceViewModel : ViewModel() {
                 var productosDesdeBD: List<ProductItem> = emptyList()
 
                 try {
-                    val facturaUI = sunatApiService.obtenerFacturaParaUI(numeroComprobante)
+                    val facturaUI = apiService.obtenerFacturaParaUI(numeroComprobante)
                     estadoDesdeBD = facturaUI.factura.estado
 
                     if (facturaUI.factura.detalles != null) {
@@ -469,12 +169,8 @@ class InvoiceViewModel : ViewModel() {
                                 unidadMedida = detalle.unidadMedida
                             )
                         }
-                        println("✅ Factura $numeroComprobante - Estado UI: $estadoDesdeBD, Productos: ${productosDesdeBD.size}")
-                    } else {
-                        println("✅ Factura $numeroComprobante - Estado UI: $estadoDesdeBD, Sin productos")
                     }
                 } catch (e: Exception) {
-                    println("ℹ️ Factura $numeroComprobante no está registrada en BD aún")
                 }
 
                 val facturaExistente = todasFacturasExistentes.firstOrNull { factura ->
@@ -554,12 +250,6 @@ class InvoiceViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                println("📤 [ViewModel] Enviando solicitud XML:")
-                println("📤 RUC Emisor: $rucEmisor")
-                println("📤 Serie: $serie, Número: $numero")
-                println("📤 RUC Receptor: $ruc")
-                println("📤 Usuario: $usuarioSol")
-
                 val request = DetalleFacturaRequest(
                     rucEmisor = rucEmisor,
                     serie = serie,
@@ -569,10 +259,7 @@ class InvoiceViewModel : ViewModel() {
                     clave_sol = claveSol
                 )
 
-                val detalle = sunatApiService.obtenerDetalleFacturaXml(request)
-
-                println("📥 [ViewModel] Respuesta recibida del API:")
-                println("📥 Número de items: ${detalle.items?.size ?: 0}")
+                val detalle = apiService.obtenerDetalleFacturaXml(request)
 
                 if (detalle.items != null && detalle.items.isNotEmpty()) {
                     val productos = detalle.items.map { item ->
@@ -584,17 +271,11 @@ class InvoiceViewModel : ViewModel() {
                         )
                     }
 
-                    println("✅ [ViewModel] Productos convertidos: ${productos.size}")
-
                     actualizarProductosFactura(facturaId, productos, esCompra)
-
-                    println("✅ Detalles XML obtenidos: ${productos.size} productos")
                 } else {
-                    println("⚠️ El XML no contiene items")
                     _errorMessage.value = "El XML no contiene detalles de productos"
                 }
             } catch (e: Exception) {
-                println("❌ Error obteniendo detalles XML: ${e.message}")
                 _errorMessage.value = "Error al obtener detalles: ${e.message}"
             } finally {
                 _isLoading.value = false
@@ -607,16 +288,11 @@ class InvoiceViewModel : ViewModel() {
         productos: List<ProductItem>,
         esCompra: Boolean
     ) {
-        println("🔥 [ViewModel] actualizarProductosFactura INICIADO")
-        println("🔥 [ViewModel] facturaId: $facturaId")
-        println("🔥 [ViewModel] productos.size: ${productos.size}")
-
         viewModelScope.launch {
             if (esCompra) {
                 _facturasCompras.update { lista ->
                     lista.map { factura ->
                         if (factura.id == facturaId) {
-                            println("🔥 [ViewModel] ¡ENCONTRADA! Actualizando factura ID=$facturaId con ${productos.size} productos")
                             factura.copy(productos = productos)
                         } else {
                             factura
@@ -639,7 +315,6 @@ class InvoiceViewModel : ViewModel() {
 
     fun getRucEmisor(facturaId: Int): String? = _rucEmisores[facturaId]
 
-    // MÉTODO PRINCIPAL MODIFICADO - CON GUARDADO DE PRODUCTOS
     fun cargarDetalleFacturaXmlConUsuario(
         facturaId: Int,
         esCompra: Boolean,
@@ -650,12 +325,6 @@ class InvoiceViewModel : ViewModel() {
         val miRuc = SunatPrefs.getRuc(context)
         val usuario = SunatPrefs.getUser(context)
         val claveSol = SunatPrefs.getClaveSol(context)
-
-        println("🔍 [ViewModel] Datos para consulta XML:")
-        println("🔍 RUC (YO): $miRuc")
-        println("🔍 RUC Emisor recibido: $rucEmisor")
-        println("🔍 Tipo operación: ${if (esCompra) "COMPRA" else "VENTA"}")
-        println("🔍 Usuario SOL: $usuario")
 
         if (miRuc == null || usuario == null || claveSol == null) {
             _errorMessage.value = "Complete sus credenciales SUNAT primero"
@@ -676,15 +345,11 @@ class InvoiceViewModel : ViewModel() {
         }
 
         val numeroComprobante = "${factura.serie}-${factura.numero}"
-        println("🔢 [ViewModel] Número comprobante: $numeroComprobante")
 
         if (factura.estado == "CON DETALLE" || factura.estado == "REGISTRADO") {
-            println("✅ [ViewModel] Factura ya tiene estado '${factura.estado}' - Mostrando datos existentes")
             if (factura.productos.isNotEmpty()) {
-                println("✅ [ViewModel] Ya tiene ${factura.productos.size} productos cargados")
                 onLoadingComplete(true, "Detalles ya cargados")
             } else {
-                println("⚠️ [ViewModel] Estado es '${factura.estado}' pero no tiene productos")
                 _errorMessage.value = "No hay detalles disponibles"
                 onLoadingComplete(false, "No hay detalles disponibles")
             }
@@ -694,13 +359,9 @@ class InvoiceViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // 1. Registrar la factura en BD si no existe
                 try {
-                    val facturaEnBD = sunatApiService.verificarFacturaRegistrada(numeroComprobante)
-                    println("✅ Factura ya está en BD con ID: ${facturaEnBD.idFactura}")
+                    val facturaEnBD = apiService.verificarFacturaRegistrada(numeroComprobante)
                 } catch (e: Exception) {
-                    println("⚠️ Factura no está en BD, registrándola...")
-
                     val registroRequest = RegistrarFacturaDesdeSunatRequest(
                         rucEmisor = rucEmisor,
                         serie = factura.serie,
@@ -715,16 +376,9 @@ class InvoiceViewModel : ViewModel() {
                         usuarioId = 1
                     )
 
-                    val registroResponse = sunatApiService.registrarFacturaDesdeSunat(registroRequest)
-
-                    if (registroResponse.success) {
-                        println("✅ Factura registrada en BD con ID: ${registroResponse.idFactura}")
-                    } else {
-                        println("⚠️ No se pudo registrar factura: ${registroResponse.message}")
-                    }
+                    val registroResponse = apiService.registrarFacturaDesdeSunat(registroRequest)
                 }
 
-                // 2. Actualizar estado local a "PROCESANDO..."
                 actualizarEstadoFactura(facturaId, "PROCESANDO...", esCompra)
 
                 val rucEmisorParaAPI = if (esCompra) factura.ruc else miRuc
@@ -739,8 +393,7 @@ class InvoiceViewModel : ViewModel() {
                     clave_sol = claveSol
                 )
 
-                // 3. Obtener XML con productos
-                val detalle = sunatApiService.obtenerDetalleFacturaXml(request)
+                val detalle = apiService.obtenerDetalleFacturaXml(request)
 
                 if (detalle.items != null && detalle.items.isNotEmpty()) {
                     val productos = detalle.items.map { item ->
@@ -752,11 +405,8 @@ class InvoiceViewModel : ViewModel() {
                         )
                     }
 
-                    // 4. Actualizar localmente
                     actualizarProductosFactura(facturaId, productos, esCompra)
-                    println("✅ [ViewModel] Productos actualizados localmente: ${productos.size}")
 
-                    // 5. Convertir a formato para backend
                     val productosParaGuardar = productos.map { producto ->
                         ProductoRequest(
                             descripcion = producto.descripcion,
@@ -766,48 +416,27 @@ class InvoiceViewModel : ViewModel() {
                         )
                     }
 
-                    println("📤 [ViewModel] Preparando ${productosParaGuardar.size} productos para guardar en BD...")
-
                     try {
-                        // OPCIÓN 1: Guardar productos directamente
-                        println("📤 [ViewModel] Guardando productos en BD...")
-                        val guardarProductosResponse = sunatApiService.guardarProductosFactura(
+                        val guardarProductosResponse = apiService.guardarProductosFactura(
                             numeroComprobante,
                             GuardarProductosRequest(productos = productosParaGuardar)
                         )
-
-                        if (guardarProductosResponse.success) {
-                            println("✅ [ViewModel] Productos guardados en BD: ${guardarProductosResponse.productosGuardados}")
-                        } else {
-                            println("⚠️ [ViewModel] Error al guardar productos: ${guardarProductosResponse.message}")
-                        }
                     } catch (e: Exception) {
-                        println("⚠️ [ViewModel] Error al guardar productos: ${e.message}")
                     }
 
                     try {
-                        // OPCIÓN 2: Marcar scraping como completado (con o sin productos)
-                        println("📤 [ViewModel] Marcando scraping como completado...")
-
                         val scrapingRequest = ScrapingCompletadoRequest(
                             productos = productosParaGuardar
                         )
 
-                        val respuestaBackend = sunatApiService.marcarScrapingCompletado(
+                        val respuestaBackend = apiService.marcarScrapingCompletado(
                             numeroComprobante,
                             scrapingRequest
                         )
-
-                        println("✅ [ViewModel] Backend confirmó: ${respuestaBackend.message}")
-                        println("✅ [ViewModel] Estado persistido: ${respuestaBackend.estado}")
-                        println("✅ [ViewModel] Productos guardados: ${respuestaBackend.productosGuardados ?: 0}")
-
                     } catch (e: Exception) {
-                        println("⚠️ [ViewModel] Error al marcar scraping: ${e.message}")
                         _errorMessage.value = "Detalles obtenidos, pero error al guardar en servidor"
                     }
 
-                    // 6. Actualizar estado local a "CON DETALLE"
                     val estadoActual = if (esCompra) {
                         _facturasCompras.value.firstOrNull { it.id == facturaId }?.estado
                     } else {
@@ -819,7 +448,6 @@ class InvoiceViewModel : ViewModel() {
                     }
 
                     onLoadingComplete(true, "Detalles obtenidos y guardados exitosamente")
-                    println("✅ [ViewModel] Proceso completado exitosamente")
 
                 } else {
                     _errorMessage.value = "El XML no contiene detalles de productos"
@@ -828,8 +456,6 @@ class InvoiceViewModel : ViewModel() {
             } catch (e: Exception) {
                 _errorMessage.value = "Error al obtener detalles: ${e.message}"
                 onLoadingComplete(false, "Error: ${e.message}")
-                println("❌ [ViewModel] Error: ${e.message}")
-                e.printStackTrace()
             } finally {
                 _isLoading.value = false
             }
@@ -852,16 +478,11 @@ class InvoiceViewModel : ViewModel() {
         productos: List<ProductItem> = emptyList()
     ) {
         viewModelScope.launch {
-            println("🆕 [ViewModel] Agregando nueva factura COMPRA...")
-            println("📝 Datos: RUC=$ruc, Serie=$serie, Número=$numero, Fecha=$fechaEmision")
-
             val estadoInicial = if (productos.isNotEmpty()) {
                 "CON DETALLE"
             } else {
                 "CONSULTADO"
             }
-
-            println("📝 Estado asignado: $estadoInicial")
 
             _facturasCompras.update { lista ->
                 val nuevoId = if (lista.isEmpty()) 1 else lista.maxOf { it.id } + 1
@@ -897,15 +518,11 @@ class InvoiceViewModel : ViewModel() {
     }
 
     fun actualizarEstadoFactura(facturaId: Int, nuevoEstado: String, esCompra: Boolean) {
-        println("🔄 [ViewModel] Llamando actualizarEstadoFactura")
-        println("🔄 [ViewModel] ID: $facturaId, Estado: '$nuevoEstado', esCompra: $esCompra")
-
         viewModelScope.launch {
             if (esCompra) {
                 _facturasCompras.update { lista ->
                     lista.map { factura ->
                         if (factura.id == facturaId) {
-                            println("✅ [ViewModel] Factura COMPRA actualizada: ID=${factura.id}")
                             factura.copy(estado = nuevoEstado)
                         } else {
                             factura
@@ -916,7 +533,6 @@ class InvoiceViewModel : ViewModel() {
                 _facturasVentas.update { lista ->
                     lista.map { factura ->
                         if (factura.id == facturaId) {
-                            println("✅ [ViewModel] Factura VENTA actualizada: ID=${factura.id}")
                             factura.copy(estado = nuevoEstado)
                         } else {
                             factura
@@ -928,12 +544,10 @@ class InvoiceViewModel : ViewModel() {
     }
 
     fun actualizarSeleccionCompras(id: Int, isSelected: Boolean) {
-        println("🔄 [ViewModel] actualizarSeleccionCompras - ID: $id, Selected: $isSelected")
         viewModelScope.launch {
             _facturasCompras.update { lista ->
                 lista.map { factura ->
                     if (factura.id == id) {
-                        println("✅ [ViewModel] Factura COMPRA actualizada: ID=${factura.id}, Selected=$isSelected")
                         factura.copy(isSelected = isSelected)
                     } else {
                         factura
@@ -944,12 +558,10 @@ class InvoiceViewModel : ViewModel() {
     }
 
     fun actualizarSeleccionVentas(id: Int, isSelected: Boolean) {
-        println("🔄 [ViewModel] actualizarSeleccionVentas - ID: $id, Selected: $isSelected")
         viewModelScope.launch {
             _facturasVentas.update { lista ->
                 lista.map { factura ->
                     if (factura.id == id) {
-                        println("✅ [ViewModel] Factura VENTA actualizada: ID=${factura.id}, Selected=$isSelected")
                         factura.copy(isSelected = isSelected)
                     } else {
                         factura
@@ -976,28 +588,6 @@ class InvoiceViewModel : ViewModel() {
                     factura.copy(isSelected = seleccionar)
                 }
             }
-        }
-    }
-
-    // Función para refrescar datos desde el backend
-    suspend fun refrescarDatosDesdeBackend(usuarioId: Int = 1) {
-        println("🔄 [ViewModel] Refrescando datos desde backend...")
-
-        try {
-            val response = sunatApiService.obtenerFacturasUsuarioParaUI(usuarioId.toString())
-
-            if (response.success) {
-                println("✅ [ViewModel] Datos refrescados: ${response.count} facturas")
-                println("✅ [ViewModel] Distribución: ${response.distribucionEstados}")
-
-                // Aquí puedes actualizar tu estado local con los datos del backend
-                // Por ahora solo logueamos la información
-                response.facturas.forEach { factura ->
-                    println("📋 Factura ${factura.numeroComprobante}: ${factura.estado}, Productos: ${factura.detalles?.size ?: 0}")
-                }
-            }
-        } catch (e: Exception) {
-            println("❌ [ViewModel] Error al refrescar datos: ${e.message}")
         }
     }
 }
