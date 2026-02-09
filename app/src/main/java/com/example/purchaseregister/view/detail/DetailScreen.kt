@@ -394,7 +394,7 @@ fun DetailScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9)),
                     shape = MaterialTheme.shapes.medium
                 ) {
-                    Text("ACEPTAR", fontWeight = FontWeight.Bold)
+                    Text("Regresar", fontWeight = FontWeight.Bold)
                 }
             }
 

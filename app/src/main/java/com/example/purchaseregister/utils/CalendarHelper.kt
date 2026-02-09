@@ -1,3 +1,4 @@
+// CalendarHelper.kt
 package com.example.purchaseregister.utils
 
 import androidx.compose.foundation.border
@@ -12,23 +13,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-// Función de extensión para formatear fechas
-fun Long?.toFormattedDate(): String {
-    if (this == null) return ""
-    val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-    calendar.timeInMillis = this
-    val format = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-    format.timeZone = TimeZone.getTimeZone("UTC")
-    return format.format(calendar.time)
-}
+// Constante para el huso horario de Perú
+val PERU_TIME_ZONE = TimeZone.getTimeZone("America/Lima")
 
-// Función auxiliar para obtener la fecha de hoy
-fun getHoyMillis(): Long {
-    return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+// Función para obtener fecha actual en Perú
+fun getHoyMillisPeru(): Long {
+    return Calendar.getInstance(PERU_TIME_ZONE).apply {
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
         set(Calendar.SECOND, 0)
@@ -36,22 +29,54 @@ fun getHoyMillis(): Long {
     }.timeInMillis
 }
 
-@Composable
-fun AutoShowListEffect(
-    selectedStartMillis: Long?,
-    isListVisible: Boolean,
-    hasLoadedSunatData: Boolean,
-    onShowList: () -> Unit
-) {
-    LaunchedEffect(selectedStartMillis) {
-        if (selectedStartMillis != null && !isListVisible && hasLoadedSunatData) {
-            println("🔄 Mostrando lista automáticamente (fecha seleccionada: ${selectedStartMillis.toFormattedDate()})")
-            onShowList()
-        }
-    }
+// Función de extensión para formatear fechas con huso horario de Perú
+fun Long?.toFormattedDatePeru(): String {
+    if (this == null) return ""
+    val calendar = Calendar.getInstance(PERU_TIME_ZONE)
+    calendar.timeInMillis = this
+    val format = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    format.timeZone = PERU_TIME_ZONE
+    return format.format(calendar.time)
 }
 
-// Clase SIMPLE para manejar solo el texto del rango de fechas
+// Función para obtener el primer día del mes en Perú
+fun getPrimerDiaMesPeru(millis: Long): Long {
+    val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
+        timeInMillis = millis
+        set(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    return calendar.timeInMillis
+}
+
+// Función para obtener el último día del mes en Perú
+fun getUltimoDiaMesPeru(millis: Long): Long {
+    val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
+        timeInMillis = millis
+        set(Calendar.DAY_OF_MONTH, 1)
+        add(Calendar.MONTH, 1)
+        add(Calendar.DAY_OF_MONTH, -1)
+        set(Calendar.HOUR_OF_DAY, 23)
+        set(Calendar.MINUTE, 59)
+        set(Calendar.SECOND, 59)
+        set(Calendar.MILLISECOND, 999)
+    }
+    return calendar.timeInMillis
+}
+
+// Función para obtener nombre del mes
+fun getNombreMesPeru(millis: Long): String {
+    val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
+        timeInMillis = millis
+    }
+    val format = SimpleDateFormat("MMMM yyyy", Locale("es", "ES"))
+    format.timeZone = PERU_TIME_ZONE
+    return format.format(calendar.time).replaceFirstChar { it.uppercase() }
+}
+
 @Composable
 fun DateRangeSelector(
     selectedStartMillis: Long?,
@@ -59,13 +84,29 @@ fun DateRangeSelector(
     onDateRangeClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val hoyMillis = getHoyMillis()
+    val hoyMillis = getHoyMillisPeru()
     val selectedDateRangeText = if (selectedStartMillis != null) {
-        val startStr = selectedStartMillis.toFormattedDate()
-        val endStr = selectedEndMillis?.toFormattedDate() ?: startStr
-        if (startStr == endStr) startStr else "$startStr - $endStr"
+        val startStr = selectedStartMillis.toFormattedDatePeru()
+        val endStr = selectedEndMillis?.toFormattedDatePeru() ?: startStr
+
+        // Verificar si es un mes completo
+        val primerDiaMes = getPrimerDiaMesPeru(selectedStartMillis)
+        val ultimoDiaMes = getUltimoDiaMesPeru(selectedStartMillis)
+
+        if (selectedStartMillis == primerDiaMes && selectedEndMillis == ultimoDiaMes) {
+            // Es un mes completo
+            getNombreMesPeru(selectedStartMillis)
+        } else if (startStr == endStr) {
+            // Es un solo día
+            startStr
+        } else {
+            // Es un rango
+            "$startStr - $endStr"
+        }
     } else {
-        hoyMillis.toFormattedDate()
+        // Mostrar mes actual por defecto
+        val primerDia = getPrimerDiaMesPeru(hoyMillis)
+        getNombreMesPeru(primerDia)
     }
 
     Surface(
@@ -78,7 +119,8 @@ fun DateRangeSelector(
         color = Color.White
     ) {
         Box(
-            contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize()
         ) {
             Text(
                 text = selectedDateRangeText,

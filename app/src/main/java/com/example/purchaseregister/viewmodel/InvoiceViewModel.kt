@@ -14,7 +14,6 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import android.content.Context
 import com.example.purchaseregister.api.RetrofitClient
-import com.example.purchaseregister.api.*
 import com.example.purchaseregister.api.requests.*
 import com.example.purchaseregister.api.responses.*
 
@@ -41,10 +40,13 @@ class InvoiceViewModel : ViewModel() {
     fun registrarFacturasEnBaseDeDatos(
         facturas: List<Invoice>,
         esCompra: Boolean,
-        context: Context
+        context: Context,
+        mostrarLoading: Boolean = true  // ← Añade este parámetro
     ) {
         viewModelScope.launch {
-            _isLoading.value = true
+            if (mostrarLoading) {  // ← Solo activar loading si se solicita
+                _isLoading.value = true
+            }
             _errorMessage.value = null
             _registroCompletado.value = false
 
@@ -81,6 +83,7 @@ class InvoiceViewModel : ViewModel() {
 
                 if (todosExitosos) {
                     response.resultados.forEach { resultado ->
+                        // Puedes dejar esto vacío o agregar logs si necesitas
                     }
 
                     facturas.forEach { factura ->
@@ -99,7 +102,9 @@ class InvoiceViewModel : ViewModel() {
                 val errorMsg = "Error de conexión al registrar en BD: ${e.message}"
                 _errorMessage.value = errorMsg
             } finally {
-                _isLoading.value = false
+                if (mostrarLoading) {  // ← Solo desactivar loading si se activó
+                    _isLoading.value = false
+                }
             }
         }
     }

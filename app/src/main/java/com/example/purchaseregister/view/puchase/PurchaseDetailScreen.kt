@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,26 +28,22 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.purchaseregister.viewmodel.InvoiceViewModel
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.Saver
 import com.example.purchaseregister.utils.*
 import com.example.purchaseregister.components.*
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.rememberCoroutineScope
-
-val LongSaver = Saver<Long, Any>(
-    save = { it },
-    restore = { (it as? Long) ?: 0L }
-)
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.Icon
+import kotlinx.coroutines.delay
 
 private fun convertirFechaAPeriodo(millis: Long): String {
-    val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+    val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
         timeInMillis = millis
     }
     val year = calendar.get(Calendar.YEAR)
-    val month = calendar.get(Calendar.MONTH) + 1 // Enero es 0
-
-    // Formato YYYYMM (ej: 202512 para diciembre 2025)
+    val month = calendar.get(Calendar.MONTH) + 1
     return "${year}${String.format("%02d", month)}"
 }
 
@@ -63,14 +58,13 @@ fun PurchaseDetailScreen(
     onNavigateToRegistrar: () -> Unit,
     onNavigateToDetalle: (DetailRoute) -> Unit
 ) {
-    println("🔄 [PurchaseDetailScreen] INICIO - Pantalla se está COMPONIENDO/RECREANDO")
     val context = LocalContext.current
 
     var sectionActive by remember { mutableStateOf(Section.COMPRAS) }
     var isListVisible by rememberSaveable { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var showSunatLogin by remember { mutableStateOf(false) }
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showCustomDatePicker by remember { mutableStateOf(false) }
     var hasLoadedSunatData by rememberSaveable {
         mutableStateOf(SunatPrefs.getToken(context) != null)
     }
@@ -83,38 +77,26 @@ fun PurchaseDetailScreen(
     var facturaCargandoId by remember { mutableStateOf<Int?>(null) }
     var esCompraCargando by remember { mutableStateOf(false) }
 
-    // ✅ NUEVAS VARIABLES PARA REGISTRO
-    var showRegistroDialog by remember { mutableStateOf(false) }
-    var registroStatus by remember { mutableStateOf("Registrando facturas en el sistema...") }
-    var registroDebugInfo by remember { mutableStateOf<String?>(null) }
-    var facturasRegistrando by remember { mutableStateOf<List<Invoice>>(emptyList()) }
-
-    // 🔴 IMPORTANTE: OBSERVAR ESTADOS DEL VIEWMODEL
     val isLoadingViewModel by viewModel.isLoading.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val facturasCompras by viewModel.facturasCompras.collectAsStateWithLifecycle()
     val facturasVentas by viewModel.facturasVentas.collectAsStateWithLifecycle()
-    val registroCompletado by viewModel.registroCompletado.collectAsStateWithLifecycle()
 
     var showClaveSolDialog by remember { mutableStateOf(false) }
     var claveSolInput by remember { mutableStateOf("") }
     var facturaParaDetalle by remember { mutableStateOf<Invoice?>(null) }
     var esCompraParaDetalle by remember { mutableStateOf(false) }
 
-    LaunchedEffect(isLoadingViewModel) {
-        // 1. Sincronizar isLoading para mostrar el loading en la tabla
-        isLoading = isLoadingViewModel
-        println("🔄 [PurchaseDetailScreen] Loading sincronizado: $isLoading")
+    var facturasConTimerActivo by remember { mutableStateOf<Set<Int>>(emptySet()) }
 
-        // 2. Manejar el diálogo de carga de detalles
-        // Cuando isLoadingViewModel cambia de true a false (terminó la carga)
+    LaunchedEffect(isLoadingViewModel) {
+        isLoading = isLoadingViewModel
+
         if (!isLoadingViewModel && showLoadingDialog) {
-            // Esperar un momento para mostrar el mensaje de éxito
             Handler(Looper.getMainLooper()).postDelayed({
                 showLoadingDialog = false
                 loadingDebugInfo = null
 
-                // Si tenemos una factura en proceso, navegar a su detalle
                 facturaCargandoId?.let { id ->
                     onNavigateToDetalle(
                         DetailRoute(
@@ -124,54 +106,64 @@ fun PurchaseDetailScreen(
                     )
                 }
                 facturaCargandoId = null
-            }, 1500) // 1.5 segundos para mostrar que terminó
+            }, 1500)
         }
     }
 
-    // Manejar el estado de registro
-    LaunchedEffect(registroCompletado) {
-        if (registroCompletado) {
-            println("✅ [PurchaseDetailScreen] Registro completado exitosamente")
-            registroStatus = "✅ Registro completado exitosamente"
+    LaunchedEffect(facturasCompras, facturasVentas) {
+        val todasLasFacturas = facturasCompras + facturasVentas
 
-            if (sectionActive == Section.COMPRAS) {
-                viewModel.seleccionarTodasCompras(false)
-            } else {
-                viewModel.seleccionarTodasVentas(false)
+        val facturasParaAutoRegistrar = todasLasFacturas.filter { factura ->
+            factura.estado == "CON DETALLE" && !facturasConTimerActivo.contains(factura.id)
+        }
+
+        facturasParaAutoRegistrar.forEach { factura ->
+            facturasConTimerActivo = facturasConTimerActivo + factura.id
+
+            launch {
+                delay(10000L)
+
+                val estadoActual = todasLasFacturas.firstOrNull { it.id == factura.id }?.estado
+
+                if (estadoActual == "CON DETALLE") {
+                    val esCompra = facturasCompras.any { it.id == factura.id }
+                    val listaFacturasParaRegistrar = listOf(factura)
+
+                    viewModel.registrarFacturasEnBaseDeDatos(
+                        facturas = listaFacturasParaRegistrar,
+                        esCompra = esCompra,
+                        context = context,
+                        mostrarLoading = false
+                    )
+
+                    viewModel.actualizarEstadoFactura(
+                        facturaId = factura.id,
+                        nuevoEstado = "REGISTRADO",
+                        esCompra = esCompra
+                    )
+
+                    Toast.makeText(
+                        context,
+                        "✅ Factura ${factura.serie}-${factura.numero} registrada automáticamente",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+
+                facturasConTimerActivo = facturasConTimerActivo - factura.id
             }
+        }
 
-            // Esperar 2 segundos y cerrar el diálogo
-            Handler(Looper.getMainLooper()).postDelayed({
-                showRegistroDialog = false
-                registroDebugInfo = null
-                facturasRegistrando = emptyList()
-                viewModel.resetRegistroCompletado()
-            }, 2000)
+        val facturasConDetalle = todasLasFacturas.filter { it.estado == "CON DETALLE" }.map { it.id }.toSet()
+        val timersParaLimpiar = facturasConTimerActivo.filter { !facturasConDetalle.contains(it) }
+        if (timersParaLimpiar.isNotEmpty()) {
+            facturasConTimerActivo = facturasConTimerActivo.filter { facturasConDetalle.contains(it) }.toSet()
         }
     }
 
-    // Manejar errores durante el registro
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let { mensaje ->
-            if (showRegistroDialog) {
-                registroStatus = "❌ Error: $mensaje"
-                // Esperar 3 segundos y cerrar
-                Handler(Looper.getMainLooper()).postDelayed({
-                    showRegistroDialog = false
-                    registroDebugInfo = null
-                    facturasRegistrando = emptyList()
-                    viewModel.limpiarError()
-                }, 3000)
-            }
-        }
-    }
-
-    // OBSERVAR ERRORES DURANTE LA CARGA
     LaunchedEffect(errorMessage) {
         errorMessage?.let { mensaje ->
             if (showLoadingDialog) {
                 loadingStatus = "Error: $mensaje"
-                // Esperar 3 segundos y cerrar
                 Handler(Looper.getMainLooper()).postDelayed({
                     showLoadingDialog = false
                     loadingDebugInfo = null
@@ -182,31 +174,27 @@ fun PurchaseDetailScreen(
         }
     }
 
-    // 🔴 AUTO-MOSTRAR LISTA CUANDO LLEGAN DATOS
     LaunchedEffect(facturasCompras, facturasVentas) {
         val totalFacturas = if (sectionActive == Section.COMPRAS) facturasCompras.size else facturasVentas.size
         if (totalFacturas > 0 && !isListVisible) {
             isListVisible = true
-            println("📊 [PurchaseDetailScreen] Mostrando lista automáticamente: $totalFacturas facturas")
         }
     }
 
     LaunchedEffect(Unit) {
-        // Si hay token, asumimos que los datos están cargados
         if (SunatPrefs.getToken(context) != null && !hasLoadedSunatData) {
             hasLoadedSunatData = true
-            println("🔑 [PurchaseDetailScreen] Token encontrado, marcando datos como cargados")
         }
     }
+
     LaunchedEffect(selectedStartMillis) {
         if (selectedStartMillis != null && !isListVisible && hasLoadedSunatData) {
-            println("🔄 Mostrando lista automáticamente (fecha seleccionada: ${selectedStartMillis!!.toFormattedDate()})")
             isListVisible = true
         }
     }
 
     val hoyMillis = remember {
-        Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        Calendar.getInstance(PERU_TIME_ZONE).apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
@@ -214,26 +202,6 @@ fun PurchaseDetailScreen(
         }.timeInMillis
     }
 
-    val dateRangePickerState = rememberDateRangePickerState(
-        initialSelectedStartDateMillis = selectedStartMillis ?: hoyMillis,
-        initialSelectedEndDateMillis = selectedEndMillis ?: hoyMillis
-    )
-
-    LaunchedEffect(facturasCompras) {
-        println("📊 [PurchaseDetailScreen] facturasCompras actualizadas: ${facturasCompras.size} elementos")
-        facturasCompras.take(3).forEach { factura ->  // Mostrar solo las primeras 3
-            println("📊 [PurchaseDetailScreen] Factura COMPRA: ID=${factura.id}, Estado=${factura.estado}")
-        }
-    }
-
-    LaunchedEffect(facturasVentas) {
-        println("📊 [PurchaseDetailScreen] facturasVentas actualizadas: ${facturasVentas.size} elementos")
-        facturasVentas.take(3).forEach { factura ->  // Mostrar solo las primeras 3
-            println("📊 [PurchaseDetailScreen] Factura VENTA: ID=${factura.id}, Estado=${factura.estado}")
-        }
-    }
-
-    // --- LÓGICA DE FILTRADO ---
     val listaActualBase = if (sectionActive == Section.COMPRAS) facturasCompras else facturasVentas
 
     val listaFiltrada by remember(
@@ -247,20 +215,17 @@ fun PurchaseDetailScreen(
     ) {
         derivedStateOf {
             if (!hasLoadedSunatData) {
-                println("⏳ [PurchaseDetailScreen] No hay datos SUNAT cargados")
                 return@derivedStateOf emptyList<Invoice>()
             }
             if (!isListVisible) {
-                println("👁️ [PurchaseDetailScreen] Lista no visible")
                 return@derivedStateOf emptyList<Invoice>()
             }
 
-            // Usar las fechas guardadas, no las del DatePickerState
             val start = selectedStartMillis ?: hoyMillis
             val end = selectedEndMillis ?: start
 
             val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
+                timeZone = PERU_TIME_ZONE
             }
 
             val facturasFiltradas = listaActualBase.filter { factura ->
@@ -268,12 +233,9 @@ fun PurchaseDetailScreen(
                     val fechaFacturaTime = sdf.parse(factura.fechaEmision)?.time ?: 0L
                     fechaFacturaTime in start..end
                 } catch (e: Exception) {
-                    println("⚠️ [PurchaseDetailScreen] Error parseando fecha: ${factura.fechaEmision}")
                     false
                 }
             }
-
-            println("🔍 [PurchaseDetailScreen] Filtradas: ${facturasFiltradas.size} de ${listaActualBase.size}")
 
             facturasFiltradas.sortedByDescending { factura ->
                 try {
@@ -285,60 +247,13 @@ fun PurchaseDetailScreen(
         }
     }
 
-    val isSelectAllChecked by remember(sectionActive, listaFiltrada) {
-        derivedStateOf {
-            listaFiltrada.isNotEmpty() && listaFiltrada.all { factura ->
-                // Obtener el estado actual desde el ViewModel
-                if (sectionActive == Section.COMPRAS) {
-                    facturasCompras.firstOrNull { it.id == factura.id }?.isSelected ?: false
-                } else {
-                    facturasVentas.firstOrNull { it.id == factura.id }?.isSelected ?: false
-                }
-            }
-        }
-    }
-
-    val facturasARegistrar by remember(
-        sectionActive,
-        listaFiltrada,
-        facturasCompras,
-        facturasVentas
-    ) {
-        derivedStateOf {
-            listaFiltrada.filter { facturaFiltrada ->
-                // 1. Verificar si está seleccionada (obtener estado ACTUAL del ViewModel)
-                val estaSeleccionada = if (sectionActive == Section.COMPRAS) {
-                    facturasCompras.firstOrNull { it.id == facturaFiltrada.id }?.isSelected ?: false
-                } else {
-                    facturasVentas.firstOrNull { it.id == facturaFiltrada.id }?.isSelected ?: false
-                }
-
-                // 2. Verificar el estado ACTUAL (no el de facturaFiltrada)
-                val estadoActual = if (sectionActive == Section.COMPRAS) {
-                    facturasCompras.firstOrNull { it.id == facturaFiltrada.id }?.estado ?: "CONSULTADO"
-                } else {
-                    facturasVentas.firstOrNull { it.id == facturaFiltrada.id }?.estado ?: "CONSULTADO"
-                }
-
-                estaSeleccionada && estadoActual == "CON DETALLE"  // ← Usar estadoActual
-            }
-        }
-    }
-
-    val hayFacturasParaRegistrar by remember {
-        derivedStateOf { facturasARegistrar.isNotEmpty() }
-    }
-
-    // --- DIÁLOGO DEL WEBVIEW ---
     if (showSunatLogin) {
         SunatLoginDialog(
             onDismiss = { showSunatLogin = false },
             onLoginSuccess = {
                 showSunatLogin = false
                 hasLoadedSunatData = true
-                println("✅ [PurchaseDetailScreen] Login SUNAT exitoso")
 
-                // 🔴 AHORA CARGAMOS DATOS REALES DESPUÉS DEL LOGIN
                 val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
                 val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
 
@@ -355,51 +270,22 @@ fun PurchaseDetailScreen(
         )
     }
 
-    // --- LÓGICA DEL DIÁLOGO DEL CALENDARIO ---
-    if (showDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    // OBTENER FECHAS DEL PICKER
-                    val startMillisFromPicker = dateRangePickerState.selectedStartDateMillis
-                    val endMillisFromPicker = dateRangePickerState.selectedEndDateMillis
-
-                    println("📅 [DATEPICKER] Fecha seleccionada - Start: $startMillisFromPicker, End: $endMillisFromPicker")
-
-                    if (startMillisFromPicker != null) {
-                        // ¡GUARDAR EN LAS VARIABLES!
-                        selectedStartMillis = startMillisFromPicker
-                        selectedEndMillis = endMillisFromPicker
-
-                        println("📅 [DATEPICKER] Fechas GUARDADAS en variables")
-                    }
-                    showDatePicker = false
-                }) {
-                    Text(
-                        text = "Aceptar",
-                        color = Color(0xFF1FB8B9),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+    if (showCustomDatePicker) {
+        CustomDatePickerDialog(
+            onDismiss = { showCustomDatePicker = false },
+            onPeriodoSelected = { inicio, fin ->
+                selectedStartMillis = inicio
+                selectedEndMillis = fin
+                showCustomDatePicker = false
             },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text(
-                        text = "Cancelar",
-                        color = Color(0xFFFF5A00),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        ) {
-            DateRangePicker(
-                state = dateRangePickerState,
-                title = { Text("Selecciona el rango", modifier = Modifier.padding(16.dp)) },
-                showModeToggle = false,
-                modifier = Modifier.weight(1f)
-            )
-        }
+            onRangoSelected = { inicio, fin ->
+                selectedStartMillis = inicio
+                selectedEndMillis = fin
+                showCustomDatePicker = false
+            },
+            initialStartMillis = selectedStartMillis,
+            initialEndMillis = selectedEndMillis
+        )
     }
 
     Column(
@@ -418,19 +304,6 @@ fun PurchaseDetailScreen(
                 loadingDebugInfo = null
                 facturaCargandoId = null
             }
-        )
-
-        FacturaLoadingDialog(
-            isLoading = showRegistroDialog,
-            statusMessage = registroStatus,
-            debugInfo = registroDebugInfo,
-            onDismiss = {
-                showRegistroDialog = false
-                registroDebugInfo = null
-                facturasRegistrando = emptyList()
-            },
-            title = "Registro de Facturas",
-            showSubMessage = false
         )
 
         if (showClaveSolDialog) {
@@ -459,25 +332,19 @@ fun PurchaseDetailScreen(
                     TextButton(
                         onClick = {
                             if (claveSolInput.isNotEmpty()) {
-                                // Guardar clave SOL (cifrada)
                                 SunatPrefs.saveClaveSol(context, claveSolInput)
-                                println("🔐 [PurchaseDetailScreen] Clave SOL guardada")
 
-                                // Proceder con la obtención de detalles
                                 facturaParaDetalle?.let { factura ->
                                     showClaveSolDialog = false
                                     claveSolInput = ""
 
-                                    // Mostrar loading
                                     showLoadingDialog = true
                                     facturaCargandoId = factura.id
                                     esCompraCargando = esCompraParaDetalle
                                     loadingStatus = "Obteniendo detalle de factura..."
 
-                                    // Obtener RUC del emisor
                                     val rucEmisor = viewModel.getRucEmisor(factura.id) ?: factura.ruc
 
-                                    // Llamar al ViewModel para obtener detalles
                                     viewModel.cargarDetalleFacturaXmlConUsuario(
                                         facturaId = factura.id,
                                         esCompra = esCompraParaDetalle,
@@ -492,7 +359,6 @@ fun PurchaseDetailScreen(
                                                 showLoadingDialog = false
                                                 loadingDebugInfo = null
 
-                                                // Navegar al detalle
                                                 onNavigateToDetalle(
                                                     DetailRoute(
                                                         id = factura.id,
@@ -534,10 +400,8 @@ fun PurchaseDetailScreen(
                 }
             )
         }
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Título Provisional
         Text(
             text = "Registro Contable",
             style = MaterialTheme.typography.headlineSmall,
@@ -549,10 +413,9 @@ fun PurchaseDetailScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp), // Espacio entre botones
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Botón Compras
             Button(
                 onClick = {
                     sectionActive = Section.COMPRAS
@@ -563,14 +426,12 @@ fun PurchaseDetailScreen(
                     .height(45.dp),
                 shape = MaterialTheme.shapes.medium,
                 colors = ButtonDefaults.buttonColors(
-                    // Cambiamos el color si está seleccionado o no
                     containerColor = if (sectionActive == Section.COMPRAS) Color(0xFFFF5A00) else Color.Gray
                 )
             ) {
                 Text(text = "Compras", style = MaterialTheme.typography.titleMedium)
             }
 
-            // Botón Ventas
             Button(
                 onClick = {
                     sectionActive = Section.VENTAS
@@ -589,55 +450,40 @@ fun PurchaseDetailScreen(
         }
         Spacer(modifier = Modifier.height(15.dp))
 
-        // NUEVA FILA: Seleccionar Todos y Rango de Fechas
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.End
         ) {
-            // Grupo: Checkbox + Texto
-            Row(
-                verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)
-            ) {
-                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                    Checkbox(checked = isSelectAllChecked, onCheckedChange = { checked ->
-                        println("🔘 [Seleccionar todos] Checked: $checked, Facturas filtradas: ${listaFiltrada.size}")
-                        if (sectionActive == Section.COMPRAS) {
-                            listaFiltrada.forEach { factura ->
-                                println("🔘 [Seleccionando] ID: ${factura.id}")
-                                viewModel.actualizarSeleccionCompras(factura.id, checked)
-                            }
-                        } else {
-                            listaFiltrada.forEach { factura ->
-                                println("🔘 [Seleccionando] ID: ${factura.id}")
-                                viewModel.actualizarSeleccionVentas(factura.id, checked)
-                            }
-                        }
-                    })
-                }
-
-                Text(
-                    text = "Seleccionar todos",
-                    fontSize = 12.sp,
-                    style = MaterialTheme.typography.bodyMedium,
-                    lineHeight = 16.sp,
-                    modifier = Modifier.padding(8.dp)
-                )
-            }
-
+            Text(
+                text = "Selecciona periodo o rango de fecha:",
+                fontSize = 10.sp,
+                color = Color.Black,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp)
+            )
             DateRangeSelector(
                 selectedStartMillis = selectedStartMillis,
                 selectedEndMillis = selectedEndMillis,
-                onDateRangeClick = { showDatePicker = true },
+                onDateRangeClick = { showCustomDatePicker = true },
                 modifier = Modifier
             )
         }
 
         Spacer(modifier = Modifier.height(15.dp))
 
-        // 2. --- TABLA DINÁMICA ---
+        Status(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -662,10 +508,9 @@ fun PurchaseDetailScreen(
                 }
             } else {
                 val horizontalScrollState = rememberScrollState()
-                val totalWidth = 650.dp
+                val totalWidth = 470.dp
 
                 Column(modifier = Modifier.horizontalScroll(horizontalScrollState)) {
-                    // CABECERA
                     Row(
                         modifier = Modifier
                             .width(totalWidth)
@@ -673,68 +518,12 @@ fun PurchaseDetailScreen(
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Spacer(modifier = Modifier.width(50.dp))
-                        HeaderCell("RUC", 120.dp)
-                        HeaderCell("Serie", 70.dp)
-                        HeaderCell("Número", 90.dp)
-                        HeaderCell("Fecha", 100.dp)
                         HeaderCell("Estado", 100.dp)
-                        Box(
-                            modifier = Modifier.width(120.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Button(
-                                onClick = {
-                                    facturasRegistrando = facturasARegistrar
-                                    showRegistroDialog = true
-                                    registroStatus = "Registrando ${facturasARegistrar.size} factura(s) en el sistema..."
-
-                                    // Actualizar el estado de cada factura a "REGISTRADO"
-                                    facturasARegistrar.forEach { factura ->
-                                        viewModel.actualizarEstadoFactura(
-                                            facturaId = factura.id,
-                                            nuevoEstado = "REGISTRADO",
-                                            esCompra = (sectionActive == Section.COMPRAS)
-                                        )
-                                    }
-
-                                    viewModel.registrarFacturasEnBaseDeDatos(
-                                        facturas = facturasARegistrar,
-                                        esCompra = (sectionActive == Section.COMPRAS),
-                                        context = context
-                                    )
-
-                                    val mensaje = when (facturasARegistrar.size) {
-                                        0 -> "No hay facturas con detalle para registrar"
-                                        1 -> "✅ Se ha registrado 1 factura exitosamente"
-                                        else -> "✅ Se han registrado ${facturasARegistrar.size} facturas exitosamente"
-                                    }
-
-                                    if (facturasARegistrar.isEmpty()) {
-                                        Toast.makeText(context, mensaje, Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        // Para facturas > 0, el diálogo ya muestra el progreso
-                                        println("📤 [PurchaseDetailScreen] Iniciando registro de ${facturasARegistrar.size} facturas")
-                                    }
-                                },
-                                modifier = Modifier
-                                    .height(36.dp)
-                                    .width(150.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (hayFacturasParaRegistrar) Color(0xFF1FB8B9) else Color.Gray
-                                ),
-                                enabled = hayFacturasParaRegistrar
-                            ) {
-                                Text(
-                                    text = "Registrar",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+                        HeaderCell("RUC", 110.dp)
+                        HeaderCell("Serie - Número", 160.dp)
+                        HeaderCell("Fecha", 100.dp)
                     }
 
-                    // CUERPO (Listado)
                     Column(
                         modifier = Modifier
                             .width(totalWidth)
@@ -743,7 +532,7 @@ fun PurchaseDetailScreen(
                     ) {
                         if (!isListVisible) {
                             Text(
-                                "Presione Consultar para ver registros",
+                                "Presione CONSULTAR para ver registros",
                                 modifier = Modifier
                                     .width(totalWidth)
                                     .padding(20.dp),
@@ -760,168 +549,145 @@ fun PurchaseDetailScreen(
                                 color = Color.Gray
                             )
                         } else {
-                            listaFiltrada.forEach { factura ->
-                                // Agrega este log para ver el estado actual de cada factura
-                                val estadoActual = if (sectionActive == Section.COMPRAS) {
-                                    facturasCompras.firstOrNull { it.id == factura.id }?.isSelected
-                                        ?: false
-                                } else {
-                                    facturasVentas.firstOrNull { it.id == factura.id }?.isSelected
-                                        ?: false
-                                }
-
-                                println("🔘 [Checkbox] ID: ${factura.id}, Estado en listaFiltrada: ${factura.isSelected}, Estado real en ViewModel: $estadoActual")
-
-                                Row(
-                                    modifier = Modifier
-                                        .width(totalWidth)
-                                        .background(if (estadoActual) Color(0xFFF5F5F5) else Color.Transparent)
-                                        .padding(vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                            listaFiltrada.forEachIndexed { index, factura ->
+                                Column(
+                                    modifier = Modifier.width(totalWidth)
                                 ) {
-                                    Box(
-                                        modifier = Modifier.width(50.dp),
-                                        contentAlignment = Alignment.Center
+                                    Row(
+                                        modifier = Modifier
+                                            .width(totalWidth)
+                                            .background(Color(0xFFB0C4DE))
+                                            .padding(vertical = 8.dp, horizontal = 8.dp)
                                     ) {
-                                        Checkbox(
-                                            checked = estadoActual,  // Usa el estado real
-                                            onCheckedChange = { checked ->
-                                                println("🔘 [Checkbox click] ID: ${factura.id}, Checked: $checked")
-                                                if (sectionActive == Section.COMPRAS) {
-                                                    viewModel.actualizarSeleccionCompras(
-                                                        factura.id,
-                                                        checked
-                                                    )
-                                                } else {
-                                                    viewModel.actualizarSeleccionVentas(
-                                                        factura.id,
-                                                        checked
-                                                    )
-                                                }
-                                            }
+                                        Text(
+                                            text = if (sectionActive == Section.COMPRAS) "${factura.razonSocial}"
+                                            else "${factura.razonSocial}",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.Black
                                         )
                                     }
-                                    SimpleTableCell(factura.ruc, 120.dp)
-                                    SimpleTableCell(factura.serie, 70.dp)
-                                    SimpleTableCell(factura.numero, 90.dp)
-                                    SimpleTableCell(factura.fechaEmision, 100.dp)
-                                    Box(
-                                        modifier = Modifier.width(100.dp),
-                                        contentAlignment = Alignment.Center
+                                    Row(
+                                        modifier = Modifier
+                                            .width(totalWidth)
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        InvoiceStatusCell(factura.estado)
-                                    }
-                                    Box(
-                                        modifier = Modifier.width(120.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        val coroutineScope = rememberCoroutineScope()
-                                        TextButton(onClick = {
-                                            val currentId = factura.id
-                                            val currentIsCompra = (sectionActive == Section.COMPRAS)
+                                        Box(
+                                            modifier = Modifier.width(100.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                val coroutineScope = rememberCoroutineScope()
+                                                IconButton(
+                                                    onClick = {
+                                                        val currentId = factura.id
+                                                        val currentIsCompra = (sectionActive == Section.COMPRAS)
 
-                                            println("🎯 [Detalle presionado] ID: $currentId, Estado: ${factura.estado}")
+                                                        val ruc = SunatPrefs.getRuc(context)
+                                                        val usuario = SunatPrefs.getUser(context)
+                                                        val claveSol = SunatPrefs.getClaveSol(context)
 
-                                            val ruc = SunatPrefs.getRuc(context)
-                                            val usuario = SunatPrefs.getUser(context)
-                                            val claveSol = SunatPrefs.getClaveSol(context)
+                                                        if (ruc == null || usuario == null) {
+                                                            showSunatLogin = true
+                                                            return@IconButton
+                                                        }
 
-                                            println("🔍 Credenciales disponibles: RUC=$ruc, Usuario=$usuario, ClaveSOL=${if (claveSol != null) "***" else "NULL"}")
-
-                                            if (ruc == null || usuario == null) {
-                                                // No hay credenciales básicas - pedir login SUNAT
-                                                showSunatLogin = true
-                                                return@TextButton
-                                            }
-
-                                            if (factura.estado == "CON DETALLE") {
-                                                // Si ya tiene detalle, navegar directamente
-                                                onNavigateToDetalle(
-                                                    DetailRoute(
-                                                        id = factura.id,
-                                                        esCompra = currentIsCompra
-                                                    )
-                                                )
-                                            } else {
-                                                if (claveSol == null) {
-                                                    // Guardar referencia a la factura y mostrar diálogo de Clave SOL
-                                                    facturaParaDetalle = factura
-                                                    esCompraParaDetalle = currentIsCompra
-                                                    showClaveSolDialog = true
-                                                } else {
-                                                    // Tiene todas las credenciales, proceder con la obtención
-                                                    showLoadingDialog = true
-                                                    facturaCargandoId = currentId
-                                                    esCompraCargando = currentIsCompra
-                                                    loadingStatus = "Obteniendo detalle de factura..."
-
-                                                    // Obtener el RUC del emisor
-                                                    val rucEmisor = viewModel.getRucEmisor(factura.id) ?: factura.ruc
-
-                                                    // Iniciar la obtención de detalles CON CALLBACK
-                                                    viewModel.cargarDetalleFacturaXmlConUsuario(
-                                                        facturaId = factura.id,
-                                                        esCompra = currentIsCompra,
-                                                        rucEmisor = rucEmisor,
-                                                        context = context
-                                                    ) { success, message ->
-                                                        if (success) {
-                                                            loadingStatus = "✅ " + (message ?: "Detalles obtenidos exitosamente")
-
-                                                            coroutineScope.launch {
-                                                                kotlinx.coroutines.delay(1500)
-                                                                showLoadingDialog = false
-                                                                loadingDebugInfo = null
-
-                                                                onNavigateToDetalle(
-                                                                    DetailRoute(
-                                                                        id = currentId,
-                                                                        esCompra = currentIsCompra
-                                                                    )
+                                                        if (factura.estado == "CON DETALLE") {
+                                                            onNavigateToDetalle(
+                                                                DetailRoute(
+                                                                    id = factura.id,
+                                                                    esCompra = currentIsCompra
                                                                 )
-                                                            }
+                                                            )
                                                         } else {
-                                                            loadingStatus = "❌ " + (message ?: "Error desconocido")
+                                                            if (claveSol == null) {
+                                                                facturaParaDetalle = factura
+                                                                esCompraParaDetalle = currentIsCompra
+                                                                showClaveSolDialog = true
+                                                            } else {
+                                                                showLoadingDialog = true
+                                                                facturaCargandoId = currentId
+                                                                esCompraCargando = currentIsCompra
+                                                                loadingStatus = "Obteniendo detalle de factura..."
 
-                                                            coroutineScope.launch {
-                                                                kotlinx.coroutines.delay(3000)
-                                                                showLoadingDialog = false
-                                                                loadingDebugInfo = null
-                                                                facturaCargandoId = null
+                                                                val rucEmisor = viewModel.getRucEmisor(factura.id) ?: factura.ruc
+
+                                                                viewModel.cargarDetalleFacturaXmlConUsuario(
+                                                                    facturaId = factura.id,
+                                                                    esCompra = currentIsCompra,
+                                                                    rucEmisor = rucEmisor,
+                                                                    context = context
+                                                                ) { success, message ->
+                                                                    if (success) {
+                                                                        loadingStatus = "✅ " + (message ?: "Detalles obtenidos exitosamente")
+
+                                                                        coroutineScope.launch {
+                                                                            kotlinx.coroutines.delay(1500)
+                                                                            showLoadingDialog = false
+                                                                            loadingDebugInfo = null
+
+                                                                            onNavigateToDetalle(
+                                                                                DetailRoute(
+                                                                                    id = currentId,
+                                                                                    esCompra = currentIsCompra
+                                                                                )
+                                                                            )
+                                                                        }
+                                                                    } else {
+                                                                        loadingStatus = "❌ " + (message ?: "Error desconocido")
+
+                                                                        coroutineScope.launch {
+                                                                            kotlinx.coroutines.delay(3000)
+                                                                            showLoadingDialog = false
+                                                                            loadingDebugInfo = null
+                                                                            facturaCargandoId = null
+                                                                        }
+                                                                    }
+                                                                }
                                                             }
                                                         }
-                                                    }
+                                                    },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Visibility,
+                                                        contentDescription = "Ver detalle",
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
                                                 }
+                                                InvoiceStatusCircle(factura.estado, tamano = 14.dp)
                                             }
-                                        }) {
+                                        }
+                                        SimpleTableCell(factura.ruc, 110.dp)
+                                        Box(
+                                            modifier = Modifier.width(160.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
                                             Text(
-                                                "Detalle",
-                                                fontSize = 12.sp,
-                                                textDecoration = TextDecoration.Underline
+                                                text = "${factura.serie} - ${factura.numero}",
+                                                fontSize = 13.sp,
+                                                color = Color.Black
                                             )
                                         }
+                                        SimpleTableCell(factura.fechaEmision, 100.dp)
+                                    }
+                                    if (index < listaFiltrada.size - 1) {
+                                        Divider(
+                                            modifier = Modifier.width(totalWidth),
+                                            thickness = 0.5.dp,
+                                            color = Color.LightGray
+                                        )
                                     }
                                 }
-                                Divider(
-                                    modifier = Modifier.width(totalWidth),
-                                    thickness = 0.5.dp,
-                                    color = Color.LightGray
-                                )
                             }
                         }
                     }
-                    // --- FOOTER
+
                     if (isListVisible) {
-                        val seleccionados = listaFiltrada.count { factura ->
-                            val estadoReal = if (sectionActive == Section.COMPRAS) {
-                                facturasCompras.firstOrNull { it.id == factura.id }?.isSelected
-                                    ?: false
-                            } else {
-                                facturasVentas.firstOrNull { it.id == factura.id }?.isSelected
-                                    ?: false
-                            }
-                            estadoReal
-                        }
                         Row(
                             modifier = Modifier
                                 .width(totalWidth)
@@ -930,12 +696,9 @@ fun PurchaseDetailScreen(
                             horizontalArrangement = Arrangement.Start
                         ) {
                             Text(
-                                text = when {
-                                    seleccionados == 1 -> "1 factura seleccionada de ${listaFiltrada.size}"
-                                    seleccionados > 1 -> "$seleccionados facturas seleccionadas de ${listaFiltrada.size}"
-                                    else -> "Facturas registradas: ${listaFiltrada.size}"
-                                },
-                                fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                text = "Facturas registradas: ${listaFiltrada.size}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
                                 color = Color.Black
                             )
                         }
@@ -944,7 +707,6 @@ fun PurchaseDetailScreen(
             }
         }
 
-        // 3. BOTONES INFERIORES: CONSULTAR Y REGISTRAR
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -957,25 +719,18 @@ fun PurchaseDetailScreen(
                     val ruc = SunatPrefs.getRuc(context)
                     val user = SunatPrefs.getUser(context)
 
-                    println("SUNAT DATA → RUC: $ruc | USUARIO: $user | TOKEN: $token")
-
                     if (token == null) {
-                        showSunatLogin = true // Abre el WebView si no hay hash
+                        showSunatLogin = true
                     } else {
-                        // 1. Convertir fechas a formato YYYYMM
                         val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
                         val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
 
-                        println("📅 Consultando período: $periodoInicio - $periodoFin")
-
-                        // 2. Llamar al ViewModel para cargar datos REALES
                         viewModel.cargarFacturasDesdeAPI(
                             periodoInicio = periodoInicio,
                             periodoFin = periodoFin,
                             esCompra = (sectionActive == Section.COMPRAS),
                         )
 
-                        // 3. Mostrar la lista y estado de carga
                         isListVisible = true
                     }
                 },
@@ -995,7 +750,9 @@ fun PurchaseDetailScreen(
                         .height(45.dp),
                     shape = MaterialTheme.shapes.medium,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9))
-                ) { Text("Subir Factura", style = MaterialTheme.typography.titleMedium) }
+                ) {
+                    Text("Subir Factura", style = MaterialTheme.typography.titleMedium)
+                }
             }
         }
     }
@@ -1010,5 +767,6 @@ fun PurchaseScreenPreview() {
         onComprasClick = { },
         onVentasClick = { },
         onNavigateToRegistrar = { },
-        onNavigateToDetalle = { })
+        onNavigateToDetalle = { }
+    )
 }

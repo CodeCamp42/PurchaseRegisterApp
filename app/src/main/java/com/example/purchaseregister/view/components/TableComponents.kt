@@ -1,9 +1,12 @@
 package com.example.purchaseregister.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,7 +40,6 @@ fun SimpleTableCell(text: String, width: Dp) {
     )
 }
 
-// Componente para mostrar estado de factura (opcional, si lo usas mucho)
 @Composable
 fun InvoiceStatusCell(
     estado: String,
@@ -54,5 +56,25 @@ fun InvoiceStatusCell(
             else -> Color.Gray
         },
         fontWeight = FontWeight.Bold
+    )
+}
+
+@Composable
+fun InvoiceStatusCircle(
+    estado: String,
+    tamano: Dp = 20.dp
+) {
+    val color = when (estado.uppercase()) {
+        "CONSULTADO" -> Color(0xFF2196F3) // Azul/verde
+        "CON DETALLE" -> Color(0xFFFF5A00) // Naranja
+        "REGISTRADO" -> Color(0xFF4CAF50) // Verde
+        else -> Color.Gray // Gris
+    }
+
+    Box(
+        modifier = Modifier
+            .size(tamano)
+            .clip(CircleShape)
+            .background(color)
     )
 }
