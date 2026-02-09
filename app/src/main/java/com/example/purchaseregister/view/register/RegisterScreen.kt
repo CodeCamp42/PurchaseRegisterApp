@@ -337,7 +337,7 @@ fun RegistroCompraScreen(
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // --- FILA 1: RUC, SERIE, NUMERO, FECHA ---
+                // --- FILA 1: RUC, SERIE, NUMERO---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -361,54 +361,37 @@ fun RegistroCompraScreen(
                         onValueChange = { numero = it },
                         label = "N°",
                         isReadOnly = !modoEdicion,
-                        modifier = Modifier.weight(1f)
-                    )
-                    ReadOnlyField(
-                        value = fecha,
-                        onValueChange = { fecha = it },
-                        label = "Fecha Emisión",
-                        isReadOnly = !modoEdicion,
-                        modifier = Modifier.weight(2.8f)
+                        modifier = Modifier.weight(2f)
                     )
                 }
 
-                // --- FILA 2: TIPO DOCUMENTO, IMPORTACIÓN, AÑO ---
+                // --- FILA 2: FECHA, TIPO DOCUMENTO, IMPORTACIÓN, AÑO ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ReadOnlyField(
+                        value = fecha,
+                        onValueChange = { fecha = it },
+                        label = "Fecha Emisión",
+                        isReadOnly = !modoEdicion,
+                        modifier = Modifier.weight(1.8f)
+                    )
+                    ReadOnlyField(
                         value = tipoDocumento,
                         onValueChange = { tipoDocumento = it },
                         label = "Tipo de Documento",
                         isReadOnly = !modoEdicion,
-                        modifier = Modifier.weight(1.9f)
+                        modifier = Modifier.weight(1.8f)
                     )
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1.4f)
-                    ) {
-                        Text("¿Importación?", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Switch(
-                            checked = esImportacion,
-                            onCheckedChange = { esImportacion = it },
-                            enabled = modoEdicion
-                        )
-                    }
-
-                    if (esImportacion) {
-                        ReadOnlyField(
-                            value = anioImportacion,
-                            onValueChange = { anioImportacion = it },
-                            label = "Año",
-                            isReadOnly = !modoEdicion,
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
+                    ReadOnlyField(
+                        value = anioImportacion,
+                        onValueChange = { anioImportacion = it },
+                        label = "Año",
+                        isReadOnly = !modoEdicion,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
                 // --- FILA 3: RUC Y RAZÓN SOCIAL EN UNA SOLA LÍNEA ---
