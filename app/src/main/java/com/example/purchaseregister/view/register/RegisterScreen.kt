@@ -1,9 +1,7 @@
 package com.example.purchaseregister.view.register
 
 import android.Manifest
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.util.Base64
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,317 +28,15 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.purchaseregister.BuildConfig
 import com.example.purchaseregister.model.ProductItem
-import com.example.purchaseregister.view.components.ReadOnlyField
-import kotlinx.coroutines.launch
-import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.io.IOException
+import com.example.purchaseregister.service.GeminiService
+import com.example.purchaseregister.utils.FormatoUtils
+import com.example.purchaseregister.utils.MonedaUtils
 import com.example.purchaseregister.utils.SunatPrefs
+import com.example.purchaseregister.view.components.ReadOnlyField
 import com.example.purchaseregister.viewmodel.InvoiceViewModel
-import java.util.concurrent.TimeUnit
-
-// FUNCIONES AUXILIARES OPTIMIZADAS
-fun bitmapToBase64(bitmap: Bitmap): String {
-    val stream = ByteArrayOutputStream()
-    // Reducir calidad para imágenes más pequeñas
-    bitmap.compress(Bitmap.CompressFormat.JPEG, 70, stream)
-    return Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
-}
-
-// Optimizar imagen antes de enviar (MUY IMPORTANTE para velocidad)
-fun optimizeBitmapForGemini(bitmap: Bitmap): Bitmap {
-    val maxSize = 1024 // Reducir a máximo 1024px para el lado más largo
-
-    val width = bitmap.width
-    val height = bitmap.height
-
-    // Si ya es pequeña, no hacer nada
-    if (width <= maxSize && height <= maxSize) {
-        return bitmap
-    }
-
-    // Calcular nuevo tamaño manteniendo proporción
-    val scale = maxSize.toFloat() / maxOf(width, height)
-    val newWidth = (width * scale).toInt()
-    val newHeight = (height * scale).toInt()
-
-    return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
-}
-
-// FUNCIÓN OPTIMIZADA PARA LLAMAR A GEMINI (RÁPIDA)
-fun callGeminiFast(
-    bitmap: Bitmap,
-    prompt: String,
-    apiKey: String,
-    onSuccess: (String) -> Unit,
-    onError: (String) -> Unit
-) {
-    Log.d("GEMINI_FAST", "🚀 Iniciando llamada rápida a Gemini...")
-
-    // Optimizar imagen ANTES de convertir a Base64
-    val optimizedBitmap = optimizeBitmapForGemini(bitmap)
-    Log.d("GEMINI_FAST", "Imagen optimizada: ${optimizedBitmap.width}x${optimizedBitmap.height}")
-
-    // Cliente HTTP con timeouts adecuados
-    val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)  // 15 segundos máximo
-        .readTimeout(30, TimeUnit.SECONDS)     // 30 segundos para lectura
-        .writeTimeout(15, TimeUnit.SECONDS)    // 15 segundos para escritura
-        .build()
-
-    val escapedPrompt = prompt.replace("\n", "\\n").replace("\"", "\\\"")
-
-    val json = """
-    {
-      "contents": [{
-        "parts": [
-          { "text": "$escapedPrompt" },
-          {
-            "inline_data": {
-              "mime_type": "image/jpeg",
-              "data": "${bitmapToBase64(optimizedBitmap)}"
-            }
-          }
-        ]
-      }]
-    }
-    """.trimIndent()
-
-    val body = json.toRequestBody("application/json".toMediaType())
-
-    // SOLO modelos con buen free tier y rápido
-    val modelsToTry = listOf(
-        "gemini-flash-latest",        // ✅ Mejor free tier y rápido
-        "gemini-2.0-flash-latest",    // ✅ Alternativa rápida
-        "gemini-1.5-flash"            // ✅ Legacy pero funcional
-    )
-
-    tryModelsFast(0, modelsToTry, client, body, apiKey, onSuccess, onError)
-}
-
-private fun tryModelsFast(
-    index: Int,
-    models: List<String>,
-    client: OkHttpClient,
-    body: RequestBody,
-    apiKey: String,
-    onSuccess: (String) -> Unit,
-    onError: (String) -> Unit
-) {
-    if (index >= models.size) {
-        onError("⚠️ No hay modelos disponibles ahora. Intenta más tarde.")
-        return
-    }
-
-    val modelName = models[index]
-    Log.d("GEMINI_FAST", "🔍 Probando: $modelName (${index + 1}/${models.size})")
-
-    val endpoint =
-        "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey"
-
-    val request = Request.Builder()
-        .url(endpoint)
-        .post(body)
-        .addHeader("Content-Type", "application/json")
-        .build()
-
-    val startTime = System.currentTimeMillis()
-
-    client.newCall(request).enqueue(object : Callback {
-        override fun onFailure(call: Call, e: IOException) {
-            val elapsed = System.currentTimeMillis() - startTime
-            Log.e("GEMINI_FAST", "❌ Error red con $modelName (${elapsed}ms): ${e.message}")
-            // Probar siguiente modelo inmediatamente
-            tryModelsFast(index + 1, models, client, body, apiKey, onSuccess, onError)
-        }
-
-        override fun onResponse(call: Call, response: Response) {
-            val elapsed = System.currentTimeMillis() - startTime
-            val text = response.body?.string()
-
-            Log.d("GEMINI_FAST", "📡 $modelName - Código: ${response.code} (${elapsed}ms)")
-
-            when {
-                response.isSuccessful -> {
-                    Log.d("GEMINI_FAST", "✅ $modelName funcionó en ${elapsed}ms")
-                    onSuccess(text ?: "")
-                }
-
-                response.code == 429 -> {
-                    Log.w("GEMINI_FAST", "⚠️ Quota excedido para $modelName")
-                    // Probar siguiente inmediatamente (SIN ESPERAR)
-                    tryModelsFast(index + 1, models, client, body, apiKey, onSuccess, onError)
-                }
-
-                response.code == 404 -> {
-                    Log.w("GEMINI_FAST", "🔍 $modelName no encontrado")
-                    tryModelsFast(index + 1, models, client, body, apiKey, onSuccess, onError)
-                }
-
-                else -> {
-                    Log.e("GEMINI_FAST", "❌ Error ${response.code} con $modelName")
-                    tryModelsFast(index + 1, models, client, body, apiKey, onSuccess, onError)
-                }
-            }
-        }
-    })
-}
-
-// FUNCIÓN PARA EXTRAER JSON
-fun extractJsonFromGeminiResponse(response: String): String {
-    return try {
-        // Parsear la respuesta completa
-        val json = JSONObject(response)
-
-        // Extraer camino: candidates[0].content.parts[0].text
-        val candidates = json.getJSONArray("candidates")
-        if (candidates.length() == 0) {
-            throw Exception("No hay candidatos en la respuesta")
-        }
-
-        val firstCandidate = candidates.getJSONObject(0)
-        val content = firstCandidate.getJSONObject("content")
-        val parts = content.getJSONArray("parts")
-
-        if (parts.length() == 0) {
-            throw Exception("No hay partes en el contenido")
-        }
-
-        val firstPart = parts.getJSONObject(0)
-        var text = firstPart.getString("text").trim()
-
-        // Limpiar markdown
-        text = cleanMarkdown(text)
-
-        // Verificar que sea un JSON válido
-        if (!text.startsWith("{") || !text.endsWith("}")) {
-            // Buscar JSON dentro del texto
-            val start = text.indexOf("{")
-            val end = text.lastIndexOf("}")
-            if (start != -1 && end != -1) {
-                text = text.substring(start, end + 1)
-            } else {
-                throw Exception("No se encontró JSON en: ${text.take(100)}...")
-            }
-        }
-
-        text
-    } catch (e: Exception) {
-        Log.e("EXTRACT_JSON", "Error extrayendo JSON: ${e.message}")
-
-        // Fallback: buscar JSON directamente en la respuesta
-        val start = response.indexOf("{")
-        val end = response.lastIndexOf("}")
-        if (start != -1 && end != -1) {
-            var text = response.substring(start, end + 1).trim()
-            text = cleanMarkdown(text)
-            text
-        } else {
-            throw Exception("No se pudo extraer JSON: ${e.message}")
-        }
-    }
-}
-
-fun cleanMarkdown(text: String): String {
-    var cleaned = text.trim()
-
-    // Eliminar bloques de código markdown
-    if (cleaned.startsWith("```json")) {
-        cleaned = cleaned.substring(7).trim()
-    } else if (cleaned.startsWith("```")) {
-        cleaned = cleaned.substring(3).trim()
-    }
-
-    if (cleaned.endsWith("```")) {
-        cleaned = cleaned.substring(0, cleaned.length - 3).trim()
-    }
-
-    // Eliminar prefijos comunes
-    val prefixes = listOf("JSON:", "json:", "Response:", "response:")
-    prefixes.forEach { prefix ->
-        if (cleaned.startsWith(prefix)) {
-            cleaned = cleaned.substring(prefix.length).trim()
-        }
-    }
-
-    return cleaned
-}
-
-// FUNCIÓN PARA PRUEBA RÁPIDA (OPCIONAL)
-fun testGeminiConnectionFast(apiKey: String) {
-    Log.d("GEMINI_TEST", "🧪 Probando conexión rápida...")
-
-    val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .build()
-
-    val simpleJson = """
-    {
-      "contents": [{
-        "parts": [{ "text": "Responde 'OK' en menos de 5 palabras." }]
-      }]
-    }
-    """.trimIndent()
-
-    val body = simpleJson.toRequestBody("application/json".toMediaType())
-
-    // Probar solo con el modelo más confiable
-    val testModel = "gemini-flash-latest"
-    val url =
-        "https://generativelanguage.googleapis.com/v1beta/models/$testModel:generateContent?key=$apiKey"
-
-    val request = Request.Builder()
-        .url(url)
-        .post(body)
-        .build()
-
-    client.newCall(request).enqueue(object : Callback {
-        override fun onFailure(call: Call, e: IOException) {
-            Log.e("GEMINI_TEST", "❌ Error de conexión: ${e.message}")
-        }
-
-        override fun onResponse(call: Call, response: Response) {
-            val text = response.body?.string()
-            if (response.isSuccessful) {
-                Log.d("GEMINI_TEST", "✅ Conexión OK con $testModel")
-            } else {
-                Log.d("GEMINI_TEST", "⚠️ Conexión problema: ${response.code}")
-            }
-        }
-    })
-}
-
-// FUNCIONES HELPER PARA MONEDA
-fun esMonedaDolares(moneda: String): Boolean {
-    return moneda.contains("USD", ignoreCase = true) ||
-            moneda.contains("Dólar", ignoreCase = true) ||
-            moneda.contains("Dolar", ignoreCase = true) ||
-            moneda.contains("US$", ignoreCase = false) ||
-            moneda.contains("U$", ignoreCase = false)
-}
-
-fun esMonedaSoles(moneda: String): Boolean {
-    return moneda.contains("Soles", ignoreCase = true) ||
-            moneda.contains("SOL", ignoreCase = true) ||
-            moneda.contains("PEN", ignoreCase = true) ||
-            moneda.contains("S/", ignoreCase = false)
-}
-
-fun formatearMoneda(moneda: String): String {
-    return when {
-        esMonedaSoles(moneda) -> "Soles (PEN)"
-        esMonedaDolares(moneda) -> "Dólares (USD)"
-        moneda == "Soles" -> "Soles (PEN)"
-        moneda == "Dólares" -> "Dólares (USD)"
-        moneda == "Dolares" -> "Dólares (USD)"
-        else -> moneda
-    }
-}
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -348,46 +44,23 @@ fun RegistroCompraScreen(
     onBack: () -> Unit,
     viewModel: InvoiceViewModel
 ) {
-    fun formatearUnidadMedida(cantidad: String, unidad: String): String {
-        val unidadFormateada = when (unidad.uppercase()) {
-            "KILO", "KILOS", "KILOGRAMO", "KILOGRAMOS", "KG", "KGS" -> "Kg"
-            "GRAMO", "GRAMOS", "GR", "GRS", "G" -> "Gr"
-            "LITRO", "LITROS", "L", "LT", "LTS" -> "Lt"
-            "UNIDAD", "UNIDADES", "UN", "UND", "UNDS" -> "UN"
-            "METRO", "METROS", "M", "MT", "MTS" -> "M"
-            "CENTIMETRO", "CENTIMETROS", "CM", "CMS" -> "Cm"
-            "MILIMETRO", "MILIMETROS", "MM", "MMS" -> "Mm"
-            "PAQUETE", "PAQUETES", "PQ", "PQT", "PQTS" -> "Pq"
-            "CAJA", "CAJAS", "CJ", "CJA", "CJAS" -> "Bx"
-            "GALON", "US GALON", "GALONES", "GAL", "GALS" -> "Gal"
-            "CASE", "CS" -> "Cs"
-            else -> if (unidad.isNotBlank()) unidad else ""
-        }
-
-        return if (unidadFormateada.isNotBlank()) {
-            "$cantidad $unidadFormateada"
-        } else {
-            cantidad
-        }
-    }
     val context = LocalContext.current
+
+    // Verificar si está logueado en SUNAT
     LaunchedEffect(Unit) {
         val ruc = SunatPrefs.getRuc(context)
         if (ruc.isNullOrEmpty()) {
-            Toast.makeText(
-                context,
-                "Primero inicie sesión en SUNAT",
-                Toast.LENGTH_LONG
-            ).show()
-            onBack()  // Regresa a la pantalla anterior
+            Toast.makeText(context, "Primero inicie sesión en SUNAT", Toast.LENGTH_LONG).show()
+            onBack()
         }
     }
+
     val scope = rememberCoroutineScope()
     val photoFile = remember {
         File.createTempFile("factura_", ".jpg", context.cacheDir)
     }
 
-    // --- URI USANDO FILEPROVIDER ---
+    // URI usando FileProvider
     val photoUri = remember {
         FileProvider.getUriForFile(
             context,
@@ -396,12 +69,12 @@ fun RegistroCompraScreen(
         )
     }
 
-    // --- ESTADOS DE CONTROL ---
+    // Estados de control
     var fotoTomada by remember { mutableStateOf(false) }
     var modoEdicion by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
 
-    // --- ESTADOS DE DATOS (Vacíos por defecto) ---
+    // Estados de datos
     var rucPropio by remember { mutableStateOf("") }
     var serie by remember { mutableStateOf("") }
     var numero by remember { mutableStateOf("") }
@@ -421,16 +94,10 @@ fun RegistroCompraScreen(
         mutableStateListOf(ProductItem("", "", ""))
     }
 
-    // Función para limpiar montos
-    fun limpiarMonto(texto: String): String {
-        return texto.replace(Regex("[^0-9.]"), "")
-    }
-
-    // --- LÓGICA DE CÁMARA Y PERMISOS ---
+    // Lógica de cámara y permisos
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success ->
-
         if (!success) {
             Toast.makeText(context, "Error al tomar foto", Toast.LENGTH_SHORT).show()
             return@rememberLauncherForActivityResult
@@ -490,8 +157,7 @@ fun RegistroCompraScreen(
 
         Log.d("GEMINI_APP", "📸 Foto tomada, llamando a Gemini...")
 
-        // USAR LA FUNCIÓN RÁPIDA OPTIMIZADA
-        callGeminiFast(
+        GeminiService.analyzeInvoice(
             bitmap = bitmap,
             prompt = prompt,
             apiKey = BuildConfig.GEMINI_API_KEY,
@@ -500,11 +166,9 @@ fun RegistroCompraScreen(
                     try {
                         Log.d("GEMINI_APP", "✅ Respuesta recibida, procesando...")
 
-                        // Extraer el JSON de la respuesta
-                        val jsonText = extractJsonFromGeminiResponse(response)
+                        val jsonText = GeminiService.extractJsonFromResponse(response)
                         Log.d("GEMINI_APP", "📄 JSON extraído: ${jsonText.take(300)}...")
 
-                        // Parsear el JSON real
                         val json = JSONObject(jsonText)
                         Log.d("GEMINI_JSON_KEYS", "Claves en JSON: ${json.keys().asSequence().toList()}")
 
@@ -516,11 +180,11 @@ fun RegistroCompraScreen(
                         numero = json.optString("numero")
                         fecha = json.optString("fecha")
                         val monedaExtraida = json.optString("moneda")
-                        moneda = formatearMoneda(monedaExtraida)
+                        moneda = MonedaUtils.formatearMoneda(monedaExtraida)
                         val tipoCambioExtraido = json.optString("tipo_cambio")
 
-                        val productosArray = json.optJSONArray("productos")
-                        if (productosArray != null) {
+                        // Procesar productos
+                        json.optJSONArray("productos")?.let { productosArray ->
                             Log.d("GEMINI_PRODUCTOS", "Número de productos: ${productosArray.length()}")
 
                             for (i in 0 until productosArray.length()) {
@@ -530,60 +194,29 @@ fun RegistroCompraScreen(
                                             "costo=${producto.optString("costo_unitario")}, " +
                                             "cant=${producto.optString("cantidad")}")
                             }
-                        } else {
-                            Log.w("GEMINI_PRODUCTOS", "⚠️ No se encontró array 'productos' en la respuesta")
-                            Log.w("GEMINI_PRODUCTOS", "Buscando variantes de nombre...")
-
-                            // Intentar con diferentes nombres de clave
-                            val posiblesNombres = listOf("productos", "items", "product_list", "articulos", "items_list")
-                            posiblesNombres.forEach { nombre ->
-                                if (json.has(nombre)) {
-                                    Log.d("GEMINI_PRODUCTOS", "Encontrado con nombre alternativo: $nombre")
-                                    val arrayAlternativo = json.optJSONArray(nombre)
-                                    if (arrayAlternativo != null) {
-                                        Log.d("GEMINI_PRODUCTOS", "Número de productos en '$nombre': ${arrayAlternativo.length()}")
-                                    }
-                                }
-                            }
                         }
 
-                        if (esMonedaDolares(moneda)) {
-                            // Validar si Gemini extrajo un valor numérico válido
+                        // Manejar tipo de cambio para dólares
+                        if (MonedaUtils.esMonedaDolares(moneda)) {
                             tipoCambio = when {
-                                // Caso 1: Gemini devolvió un número válido (ej: "3.85")
-                                tipoCambioExtraido.matches(Regex("[0-9]+(\\.[0-9]+)?")) -> {
-                                    tipoCambioExtraido
-                                }
-                                // Caso 2: Gemini devolvió "null" o vacío
-                                tipoCambioExtraido == "null" || tipoCambioExtraido.isEmpty() -> {
-                                    // Podemos poner un placeholder o dejarlo vacío para que el usuario lo ingrese
-                                    "" // ← Mejor vacío que un valor falso
-                                }
-                                // Caso 3: Cualquier otro texto
+                                tipoCambioExtraido.matches(Regex("[0-9]+(\\.[0-9]+)?")) -> tipoCambioExtraido
+                                tipoCambioExtraido == "null" || tipoCambioExtraido.isEmpty() -> ""
                                 else -> {
-                                    // Intentar extraer números del texto (por si Gemini escribió "Tipo cambio: 3.85")
-                                    val numeros = Regex("[0-9]+(\\.[0-9]+)?").find(tipoCambioExtraido)
-                                    numeros?.value ?: ""
+                                    Regex("[0-9]+(\\.[0-9]+)?").find(tipoCambioExtraido)?.value ?: ""
                                 }
                             }
 
-                            // Si quedó vacío, mostrar mensaje para que el usuario lo ingrese
                             if (tipoCambio.isEmpty()) {
                                 Log.w("TIPO_CAMBIO", "No se pudo extraer tipo de cambio para dólares")
-                                // Opcional: Toast para alertar al usuario
-                                Toast.makeText(
-                                    context,
-                                    "Ingrese manualmente el tipo de cambio",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                Toast.makeText(context, "Ingrese manualmente el tipo de cambio", Toast.LENGTH_SHORT).show()
                             }
                         } else {
-                            // Si es Soles, tipo de cambio vacío
                             tipoCambio = ""
                         }
-                        costoTotal = limpiarMonto(json.optString("costo_total"))
-                        igv = limpiarMonto(json.optString("igv"))
-                        importeTotal = limpiarMonto(json.optString("importe_total"))
+
+                        costoTotal = FormatoUtils.limpiarMonto(json.optString("costo_total"))
+                        igv = FormatoUtils.limpiarMonto(json.optString("igv"))
+                        importeTotal = FormatoUtils.limpiarMonto(json.optString("importe_total"))
                         rucPropio = SunatPrefs.getRuc(context) ?: ""
 
                         Log.d("GEMINI_MONTOS",
@@ -603,41 +236,20 @@ fun RegistroCompraScreen(
                                     )
                                 )
                             }
-                            Log.d("GEMINI_PRODUCTOS",
-                                "Productos agregados a lista: ${listaProductos.size}")
+                            Log.d("GEMINI_PRODUCTOS", "Productos agregados a lista: ${listaProductos.size}")
                         }
 
-                        // Si no hay productos, mantener al menos uno vacío
                         if (listaProductos.isEmpty()) {
                             Log.w("GEMINI_PRODUCTOS", "⚠️ Lista de productos vacía, agregando uno vacío")
                             listaProductos.add(ProductItem("", "", ""))
                         }
-
-                        // DEBUG: Verificar datos extraídos
-                        Log.d("GEMINI_APP", "📊 Datos extraídos:")
-                        Log.d("GEMINI_APP", "- Mi RUC: '$rucPropio'")
-                        Log.d("GEMINI_APP", "- Tipo Doc: '$tipoDocumento'")
-                        Log.d("GEMINI_APP", "- RUC Prov: '$rucProveedor'")
-                        Log.d("GEMINI_APP", "- Razon Social: '$razonSocialProveedor'")
-                        Log.d("GEMINI_APP", "- Serie: '$serie'")
-                        Log.d("GEMINI_APP", "- Número: '$numero'")
-                        Log.d("GEMINI_APP", "- Fecha: '$fecha'")
-                        Log.d("GEMINI_APP", "- Moneda: '$moneda'")
-                        Log.d("GEMINI_APP", "- Costo Total: '$costoTotal'")
-                        Log.d("GEMINI_APP", "- IGV: '$igv'")
-                        Log.d("GEMINI_APP", "- Importe Total: '$importeTotal'")
-                        Log.d("GEMINI_APP", "- Productos: ${listaProductos.size}")
 
                         Toast.makeText(context, "✅ Factura analizada!", Toast.LENGTH_LONG).show()
 
                     } catch (e: Exception) {
                         Log.e("GEMINI_APP", "❌ Error procesando: ${e.message}")
                         Log.e("GEMINI_APP", "Stack: ${e.stackTraceToString()}")
-                        Toast.makeText(
-                            context,
-                            "Error: ${e.message?.take(50)}...",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        Toast.makeText(context, "Error: ${e.message?.take(50)}...", Toast.LENGTH_LONG).show()
                     } finally {
                         isLoading = false
                     }
@@ -653,7 +265,7 @@ fun RegistroCompraScreen(
         )
     }
 
-    // Lanzador para solicitar permiso de cámara
+    // Lanzador para permiso de cámara
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {
@@ -664,7 +276,7 @@ fun RegistroCompraScreen(
         }
     }
 
-    val esDolares = esMonedaDolares(moneda)
+    val esDolares = MonedaUtils.esMonedaDolares(moneda)
     val monedaWeight = if (esDolares) 1.2f else 2f
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -837,16 +449,12 @@ fun RegistroCompraScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         ReadOnlyField(
-                            value = formatearUnidadMedida(producto.cantidad, producto.unidadMedida),
+                            value = FormatoUtils.formatearUnidadMedida(producto.cantidad, producto.unidadMedida),
                             onValueChange = { nuevoValor ->
-                                // Separar cantidad y unidad del texto ingresado
                                 val partes = nuevoValor.split(" ")
                                 val cantidad = partes.firstOrNull() ?: ""
-
-                                // Para reconstruir la unidad: tomar todo lo después del primer espacio
                                 val unidadRaw = if (partes.size > 1) partes.drop(1).joinToString(" ") else ""
 
-                                // Convertir la unidad ingresada a su versión formateada para almacenar
                                 val unidadParaAlmacenar = when (unidadRaw.uppercase().trim()) {
                                     "KG", "KGS", "KILO", "KILOS" -> "KILOGRAMOS"
                                     "L", "LT", "LTS", "LITRO", "LITROS" -> "LITROS"
@@ -956,21 +564,19 @@ fun RegistroCompraScreen(
                 ) {
                     Button(
                         onClick = {
-                            // Validar datos mínimos
                             if (rucProveedor.isEmpty() || serie.isEmpty() || numero.isEmpty()) {
                                 Toast.makeText(context, "Complete los datos de la factura", Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
 
-                            println("🔄 [RegistroScreen] Enviando productos al ViewModel:")
                             listaProductos.forEachIndexed { index, producto ->
-                                println("   Producto $index: ${producto.descripcion}, " +
-                                        "Cantidad=${producto.cantidad}, " +
-                                        "Unidad=${producto.unidadMedida}, " +
-                                        "Costo=${producto.costoUnitario}")
+                                Log.d("RegistroScreen",
+                                    "Producto $index: ${producto.descripcion}, " +
+                                            "Cantidad=${producto.cantidad}, " +
+                                            "Unidad=${producto.unidadMedida}, " +
+                                            "Costo=${producto.costoUnitario}")
                             }
 
-                            // Agregar factura al ViewModel
                             viewModel.agregarNuevaFacturaCompra(
                                 ruc = rucProveedor,
                                 razonSocial = razonSocialProveedor,
@@ -989,13 +595,7 @@ fun RegistroCompraScreen(
                                 }
                             )
 
-                            Toast.makeText(
-                                context,
-                                "✅ Factura listada exitosamente",
-                                Toast.LENGTH_LONG
-                            ).show()
-
-                            // Regresar a la pantalla principal
+                            Toast.makeText(context, "✅ Factura listada exitosamente", Toast.LENGTH_LONG).show()
                             onBack()
                         },
                         modifier = Modifier
@@ -1005,10 +605,7 @@ fun RegistroCompraScreen(
                         shape = MaterialTheme.shapes.medium,
                         enabled = fotoTomada && !isLoading
                     ) {
-                        Text(
-                            text = "REGISTRAR",
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text(text = "REGISTRAR", fontWeight = FontWeight.Bold)
                     }
 
                     Button(
@@ -1053,8 +650,5 @@ fun RegistroCompraScreen(
 @Composable
 fun RegistroCompraScreenPreview() {
     val viewModel: InvoiceViewModel = viewModel()
-    RegistroCompraScreen(
-        onBack = { },
-        viewModel = viewModel,
-    )
+    RegistroCompraScreen(onBack = { }, viewModel = viewModel)
 }
