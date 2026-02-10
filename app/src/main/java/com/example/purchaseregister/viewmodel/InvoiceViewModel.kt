@@ -122,7 +122,8 @@ class InvoiceViewModel : ViewModel() {
                 val response = apiService.obtenerFacturas(periodoInicio, periodoFin)
 
                 if (response.success) {
-                    val facturas = parsearContenidoSunat(response.resultados)
+                    // PASA el parámetro esCompra
+                    val facturas = parsearContenidoSunat(response.resultados, esCompra)
 
                     if (esCompra) {
                         _facturasCompras.value = facturas
@@ -144,7 +145,10 @@ class InvoiceViewModel : ViewModel() {
         _errorMessage.value = null
     }
 
-    private suspend fun parsearContenidoSunat(resultados: List<SunatResultado>): List<Invoice> {
+    private suspend fun parsearContenidoSunat(
+        resultados: List<SunatResultado>,
+        esCompra: Boolean
+    ): List<Invoice> {
         val facturas = mutableListOf<Invoice>()
         var idCounter = 1
 
@@ -154,6 +158,8 @@ class InvoiceViewModel : ViewModel() {
 
         val maxIdActual = todasFacturasExistentes.maxOfOrNull { it.id } ?: 0
         idCounter = maxIdActual + 1
+
+        val facturasParaRegistrarEnBD = mutableListOf<RegistrarFacturaDesdeSunatRequest>()
 
         resultados.forEach { resultado ->
             resultado.contenido.forEach { item ->
@@ -176,6 +182,38 @@ class InvoiceViewModel : ViewModel() {
                         }
                     }
                 } catch (e: Exception) {
+                    estadoDesdeBD = "CONSULTADO"
+
+                    val razonSocialRespectiva = if (esCompra) {
+                        // Para COMPRAS: El proveedor es el emisor
+                        item.razonSocialEmisor
+                    } else {
+                        // Para VENTAS: El cliente es el receptor
+                        item.nombreReceptor
+                    }
+
+                    val facturaRequest = RegistrarFacturaDesdeSunatRequest(
+                        rucEmisor = item.rucEmisor,
+                        serie = item.serie,
+                        numero = item.numero,
+                        fechaEmision = item.fechaEmision,
+                        razonSocial = razonSocialRespectiva,
+                        tipoDocumento = when (item.tipoCP) {
+                            "01" -> "FACTURA"
+                            "03" -> "BOLETA"
+                            else -> "DOCUMENTO"
+                        },
+                        moneda = when (item.moneda) {
+                            "PEN" -> "Soles (PEN)"
+                            "USD" -> "Dólares (USD)"
+                            else -> item.moneda
+                        },
+                        costoTotal = String.format("%.2f", item.baseGravada),
+                        igv = String.format("%.2f", item.igv),
+                        importeTotal = String.format("%.2f", item.total),
+                        usuarioId = 1
+                    )
+                    facturasParaRegistrarEnBD.add(facturaRequest)
                 }
 
                 val facturaExistente = todasFacturasExistentes.firstOrNull { factura ->
@@ -203,13 +241,19 @@ class InvoiceViewModel : ViewModel() {
 
                 _rucEmisores[id] = item.rucEmisor
 
+                val razonSocialCorrecta = if (esCompra) {
+                    item.razonSocialEmisor  // Para compras
+                } else {
+                    item.nombreReceptor     // Para ventas
+                }
+
                 val factura = Invoice(
                     id = id,
                     ruc = item.nroDocReceptor,
                     serie = item.serie,
                     numero = item.numero,
                     fechaEmision = item.fechaEmision,
-                    razonSocial = item.nombreReceptor,
+                    razonSocial = razonSocialCorrecta,
                     tipoDocumento = when (item.tipoCP) {
                         "01" -> "FACTURA"
                         "03" -> "BOLETA"
@@ -230,6 +274,22 @@ class InvoiceViewModel : ViewModel() {
                     tipoCambio = tipoCambio
                 )
                 facturas.add(factura)
+            }
+        }
+
+        if (facturasParaRegistrarEnBD.isNotEmpty()) {
+            viewModelScope.launch {
+                try {
+                    facturasParaRegistrarEnBD.forEach { request ->
+                        try {
+                            val response = apiService.registrarFacturaDesdeSunat(request)
+                        } catch (e: Exception) {
+                            _errorMessage.value = "Error al registrar algunas facturas: ${e.message}"
+                        }
+                    }
+                } catch (e: Exception) {
+                    _errorMessage.value = "Error al registrar facturas en BD: ${e.message}"
+                }
             }
         }
 

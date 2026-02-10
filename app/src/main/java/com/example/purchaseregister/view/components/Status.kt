@@ -1,4 +1,3 @@
-// EstadoLeyenda.kt
 package com.example.purchaseregister.components
 
 import androidx.compose.foundation.background
@@ -14,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun Status(
+fun status(
     modifier: Modifier = Modifier
 ) {
     Row(

@@ -372,7 +372,7 @@ fun PurchaseDetailScreen(
 
         Spacer(modifier = Modifier.height(15.dp))
 
-        Status(
+        status(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
