@@ -21,8 +21,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.purchaseregister.model.Invoice
-import java.text.SimpleDateFormat
-import java.util.*
 import com.example.purchaseregister.navigation.DetailRoute
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,15 +35,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
 import kotlinx.coroutines.delay
-
-private fun convertirFechaAPeriodo(millis: Long): String {
-    val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
-        timeInMillis = millis
-    }
-    val year = calendar.get(Calendar.YEAR)
-    val month = calendar.get(Calendar.MONTH) + 1
-    return "${year}${String.format("%02d", month)}"
-}
+import java.text.SimpleDateFormat
+import java.util.*
 
 enum class Section { COMPRAS, VENTAS }
 
@@ -59,7 +50,9 @@ fun PurchaseDetailScreen(
     onNavigateToDetalle: (DetailRoute) -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
+    // Estados
     var sectionActive by remember { mutableStateOf(Section.COMPRAS) }
     var isListVisible by rememberSaveable { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
@@ -70,110 +63,55 @@ fun PurchaseDetailScreen(
     }
     var selectedStartMillis by rememberSaveable { mutableStateOf<Long?>(null) }
     var selectedEndMillis by rememberSaveable { mutableStateOf<Long?>(null) }
-
     var showLoadingDialog by remember { mutableStateOf(false) }
     var loadingStatus by remember { mutableStateOf("Obteniendo detalle de factura...") }
     var loadingDebugInfo by remember { mutableStateOf<String?>(null) }
     var facturaCargandoId by remember { mutableStateOf<Int?>(null) }
     var esCompraCargando by remember { mutableStateOf(false) }
+    var showClaveSolDialog by remember { mutableStateOf(false) }
+    var claveSolInput by remember { mutableStateOf("") }
+    var facturaParaDetalle by remember { mutableStateOf<Invoice?>(null) }
+    var esCompraParaDetalle by remember { mutableStateOf(false) }
+    var facturasConTimerActivo by remember { mutableStateOf<Set<Int>>(emptySet()) }
 
+    val hoyMillis = remember { getHoyMillisPeru() }
+
+    // ViewModel states
     val isLoadingViewModel by viewModel.isLoading.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val facturasCompras by viewModel.facturasCompras.collectAsStateWithLifecycle()
     val facturasVentas by viewModel.facturasVentas.collectAsStateWithLifecycle()
 
-    var showClaveSolDialog by remember { mutableStateOf(false) }
-    var claveSolInput by remember { mutableStateOf("") }
-    var facturaParaDetalle by remember { mutableStateOf<Invoice?>(null) }
-    var esCompraParaDetalle by remember { mutableStateOf(false) }
-
-    var facturasConTimerActivo by remember { mutableStateOf<Set<Int>>(emptySet()) }
-
-    LaunchedEffect(isLoadingViewModel) {
-        isLoading = isLoadingViewModel
-
-        if (!isLoadingViewModel && showLoadingDialog) {
-            Handler(Looper.getMainLooper()).postDelayed({
-                showLoadingDialog = false
-                loadingDebugInfo = null
-
-                facturaCargandoId?.let { id ->
-                    onNavigateToDetalle(
-                        DetailRoute(
-                            id = id,
-                            esCompra = esCompraCargando
-                        )
-                    )
-                }
-                facturaCargandoId = null
-            }, 1500)
+    // Usar funciones extraídas
+    handleAutoRegistroFacturas(
+        facturasCompras = facturasCompras,
+        facturasVentas = facturasVentas,
+        facturasConTimerActivo = facturasConTimerActivo,
+        viewModel = viewModel,
+        context = context,
+        onTimerUpdate = { newTimers ->
+            facturasConTimerActivo = newTimers
         }
-    }
+    )
 
-    LaunchedEffect(facturasCompras, facturasVentas) {
-        val todasLasFacturas = facturasCompras + facturasVentas
+    setupCommonEffects(
+        isLoadingViewModel = isLoadingViewModel,
+        errorMessage = errorMessage,
+        showLoadingDialog = showLoadingDialog,
+        facturaCargandoId = facturaCargandoId,
+        esCompraCargando = esCompraCargando,
+        viewModel = viewModel,
+        onIsLoadingChange = { isLoading = it },
+        onLoadingDialogChange = { showLoadingDialog = it },
+        onNavigateToDetalle = { id, esCompra ->
+            onNavigateToDetalle(DetailRoute(id = id, esCompra = esCompra))
+        },
+        onLoadingStatusChange = { loadingStatus = it },
+        onLoadingDebugInfoChange = { loadingDebugInfo = it },
+        onFacturaCargandoIdChange = { facturaCargandoId = it }
+    )
 
-        val facturasParaAutoRegistrar = todasLasFacturas.filter { factura ->
-            factura.estado == "CON DETALLE" && !facturasConTimerActivo.contains(factura.id)
-        }
-
-        facturasParaAutoRegistrar.forEach { factura ->
-            facturasConTimerActivo = facturasConTimerActivo + factura.id
-
-            launch {
-                delay(10000L)
-
-                val estadoActual = todasLasFacturas.firstOrNull { it.id == factura.id }?.estado
-
-                if (estadoActual == "CON DETALLE") {
-                    val esCompra = facturasCompras.any { it.id == factura.id }
-                    val listaFacturasParaRegistrar = listOf(factura)
-
-                    viewModel.registrarFacturasEnBaseDeDatos(
-                        facturas = listaFacturasParaRegistrar,
-                        esCompra = esCompra,
-                        context = context,
-                        mostrarLoading = false
-                    )
-
-                    viewModel.actualizarEstadoFactura(
-                        facturaId = factura.id,
-                        nuevoEstado = "REGISTRADO",
-                        esCompra = esCompra
-                    )
-
-                    Toast.makeText(
-                        context,
-                        "✅ Factura ${factura.serie}-${factura.numero} registrada automáticamente",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-
-                facturasConTimerActivo = facturasConTimerActivo - factura.id
-            }
-        }
-
-        val facturasConDetalle = todasLasFacturas.filter { it.estado == "CON DETALLE" }.map { it.id }.toSet()
-        val timersParaLimpiar = facturasConTimerActivo.filter { !facturasConDetalle.contains(it) }
-        if (timersParaLimpiar.isNotEmpty()) {
-            facturasConTimerActivo = facturasConTimerActivo.filter { facturasConDetalle.contains(it) }.toSet()
-        }
-    }
-
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let { mensaje ->
-            if (showLoadingDialog) {
-                loadingStatus = "Error: $mensaje"
-                Handler(Looper.getMainLooper()).postDelayed({
-                    showLoadingDialog = false
-                    loadingDebugInfo = null
-                    facturaCargandoId = null
-                    viewModel.limpiarError()
-                }, 3000)
-            }
-        }
-    }
-
+    // Efectos adicionales
     LaunchedEffect(facturasCompras, facturasVentas) {
         val totalFacturas = if (sectionActive == Section.COMPRAS) facturasCompras.size else facturasVentas.size
         if (totalFacturas > 0 && !isListVisible) {
@@ -193,60 +131,19 @@ fun PurchaseDetailScreen(
         }
     }
 
-    val hoyMillis = remember {
-        Calendar.getInstance(PERU_TIME_ZONE).apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-    }
+    // Calcular lista filtrada usando función extraída
+    val listaFiltrada = calculateFilteredList(
+        sectionActive = sectionActive,
+        isListVisible = isListVisible,
+        selectedStartMillis = selectedStartMillis,
+        selectedEndMillis = selectedEndMillis,
+        hasLoadedSunatData = hasLoadedSunatData,
+        facturasCompras = facturasCompras,
+        facturasVentas = facturasVentas,
+        hoyMillis = hoyMillis
+    )
 
-    val listaActualBase = if (sectionActive == Section.COMPRAS) facturasCompras else facturasVentas
-
-    val listaFiltrada by remember(
-        sectionActive,
-        isListVisible,
-        selectedStartMillis,
-        selectedEndMillis,
-        hasLoadedSunatData,
-        facturasCompras,
-        facturasVentas
-    ) {
-        derivedStateOf {
-            if (!hasLoadedSunatData) {
-                return@derivedStateOf emptyList<Invoice>()
-            }
-            if (!isListVisible) {
-                return@derivedStateOf emptyList<Invoice>()
-            }
-
-            val start = selectedStartMillis ?: hoyMillis
-            val end = selectedEndMillis ?: start
-
-            val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
-                timeZone = PERU_TIME_ZONE
-            }
-
-            val facturasFiltradas = listaActualBase.filter { factura ->
-                try {
-                    val fechaFacturaTime = sdf.parse(factura.fechaEmision)?.time ?: 0L
-                    fechaFacturaTime in start..end
-                } catch (e: Exception) {
-                    false
-                }
-            }
-
-            facturasFiltradas.sortedByDescending { factura ->
-                try {
-                    sdf.parse(factura.fechaEmision)?.time ?: 0L
-                } catch (e: Exception) {
-                    0L
-                }
-            }
-        }
-    }
-
+    // Diálogos
     if (showSunatLogin) {
         SunatLoginDialog(
             onDismiss = { showSunatLogin = false },
@@ -328,7 +225,6 @@ fun PurchaseDetailScreen(
                     }
                 },
                 confirmButton = {
-                    val coroutineScope = rememberCoroutineScope()
                     TextButton(
                         onClick = {
                             if (claveSolInput.isNotEmpty()) {
@@ -581,7 +477,6 @@ fun PurchaseDetailScreen(
                                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                val coroutineScope = rememberCoroutineScope()
                                                 IconButton(
                                                     onClick = {
                                                         val currentId = factura.id
