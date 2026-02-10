@@ -19,6 +19,10 @@ import com.example.purchaseregister.model.ProductItem
 import com.example.purchaseregister.view.components.ReadOnlyField
 import com.example.purchaseregister.utils.SunatPrefs
 import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.ui.unit.sp
+import com.example.purchaseregister.view.detail.DocumentItem
+import com.example.purchaseregister.view.detail.DocumentModal
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,8 +43,11 @@ fun DetailScreen(
     importeTotal: String?,
     esCompra: Boolean = true,
     productos: List<ProductItem> = emptyList(),
-    onAceptar: () -> Unit = {}
+    onAceptar: () -> Unit = {},
+    documentos: List<DocumentItem> = emptyList()
 ) {
+    var showDocumentosDialog by remember { mutableStateOf(false) }
+
     fun formatearUnidadMedida(cantidad: String, unidad: String): String {
         val unidadFormateada = when (unidad.uppercase()) {
             "KILO", "KILOS", "KILOGRAMO", "KILOGRAMOS", "KG", "KGS" -> "Kg"
@@ -65,9 +72,22 @@ fun DetailScreen(
     }
 
     val context = LocalContext.current
+    val rucPropio = remember { SunatPrefs.getRuc(context) ?: "" }
+    val esOperacionInafecta = igv?.toDoubleOrNull() == 0.0 && costoTotal?.toDoubleOrNull() == 0.0
+    val valorVentaInafecto = if (esOperacionInafecta) {
+        importeTotal ?: "0.00"
+    } else {
+        costoTotal ?: "0.00"
+    }
+
+    if (showDocumentosDialog) {
+        DocumentModal(
+            documentos = documentos,
+            onDismiss = { showDocumentosDialog = false }
+        )
+    }
 
     BackHandler {
-        println("📱 [DetailScreen] BackHandler presionado (botón celular)")
         onBack()
     }
 
@@ -77,17 +97,6 @@ fun DetailScreen(
 
     productos.forEachIndexed { index, producto ->
         println("🎯 [DetailScreen] Producto $index: ${producto.descripcion}, ${producto.costoUnitario}, ${producto.cantidad}")
-    }
-
-    // 1. Obtiene el RUC del usuario logueado. Si es null, muestra vacío.
-    val rucPropio = remember { SunatPrefs.getRuc(context) ?: "" }
-
-    val esOperacionInafecta = igv?.toDoubleOrNull() == 0.0 && costoTotal?.toDoubleOrNull() == 0.0
-
-    val valorVentaInafecto = if (esOperacionInafecta) {
-        importeTotal ?: "0.00"
-    } else {
-        costoTotal ?: "0.00"
     }
 
     Scaffold(
@@ -375,26 +384,54 @@ fun DetailScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // --- BOTÓN ÚNICO ACEPTAR ---
+            // --- BOTONES---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
             ) {
                 Button(
                     onClick = {
-                        println("🎯 [DetailScreen] Presionando ACEPTAR")
-                        println("🎯 [DetailScreen] ID de factura: $id")
-                        println("🎯 [DetailScreen] esCompra: $esCompra")
-                        // Vuelve atrás
+                        println("📄 [DetailScreen] Presionando DOCUMENTACIÓN")
+                        showDocumentosDialog = true
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .padding(end = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF5A00)
+                    ),
+                    shape = MaterialTheme.shapes.medium,
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Description,
+                            contentDescription = "Documentos",
+                            modifier = Modifier.size(20.dp),
+                            tint = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Documentos", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Button(
+                    onClick = {
+                        println("🎯 [DetailScreen] Presionando REGRESAR")
                         onBack()
                     },
                     modifier = Modifier
-                        .width(200.dp)
-                        .height(48.dp),
+                        .weight(1f)
+                        .height(48.dp)
+                        .padding(start = 8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9)),
-                    shape = MaterialTheme.shapes.medium
+                    shape = MaterialTheme.shapes.medium,
+                    contentPadding = PaddingValues(horizontal = 4.dp)
                 ) {
-                    Text("Regresar", fontWeight = FontWeight.Bold)
+                    Text("Regresar", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
