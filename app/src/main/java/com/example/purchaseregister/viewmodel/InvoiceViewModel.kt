@@ -16,6 +16,7 @@ import android.content.Context
 import com.example.purchaseregister.api.RetrofitClient
 import com.example.purchaseregister.api.requests.*
 import com.example.purchaseregister.api.responses.*
+import kotlinx.coroutines.delay
 
 class InvoiceViewModel : ViewModel() {
     private val apiService = RetrofitClient.sunatApiService
@@ -308,7 +309,7 @@ class InvoiceViewModel : ViewModel() {
                     else -> facturaExistente?.tipoCambio ?: ""
                 }
 
-                _rucEmisores[id] = item.rucEmisor
+                _rucEmisores[id] = item.nroDocReceptor
 
                 val razonSocialCorrecta = if (esCompra) {
                     item.razonSocialEmisor  // Para compras
@@ -434,119 +435,31 @@ class InvoiceViewModel : ViewModel() {
 
         val numeroComprobante = "${factura.serie}-${factura.numero}"
 
+        // Si ya tiene detalle, notificar éxito inmediato
         if (factura.estado == "CON DETALLE" || factura.estado == "REGISTRADO") {
             if (factura.productos.isNotEmpty()) {
                 onLoadingComplete(true, "Detalles ya cargados")
             } else {
-                _errorMessage.value = "No hay detalles disponibles"
                 onLoadingComplete(false, "No hay detalles disponibles")
             }
             return
         }
 
-        viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                try {
-                    val facturaEnBD = apiService.verificarFacturaRegistrada(numeroComprobante)
-                } catch (e: Exception) {
-                    val registroRequest = RegistrarFacturaDesdeSunatRequest(
-                        rucEmisor = rucEmisor,
-                        serie = factura.serie,
-                        numero = factura.numero,
-                        fechaEmision = factura.fechaEmision,
-                        razonSocial = factura.razonSocial,
-                        tipoDocumento = factura.tipoDocumento,
-                        moneda = factura.moneda,
-                        costoTotal = factura.costoTotal,
-                        igv = factura.igv,
-                        importeTotal = factura.importeTotal,
-                        usuarioId = 1
-                    )
+        // Si está en proceso, notificar
+        if (factura.estado == "EN PROCESO") {
+            onLoadingComplete(false, "Ya se está procesando esta factura")
+            return
+        }
 
-                    val registroResponse = apiService.registrarFacturaDesdeSunat(registroRequest)
-                }
-
-                actualizarEstadoFactura(facturaId, "PROCESANDO...", esCompra)
-
-                val rucEmisorParaAPI = if (esCompra) factura.ruc else miRuc
-                val rucReceptorParaAPI = if (esCompra) miRuc else factura.ruc
-
-                val request = DetalleFacturaRequest(
-                    rucEmisor = rucEmisorParaAPI,
-                    serie = factura.serie,
-                    numero = factura.numero,
-                    ruc = rucReceptorParaAPI,
-                    usuario_sol = usuario,
-                    clave_sol = claveSol
-                )
-
-                val detalle = apiService.obtenerDetalleFacturaXml(request)
-
-                if (detalle.items != null && detalle.items.isNotEmpty()) {
-                    val productos = detalle.items.map { item ->
-                        ProductItem(
-                            descripcion = item.descripcion,
-                            cantidad = item.cantidad.toString(),
-                            costoUnitario = String.format("%.2f", item.valorUnitario),
-                            unidadMedida = item.unidad
-                        )
-                    }
-
-                    actualizarProductosFactura(facturaId, productos, esCompra)
-
-                    val productosParaGuardar = productos.map { producto ->
-                        ProductoRequest(
-                            descripcion = producto.descripcion,
-                            cantidad = producto.cantidad.toDoubleOrNull() ?: 0.0,
-                            costoUnitario = producto.costoUnitario.toDoubleOrNull() ?: 0.0,
-                            unidadMedida = producto.unidadMedida
-                        )
-                    }
-
-                    try {
-                        val guardarProductosResponse = apiService.guardarProductosFactura(
-                            numeroComprobante,
-                            GuardarProductosRequest(productos = productosParaGuardar)
-                        )
-                    } catch (e: Exception) {
-                    }
-
-                    try {
-                        val scrapingRequest = ScrapingCompletadoRequest(
-                            productos = productosParaGuardar
-                        )
-
-                        val respuestaBackend = apiService.marcarScrapingCompletado(
-                            numeroComprobante,
-                            scrapingRequest
-                        )
-                    } catch (e: Exception) {
-                        _errorMessage.value = "Detalles obtenidos, pero error al guardar en servidor"
-                    }
-
-                    val estadoActual = if (esCompra) {
-                        _facturasCompras.value.firstOrNull { it.id == facturaId }?.estado
-                    } else {
-                        _facturasVentas.value.firstOrNull { it.id == facturaId }?.estado
-                    }
-
-                    if (estadoActual != "REGISTRADO") {
-                        actualizarEstadoFactura(facturaId, "CON DETALLE", esCompra)
-                    }
-
-                    onLoadingComplete(true, "Detalles obtenidos y guardados exitosamente")
-
-                } else {
-                    _errorMessage.value = "El XML no contiene detalles de productos"
-                    onLoadingComplete(false, "El XML no contiene detalles de productos")
-                }
-            } catch (e: Exception) {
-                _errorMessage.value = "Error al obtener detalles: ${e.message}"
-                onLoadingComplete(false, "Error: ${e.message}")
-            } finally {
-                _isLoading.value = false
-            }
+        // Usar el nuevo sistema de colas
+        iniciarScrapingConCola(
+            facturaId = facturaId,
+            esCompra = esCompra,
+            rucEmisor = rucEmisor,
+            context = context
+        ) { jobId ->
+            // Llamar al callback con éxito
+            onLoadingComplete(true, "Scraping encolado. Job ID: $jobId")
         }
     }
 
@@ -602,6 +515,156 @@ class InvoiceViewModel : ViewModel() {
                     }
                 }
             }
+        }
+    }
+
+    fun iniciarScrapingConCola(
+        facturaId: Int,
+        esCompra: Boolean,
+        rucEmisor: String,
+        context: Context,
+        onJobEncolado: (jobId: String) -> Unit = { _ -> }
+    ) {
+        viewModelScope.launch {
+            try {
+                // 1. Cambiar estado a "EN PROCESO"
+                actualizarEstadoFactura(facturaId, "EN PROCESO", esCompra)
+
+                // 2. Obtener credenciales
+                val miRuc = SunatPrefs.getRuc(context) ?: return@launch
+                val usuario = SunatPrefs.getUser(context) ?: return@launch
+                val claveSol = SunatPrefs.getClaveSol(context) ?: return@launch
+
+                // 3. Obtener factura para datos
+                val factura = if (esCompra) {
+                    _facturasCompras.value.firstOrNull { it.id == facturaId }
+                } else {
+                    _facturasVentas.value.firstOrNull { it.id == facturaId }
+                } ?: return@launch
+
+                // 4. Encolar trabajo (POST /descargar-xml)
+                val request = DetalleFacturaRequest(
+                    rucEmisor = rucEmisor,
+                    serie = factura.serie,
+                    numero = factura.numero,
+                    ruc = if (esCompra) miRuc else factura.ruc, // Ajustar según sea compra/venta
+                    usuario_sol = usuario,
+                    clave_sol = claveSol
+                )
+
+                // NUEVO: Este endpoint ahora retorna jobId
+                val encoladoResponse = apiService.descargarXmlConCola(request)
+
+                if (encoladoResponse.success) {
+                    val jobId = encoladoResponse.jobId
+                    onJobEncolado(jobId)
+
+                    // 5. Iniciar polling para verificar estado
+                    iniciarPollingJob(jobId, facturaId, esCompra, context)
+                } else {
+                    // Si falla el encolado, volver a CONSULTADO
+                    actualizarEstadoFactura(facturaId, "CONSULTADO", esCompra)
+                    _errorMessage.value = "Error al encolar trabajo: ${encoladoResponse.message}"
+                }
+
+            } catch (e: Exception) {
+                actualizarEstadoFactura(facturaId, "CONSULTADO", esCompra)
+                _errorMessage.value = "Error: ${e.message}"
+            }
+        }
+    }
+
+    // NUEVO: Método para hacer polling del estado del job
+    private fun iniciarPollingJob(
+        jobId: String,
+        facturaId: Int,
+        esCompra: Boolean,
+        context: Context
+    ) {
+        viewModelScope.launch {
+            var intentos = 0
+            val maxIntentos = 60 // 3 minutos si polling cada 3 segundos
+
+            while (intentos < maxIntentos) {
+                delay(3000) // Polling cada 3 segundos
+
+                try {
+                    val estadoJob = apiService.obtenerEstadoJob(jobId)
+
+                    when (estadoJob.state) {
+                        "completed" -> {
+                            // Scraping completado exitosamente
+                            val productos = estadoJob.result?.items?.map { item ->
+                                ProductItem(
+                                    descripcion = item.descripcion,
+                                    cantidad = item.cantidad.toString(),
+                                    costoUnitario = String.format("%.2f", item.valorUnitario),
+                                    unidadMedida = item.unidad
+                                )
+                            } ?: emptyList()
+
+                            // Actualizar productos y estado
+                            actualizarProductosFactura(facturaId, productos, esCompra)
+                            actualizarEstadoFactura(facturaId, "CON DETALLE", esCompra)
+
+                            // Guardar en backend (opcional)
+                            guardarProductosEnBackend(
+                                estadoJob.result?.id ?: "sin-id",
+                                productos
+                            )
+                            break
+                        }
+                        "failed" -> {
+                            // Scraping falló
+                            actualizarEstadoFactura(facturaId, "CONSULTADO", esCompra)
+                            _errorMessage.value = "Scraping falló: ${estadoJob.reason}"
+                            break
+                        }
+                        // "waiting", "active", "delayed" -> continuar polling
+                    }
+
+                } catch (e: Exception) {
+                    // Error en polling, continuar intentando
+                }
+
+                intentos++
+            }
+
+            if (intentos >= maxIntentos) {
+                // Timeout
+                actualizarEstadoFactura(facturaId, "CONSULTADO", esCompra)
+                _errorMessage.value = "Timeout: El scraping no se completó en el tiempo esperado"
+            }
+        }
+    }
+
+    private suspend fun guardarProductosEnBackend(
+        numeroComprobante: String,
+        productos: List<ProductItem>
+    ) {
+        try {
+            val productosParaGuardar = productos.map { producto ->
+                ProductoRequest(
+                    descripcion = producto.descripcion,
+                    cantidad = producto.cantidad.toDoubleOrNull() ?: 0.0,
+                    costoUnitario = producto.costoUnitario.toDoubleOrNull() ?: 0.0,
+                    unidadMedida = producto.unidadMedida
+                )
+            }
+
+            apiService.guardarProductosFactura(
+                numeroComprobante,
+                GuardarProductosRequest(productos = productosParaGuardar)
+            )
+
+            // También marcar scraping como completado
+            val scrapingRequest = ScrapingCompletadoRequest(
+                productos = productosParaGuardar
+            )
+
+            apiService.marcarScrapingCompletado(numeroComprobante, scrapingRequest)
+        } catch (e: Exception) {
+            // Silencioso, no es crítico
         }
     }
 

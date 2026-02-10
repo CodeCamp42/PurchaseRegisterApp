@@ -142,3 +142,31 @@ data class RegistrarFacturaDesdeSunatResponse(
     val numeroComprobante: String,
     val message: String
 )
+
+data class EncoladoResponse(
+    val success: Boolean,
+    val jobId: String,
+    val message: String
+)
+
+data class EstadoJobResponse(
+    val id: String,
+    val state: String,
+    val progress: Int,
+    val result: JobResult?,
+    val reason: String?
+)
+
+data class JobResult(
+    val id: String,
+    val fechaEmision: String?,
+    val horaEmision: String?,
+    val moneda: String?,
+    val emisor: EmisorResponse?,
+    val receptor: ReceptorResponse?,
+    val subtotal: Double?,
+    val igv: Double?,
+    val total: Double?,
+    val items: List<ItemResponse>?,
+    val archivoXml: String?
+)

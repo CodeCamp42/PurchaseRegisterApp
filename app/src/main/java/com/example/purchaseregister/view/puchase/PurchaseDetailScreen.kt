@@ -229,11 +229,6 @@ fun PurchaseDetailScreen(
                                     showClaveSolDialog = false
                                     claveSolInput = ""
 
-                                    showLoadingDialog = true
-                                    facturaCargandoId = factura.id
-                                    esCompraCargando = esCompraParaDetalle
-                                    loadingStatus = "Obteniendo detalle de factura..."
-
                                     val rucEmisor = viewModel.getRucEmisor(factura.id) ?: factura.ruc
 
                                     viewModel.cargarDetalleFacturaXmlConUsuario(
@@ -242,30 +237,11 @@ fun PurchaseDetailScreen(
                                         rucEmisor = rucEmisor,
                                         context = context
                                     ) { success, message ->
+                                        // ✅ NUEVO: Solo Toast informativo
                                         if (success) {
-                                            loadingStatus = "✅ " + (message ?: "Detalles obtenidos exitosamente")
-
-                                            coroutineScope.launch {
-                                                kotlinx.coroutines.delay(1500)
-                                                showLoadingDialog = false
-                                                loadingDebugInfo = null
-
-                                                onNavigateToDetalle(
-                                                    DetailRoute(
-                                                        id = factura.id,
-                                                        esCompra = esCompraParaDetalle
-                                                    )
-                                                )
-                                            }
+                                            Toast.makeText(context, "✅ $message", Toast.LENGTH_SHORT).show()
                                         } else {
-                                            loadingStatus = "❌ " + (message ?: "Error desconocido")
-
-                                            coroutineScope.launch {
-                                                kotlinx.coroutines.delay(3000)
-                                                showLoadingDialog = false
-                                                loadingDebugInfo = null
-                                                facturaCargandoId = null
-                                            }
+                                            Toast.makeText(context, "❌ $message", Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 }
@@ -474,6 +450,10 @@ fun PurchaseDetailScreen(
                                             ) {
                                                 IconButton(
                                                     onClick = {
+                                                        if (factura.estado == "EN PROCESO") {
+                                                            return@IconButton
+                                                        }
+
                                                         val currentId = factura.id
                                                         val currentIsCompra = (sectionActive == Section.COMPRAS)
 
@@ -499,11 +479,6 @@ fun PurchaseDetailScreen(
                                                                 esCompraParaDetalle = currentIsCompra
                                                                 showClaveSolDialog = true
                                                             } else {
-                                                                showLoadingDialog = true
-                                                                facturaCargandoId = currentId
-                                                                esCompraCargando = currentIsCompra
-                                                                loadingStatus = "Obteniendo detalle de factura..."
-
                                                                 val rucEmisor = viewModel.getRucEmisor(factura.id) ?: factura.ruc
 
                                                                 viewModel.cargarDetalleFacturaXmlConUsuario(
@@ -513,40 +488,24 @@ fun PurchaseDetailScreen(
                                                                     context = context
                                                                 ) { success, message ->
                                                                     if (success) {
-                                                                        loadingStatus = "✅ " + (message ?: "Detalles obtenidos exitosamente")
-
-                                                                        coroutineScope.launch {
-                                                                            kotlinx.coroutines.delay(1500)
-                                                                            showLoadingDialog = false
-                                                                            loadingDebugInfo = null
-
-                                                                            onNavigateToDetalle(
-                                                                                DetailRoute(
-                                                                                    id = currentId,
-                                                                                    esCompra = currentIsCompra
-                                                                                )
-                                                                            )
-                                                                        }
+                                                                        // Solo mostrar Toast informativo
+                                                                        Toast.makeText(context, "✅ $message", Toast.LENGTH_SHORT).show()
+                                                                        // NO navegamos automáticamente, el usuario presionará el ojo cuando esté listo
                                                                     } else {
-                                                                        loadingStatus = "❌ " + (message ?: "Error desconocido")
-
-                                                                        coroutineScope.launch {
-                                                                            kotlinx.coroutines.delay(3000)
-                                                                            showLoadingDialog = false
-                                                                            loadingDebugInfo = null
-                                                                            facturaCargandoId = null
-                                                                        }
+                                                                        Toast.makeText(context, "❌ $message", Toast.LENGTH_SHORT).show()
                                                                     }
                                                                 }
                                                             }
                                                         }
                                                     },
-                                                    modifier = Modifier.size(24.dp)
+                                                    modifier = Modifier.size(24.dp),
+                                                    enabled = factura.estado != "EN PROCESO"
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Filled.Visibility,
                                                         contentDescription = "Ver detalle",
-                                                        modifier = Modifier.size(20.dp)
+                                                        modifier = Modifier.size(20.dp),
+                                                        tint = if (factura.estado == "EN PROCESO") Color.Gray else Color.Unspecified
                                                     )
                                                 }
                                                 InvoiceStatusCircle(factura.estado, tamano = 14.dp)

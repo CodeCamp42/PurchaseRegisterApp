@@ -86,19 +86,6 @@ fun FacturaLoadingDialog(
                         maxLines = 2,
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
-
-                    // Mensaje secundario (opcional)
-                    if (showSubMessage) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Este proceso puede tardar 1 minuto",
-                            fontSize = 12.sp,
-                            color = Color(0xFF666666),
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        )
-                    }
                 }
 
                 // Información de debug (opcional)

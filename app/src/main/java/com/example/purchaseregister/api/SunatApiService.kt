@@ -11,10 +11,10 @@ interface SunatApiService {
         @Query("periodoFin") periodoFin: String
     ): SunatResponse
 
-    @POST("sunat/descargar-xml")
-    suspend fun obtenerDetalleFacturaXml(
-        @Body request: DetalleFacturaRequest
-    ): DetalleFacturaXmlResponse
+//    @POST("sunat/descargar-xml")
+//    suspend fun obtenerDetalleFacturaXml(
+//        @Body request: DetalleFacturaRequest
+//    ): DetalleFacturaXmlResponse
 
     @PUT("factura/scraping-completado/{numeroComprobante}")
     @Headers("Content-Type: application/json")
@@ -56,4 +56,14 @@ interface SunatApiService {
     suspend fun obtenerFacturasUsuarioParaUI(
         @Path("usuarioId") usuarioId: String
     ): FacturasUIResponse
+
+    @POST("sunat/descargar-xml")
+    suspend fun descargarXmlConCola(
+        @Body request: DetalleFacturaRequest
+    ): EncoladoResponse
+
+    @GET("sunat/job/{jobId}")
+    suspend fun obtenerEstadoJob(
+        @Path("jobId") jobId: String
+    ): EstadoJobResponse
 }

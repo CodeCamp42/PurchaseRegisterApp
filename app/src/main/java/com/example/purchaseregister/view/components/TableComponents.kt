@@ -41,33 +41,15 @@ fun SimpleTableCell(text: String, width: Dp) {
 }
 
 @Composable
-fun InvoiceStatusCell(
-    estado: String,
-    modifier: Modifier = Modifier
-) {
-    Text(
-        estado,
-        modifier = modifier,
-        fontSize = 10.sp,
-        color = when (estado) {
-            "CONSULTADO" -> Color(0xFF2196F3)
-            "CON DETALLE" -> Color(0xFFFF5A00)
-            "REGISTRADO" -> Color(0xFF4CAF50)
-            else -> Color.Gray
-        },
-        fontWeight = FontWeight.Bold
-    )
-}
-
-@Composable
 fun InvoiceStatusCircle(
     estado: String,
     tamano: Dp = 20.dp
 ) {
     val color = when (estado.uppercase()) {
-        "CONSULTADO" -> Color(0xFF2196F3) // Azul/verde
-        "CON DETALLE" -> Color(0xFFFF5A00) // Naranja
-        "REGISTRADO" -> Color(0xFF4CAF50) // Verde
+        "CONSULTADO" -> Color(0xFF2196F3)
+        "EN PROCESO" -> Color(0xFF808080)
+        "CON DETALLE" -> Color(0xFFFF5A00)
+        "REGISTRADO" -> Color(0xFF4CAF50)
         else -> Color.Gray // Gris
     }
 
