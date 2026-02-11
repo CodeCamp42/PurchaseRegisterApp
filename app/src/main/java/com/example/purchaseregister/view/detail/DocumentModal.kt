@@ -16,9 +16,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.purchaseregister.viewmodel.InvoiceViewModel
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import android.widget.Toast
 import androidx.compose.ui.unit.sp
@@ -83,14 +83,15 @@ fun crearDocumentosParaFactura(
 @Composable
 fun DocumentModal(
     documentos: List<DocumentItem>,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    viewModel: DetailViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    val viewModel: InvoiceViewModel = viewModel()
     val scope = rememberCoroutineScope()
 
-    // Estado para controlar descargas
-    var descargandoDocumento by remember { mutableStateOf<String?>(null) }
+    // ✅ Estados del ViewModel
+    val downloadingDocument by viewModel.downloadingDocument.collectAsStateWithLifecycle()
+    val isDownloading by viewModel.isDownloading.collectAsStateWithLifecycle()
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -213,7 +214,7 @@ fun DocumentModal(
                                             color = Color.White,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                            softWrap = false  // ← Evita que se divida el texto
+                                            softWrap = false
                                         )
                                     }
                                 }
@@ -225,7 +226,7 @@ fun DocumentModal(
                                         .padding(start = 2.dp),
                                     contentAlignment = Alignment.CenterEnd
                                 ) {
-                                    if (descargandoDocumento == "${documento.numeroComprobante}-${documento.tipo}") {
+                                    if (downloadingDocument == "${documento.numeroComprobante}-${documento.tipo}") {
                                         CircularProgressIndicator(
                                             modifier = Modifier.size(18.dp),
                                             strokeWidth = 2.dp,
@@ -234,45 +235,35 @@ fun DocumentModal(
                                     } else {
                                         IconButton(
                                             onClick = {
-                                                println("📥 [DocumentModal] === INICIANDO DESCARGA ===")
-                                                println("📥 [DocumentModal] Número comprobante: ${documento.numeroComprobante}")
-                                                println("📥 [DocumentModal] Tipo: ${documento.tipo}")
-                                                println("📥 [DocumentModal] Context es nulo?: ${context == null}")
-                                                descargandoDocumento = "${documento.numeroComprobante}-${documento.tipo}"
                                                 scope.launch {
-                                                    try {
-                                                        println("🚀 [DocumentModal] Llamando a viewModel.descargarConDownloadManager...")
-                                                        viewModel.descargarConDownloadManager(
-                                                            context = context,
-                                                            numeroComprobante = documento.numeroComprobante,
-                                                            tipo = documento.tipo,
-                                                            baseUrl = "http://192.168.1.85:3043"
-                                                        )
-
-                                                        println("✅ [DocumentModal] Llamada a descargarConDownloadManager completada")
-                                                        Toast.makeText(
-                                                            context,
-                                                            "Descargando ${documento.tipo.uppercase()}...",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
-
-                                                    } catch (e: Exception) {
-                                                        println("❌ [DocumentModal] ERROR CAPTURADO: ${e.message}")
-                                                        e.printStackTrace()
-                                                        Toast.makeText(
-                                                            context,
-                                                            "Error: ${e.message}",
-                                                            Toast.LENGTH_LONG
-                                                        ).show()
-                                                    } finally {
-                                                        println("⏳ [DocumentModal] Delay de 500ms antes de resetear estado")
-                                                        kotlinx.coroutines.delay(500)
-                                                        descargandoDocumento = null
-                                                        println("🔄 [DocumentModal] Estado resetado: descargandoDocumento = null")
-                                                    }
+                                                    viewModel.descargarDocumento(
+                                                        context = context,
+                                                        numeroComprobante = documento.numeroComprobante,
+                                                        tipo = documento.tipo,
+                                                        baseUrl = "http://192.168.1.85:3043",
+                                                        onStart = {
+                                                            println("📥 [DocumentModal] Iniciando descarga: ${documento.numeroComprobante}-${documento.tipo}")
+                                                        },
+                                                        onSuccess = {
+                                                            println("✅ [DocumentModal] Descarga encolada exitosamente")
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Descargando ${documento.tipo.uppercase()}...",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        },
+                                                        onError = { error ->
+                                                            println("❌ [DocumentModal] Error: $error")
+                                                            Toast.makeText(
+                                                                context,
+                                                                error,
+                                                                Toast.LENGTH_LONG
+                                                            ).show()
+                                                        }
+                                                    )
                                                 }
                                             },
-                                            modifier = Modifier.size(32.dp)  // ← Tamaño reducido
+                                            modifier = Modifier.size(32.dp)
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Download,

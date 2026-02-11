@@ -3,7 +3,7 @@ package com.example.purchaseregister.navigation
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import com.example.purchaseregister.view.register.RegistroCompraScreen
-import com.example.purchaseregister.viewmodel.InvoiceViewModel
+import com.example.purchaseregister.view.register.PurchaseRegistrationViewModel
 import kotlinx.serialization.Serializable
 
 // 1. Identificador de la pantalla de Registro
@@ -13,7 +13,7 @@ object RegisterRoute
 // 2. Extensión para configurar el acceso a la pantalla de Registro
 fun NavGraphBuilder.registerPurchaseRoute(
     onBack: () -> Unit,
-    viewModel: InvoiceViewModel
+    viewModel: PurchaseRegistrationViewModel
 ) {
     composable<RegisterRoute> {
         RegistroCompraScreen(

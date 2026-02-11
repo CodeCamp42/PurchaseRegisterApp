@@ -83,7 +83,8 @@ fun handleAutoRegistroFacturas(
     facturasCompras: List<Invoice>,
     facturasVentas: List<Invoice>,
     facturasConTimerActivo: Set<Int>,
-    viewModel: InvoiceViewModel,
+    purchaseViewModel: PurchaseViewModel,
+    invoiceViewModel: InvoiceViewModel,
     context: Context,
     onTimerUpdate: (Set<Int>) -> Unit
 ) {
@@ -107,14 +108,16 @@ fun handleAutoRegistroFacturas(
                     val esCompra = facturasCompras.any { it.id == factura.id }
                     val listaFacturasParaRegistrar = listOf(factura)
 
-                    viewModel.registrarFacturasEnBaseDeDatos(
+                    // ✅ InvoiceViewModel para registrar en BD
+                    invoiceViewModel.registrarFacturasEnBaseDeDatos(
                         facturas = listaFacturasParaRegistrar,
                         esCompra = esCompra,
                         context = context,
                         mostrarLoading = false
                     )
 
-                    viewModel.actualizarEstadoFactura(
+                    // ✅ PurchaseViewModel para actualizar estado
+                    purchaseViewModel.actualizarEstadoFactura(
                         facturaId = factura.id,
                         nuevoEstado = "REGISTRADO",
                         esCompra = esCompra
@@ -147,7 +150,7 @@ fun setupCommonEffects(
     showLoadingDialog: Boolean,
     facturaCargandoId: Int?,
     esCompraCargando: Boolean,
-    viewModel: InvoiceViewModel,
+    viewModel: PurchaseViewModel,
     onIsLoadingChange: (Boolean) -> Unit,
     onLoadingDialogChange: (Boolean) -> Unit,
     onNavigateToDetalle: (Int, Boolean) -> Unit,
@@ -195,7 +198,7 @@ fun handleConsultarClick(
     selectedEndMillis: Long?,
     hoyMillis: Long,
     sectionActive: Section,
-    viewModel: InvoiceViewModel,
+    viewModel: PurchaseViewModel,
     onShowSunatLogin: () -> Unit,
     onShowList: () -> Unit
 ) {

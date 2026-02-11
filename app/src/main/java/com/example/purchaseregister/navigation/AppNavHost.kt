@@ -12,19 +12,26 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.purchaseregister.view.register.DetailScreen
 import com.example.purchaseregister.viewmodel.InvoiceViewModel
+import com.example.purchaseregister.view.purchase.PurchaseViewModel
+import com.example.purchaseregister.view.register.PurchaseRegistrationViewModel
 
 @Composable
 fun AppNavHost() {
     val navController = rememberNavController()
-    val viewModel: InvoiceViewModel = viewModel()
+
+    // ✅ ViewModels específicos para cada pantalla
+    val purchaseViewModel: PurchaseViewModel = viewModel()
+    val invoiceViewModel: InvoiceViewModel = viewModel()
+    val purchaseRegistrationViewModel: PurchaseRegistrationViewModel = viewModel()
 
     NavHost(
         navController = navController,
         startDestination = PurchaseDetailRoute
     ) {
-        // 1. Pantalla Principal
+        // 1. Pantalla Principal - AHORA USA AMBOS VIEWMODELS
         purchaseDetailRoute(
-            viewModel = viewModel,
+            purchaseViewModel = purchaseViewModel,
+            invoiceViewModel = invoiceViewModel,
             onNavigateToRegistrar = {
                 navController.navigate(RegisterRoute)
             },
@@ -33,23 +40,23 @@ fun AppNavHost() {
             }
         )
 
-        // 2. Pantalla de Registro
+        // 2. Pantalla de Registro - USA SU PROPIO VIEWMODEL
         registerPurchaseRoute(
             onBack = {
                 navController.popBackStack()
             },
-            viewModel = viewModel
+            viewModel = purchaseRegistrationViewModel
         )
 
-        // 3. Pantalla de Detalle de Factura
+        // 3. Pantalla de Detalle de Factura - USA INVOICEVIEWMODEL PARA DATOS
         composable<DetailRoute> { backStackEntry ->
             val args = backStackEntry.toRoute<DetailRoute>()
 
             println("🎯 [AppNavHost] Recibiendo DetailRoute: ID=${args.id}, esCompra=${args.esCompra}")
 
-            // ✅ OBSERVAR REACTIVAMENTE LOS CAMBIOS
-            val facturasCompras by viewModel.facturasCompras.collectAsState()
-            val facturasVentas by viewModel.facturasVentas.collectAsState()
+            // ✅ OBSERVAR REACTIVAMENTE LOS CAMBIOS DESDE InvoiceViewModel
+            val facturasCompras by invoiceViewModel.facturasCompras.collectAsState()
+            val facturasVentas by invoiceViewModel.facturasVentas.collectAsState()
 
             // ✅ BUSCAR LA FACTURA REACTIVAMENTE (se actualiza cuando cambia el StateFlow)
             val factura = remember(facturasCompras, facturasVentas, args.id, args.esCompra) {

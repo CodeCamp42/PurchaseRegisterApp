@@ -22,7 +22,6 @@ import com.example.purchaseregister.model.Invoice
 import com.example.purchaseregister.navigation.DetailRoute
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.purchaseregister.viewmodel.InvoiceViewModel
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.example.purchaseregister.utils.*
 import com.example.purchaseregister.components.*
@@ -31,13 +30,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
+import com.example.purchaseregister.viewmodel.InvoiceViewModel
 
 enum class Section { COMPRAS, VENTAS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PurchaseDetailScreen(
-    viewModel: InvoiceViewModel,
+    purchaseViewModel: PurchaseViewModel,  // ✅ Renombrado para claridad
+    invoiceViewModel: InvoiceViewModel,    // ✅ Agregar InvoiceViewModel
     onComprasClick: () -> Unit,
     onVentasClick: () -> Unit,
     onNavigateToRegistrar: () -> Unit,
@@ -75,17 +76,18 @@ fun PurchaseDetailScreen(
     val hoyMillis = remember { getHoyMillisPeru() }
 
     // ViewModel states
-    val isLoadingViewModel by viewModel.isLoading.collectAsStateWithLifecycle()
-    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
-    val facturasCompras by viewModel.facturasCompras.collectAsStateWithLifecycle()
-    val facturasVentas by viewModel.facturasVentas.collectAsStateWithLifecycle()
+    val isLoadingViewModel by purchaseViewModel.isLoading.collectAsStateWithLifecycle()
+    val errorMessage by purchaseViewModel.errorMessage.collectAsStateWithLifecycle()
+    val facturasCompras by purchaseViewModel.facturasCompras.collectAsStateWithLifecycle()
+    val facturasVentas by purchaseViewModel.facturasVentas.collectAsStateWithLifecycle()
 
-    // Usar funciones extraídas
+    // Usar funciones extraídas - AHORA CON AMBOS VIEWMODELS
     handleAutoRegistroFacturas(
         facturasCompras = facturasCompras,
         facturasVentas = facturasVentas,
         facturasConTimerActivo = facturasConTimerActivo,
-        viewModel = viewModel,
+        purchaseViewModel = purchaseViewModel,    // ✅ Pasamos PurchaseViewModel
+        invoiceViewModel = invoiceViewModel,      // ✅ Pasamos InvoiceViewModel
         context = context,
         onTimerUpdate = { newTimers ->
             facturasConTimerActivo = newTimers
@@ -98,7 +100,7 @@ fun PurchaseDetailScreen(
         showLoadingDialog = showLoadingDialog,
         facturaCargandoId = facturaCargandoId,
         esCompraCargando = esCompraCargando,
-        viewModel = viewModel,
+        viewModel = purchaseViewModel,            // ✅ Solo necesita PurchaseViewModel
         onIsLoadingChange = { isLoading = it },
         onLoadingDialogChange = { showLoadingDialog = it },
         onNavigateToDetalle = { id, esCompra ->
@@ -152,7 +154,7 @@ fun PurchaseDetailScreen(
                 val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
                 val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
 
-                viewModel.cargarFacturasDesdeAPI(
+                purchaseViewModel.cargarFacturasDesdeAPI(
                     periodoInicio = periodoInicio,
                     periodoFin = periodoFin,
                     esCompra = (sectionActive == Section.COMPRAS)
@@ -232,15 +234,14 @@ fun PurchaseDetailScreen(
                                     showClaveSolDialog = false
                                     claveSolInput = ""
 
-                                    val rucEmisor = viewModel.getRucEmisor(factura.id) ?: factura.ruc
+                                    val rucEmisor = purchaseViewModel.getRucEmisor(factura.id) ?: factura.ruc
 
-                                    viewModel.cargarDetalleFacturaXmlConUsuario(
+                                    purchaseViewModel.cargarDetalleFacturaXmlConUsuario(
                                         facturaId = factura.id,
                                         esCompra = esCompraParaDetalle,
                                         rucEmisor = rucEmisor,
                                         context = context
                                     ) { success, message ->
-                                        // ✅ NUEVO: Solo Toast informativo
                                         if (success) {
                                             Toast.makeText(context, "✅ $message", Toast.LENGTH_SHORT).show()
                                         } else {
@@ -346,7 +347,6 @@ fun PurchaseDetailScreen(
                                 Toast.LENGTH_SHORT
                             ).show()
                         } else {
-                            // Filtrar solo facturas procesables
                             val facturasProcesables = listaFiltrada.filter { factura ->
                                 factura.estado != "CON DETALLE" &&
                                         factura.estado != "REGISTRADO" &&
@@ -362,7 +362,6 @@ fun PurchaseDetailScreen(
                                 return@IconButton
                             }
 
-                            // SIMULAR CLICK EN CADA OJO DE LA LISTA
                             facturasProcesables.forEach { factura ->
                                 val currentIsCompra = (sectionActive == Section.COMPRAS)
                                 val ruc = SunatPrefs.getRuc(context)
@@ -379,9 +378,9 @@ fun PurchaseDetailScreen(
                                     esCompraParaDetalle = currentIsCompra
                                     showClaveSolDialog = true
                                 } else {
-                                    val rucEmisor = viewModel.getRucEmisor(factura.id) ?: factura.ruc
+                                    val rucEmisor = purchaseViewModel.getRucEmisor(factura.id) ?: factura.ruc
 
-                                    viewModel.cargarDetalleFacturaXmlConUsuario(
+                                    purchaseViewModel.cargarDetalleFacturaXmlConUsuario(
                                         facturaId = factura.id,
                                         esCompra = currentIsCompra,
                                         rucEmisor = rucEmisor,
@@ -524,8 +523,7 @@ fun PurchaseDetailScreen(
                                             .padding(vertical = 8.dp, horizontal = 8.dp)
                                     ) {
                                         Text(
-                                            text = if (sectionActive == Section.COMPRAS) "${factura.razonSocial}"
-                                            else "${factura.razonSocial}",
+                                            text = "${factura.razonSocial}",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = Color.Black
@@ -551,7 +549,6 @@ fun PurchaseDetailScreen(
                                                             return@IconButton
                                                         }
 
-                                                        val currentId = factura.id
                                                         val currentIsCompra = (sectionActive == Section.COMPRAS)
 
                                                         val ruc = SunatPrefs.getRuc(context)
@@ -563,7 +560,6 @@ fun PurchaseDetailScreen(
                                                             return@IconButton
                                                         }
 
-                                                        // ✅ CORREGIDO: Navegar tanto para "CON DETALLE" como para "REGISTRADO"
                                                         if (factura.estado == "CON DETALLE" || factura.estado == "REGISTRADO") {
                                                             onNavigateToDetalle(
                                                                 DetailRoute(
@@ -574,15 +570,14 @@ fun PurchaseDetailScreen(
                                                             return@IconButton
                                                         }
 
-                                                        // Solo para estados "CONSULTADO" u otros estados sin detalle
                                                         if (claveSol == null) {
                                                             facturaParaDetalle = factura
                                                             esCompraParaDetalle = currentIsCompra
                                                             showClaveSolDialog = true
                                                         } else {
-                                                            val rucEmisor = viewModel.getRucEmisor(factura.id) ?: factura.ruc
+                                                            val rucEmisor = purchaseViewModel.getRucEmisor(factura.id) ?: factura.ruc
 
-                                                            viewModel.cargarDetalleFacturaXmlConUsuario(
+                                                            purchaseViewModel.cargarDetalleFacturaXmlConUsuario(
                                                                 facturaId = factura.id,
                                                                 esCompra = currentIsCompra,
                                                                 rucEmisor = rucEmisor,
@@ -672,7 +667,7 @@ fun PurchaseDetailScreen(
                         val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
                         val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
 
-                        viewModel.cargarFacturasDesdeAPI(
+                        purchaseViewModel.cargarFacturasDesdeAPI(
                             periodoInicio = periodoInicio,
                             periodoFin = periodoFin,
                             esCompra = (sectionActive == Section.COMPRAS),
@@ -708,9 +703,11 @@ fun PurchaseDetailScreen(
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun PurchaseScreenPreview() {
-    val viewModel: InvoiceViewModel = viewModel()
+    val purchaseViewModel: PurchaseViewModel = viewModel()
+    val invoiceViewModel: InvoiceViewModel = viewModel()
     PurchaseDetailScreen(
-        viewModel = viewModel,
+        purchaseViewModel = purchaseViewModel,
+        invoiceViewModel = invoiceViewModel,
         onComprasClick = { },
         onVentasClick = { },
         onNavigateToRegistrar = { },

@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.purchaseregister.BuildConfig
@@ -33,7 +32,6 @@ import com.example.purchaseregister.utils.FormatoUtils
 import com.example.purchaseregister.utils.MonedaUtils
 import com.example.purchaseregister.utils.SunatPrefs
 import com.example.purchaseregister.view.components.ReadOnlyField
-import com.example.purchaseregister.viewmodel.InvoiceViewModel
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.File
@@ -42,7 +40,7 @@ import java.io.File
 @Composable
 fun RegistroCompraScreen(
     onBack: () -> Unit,
-    viewModel: InvoiceViewModel
+    viewModel: PurchaseRegistrationViewModel = viewModel()
 ) {
     val context = LocalContext.current
 
@@ -632,6 +630,6 @@ fun RegistroCompraScreen(
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun RegistroCompraScreenPreview() {
-    val viewModel: InvoiceViewModel = viewModel()
+    val viewModel: PurchaseRegistrationViewModel = viewModel()
     RegistroCompraScreen(onBack = { }, viewModel = viewModel)
 }
