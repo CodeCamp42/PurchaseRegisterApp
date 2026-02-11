@@ -17,6 +17,12 @@ import com.example.purchaseregister.api.RetrofitClient
 import com.example.purchaseregister.api.requests.*
 import com.example.purchaseregister.api.responses.*
 import kotlinx.coroutines.delay
+import com.example.purchaseregister.view.detail.DocumentItem
+import android.app.DownloadManager
+import android.net.Uri
+import android.os.Environment
+import okhttp3.ResponseBody
+import java.io.File
 
 class InvoiceViewModel : ViewModel() {
     private val apiService = RetrofitClient.sunatApiService
@@ -311,11 +317,7 @@ class InvoiceViewModel : ViewModel() {
 
                 _rucEmisores[id] = item.nroDocReceptor
 
-                val razonSocialCorrecta = if (esCompra) {
-                    item.razonSocialEmisor  // Para compras
-                } else {
-                    item.nombreReceptor     // Para ventas
-                }
+                val razonSocialCompra = item.nombreReceptor
 
                 val factura = Invoice(
                     id = id,
@@ -323,7 +325,7 @@ class InvoiceViewModel : ViewModel() {
                     serie = item.serie,
                     numero = item.numero,
                     fechaEmision = item.fechaEmision,
-                    razonSocial = razonSocialCorrecta,
+                    razonSocial = razonSocialCompra,
                     tipoDocumento = when (item.tipoCP) {
                         "01" -> "FACTURA"
                         "03" -> "BOLETA"
@@ -709,6 +711,176 @@ class InvoiceViewModel : ViewModel() {
                 }
             }
             _facturasCache[key] = facturasActualizadas
+        }
+    }
+
+    // Método para descargar archivo
+    fun descargarDocumento(
+        context: Context,
+        numeroComprobante: String,
+        tipo: String
+    ) {
+        viewModelScope.launch {
+            try {
+                // Obtener la respuesta del API
+                val responseBody = apiService.descargarArchivo(numeroComprobante, tipo)
+
+                // Guardar el archivo
+                guardarArchivo(context, responseBody, numeroComprobante, tipo)
+
+            } catch (e: Exception) {
+                _errorMessage.value = "Error al descargar: ${e.message}"
+            }
+        }
+    }
+
+    // Método alternativo usando DownloadManager (recomendado)
+    fun descargarConDownloadManager(
+        context: Context,
+        numeroComprobante: String,
+        tipo: String,
+        baseUrl: String = "http://192.168.1.85:3043"
+    ) {
+        println("🔽 [descargarConDownloadManager] INICIANDO descarga")
+        println("🔽 Número comprobante: $numeroComprobante")
+        println("🔽 Tipo archivo: $tipo")
+        println("🔽 Base URL: $baseUrl")
+
+        // URL COMPLETA - MUESTRA ANTES DE CUALQUIER COSA
+        val url = "$baseUrl/factura/descargar/$numeroComprobante/$tipo"
+        println("🔗🔗🔗 URL COMPLETA PARA PROBAR EN NAVEGADOR: $url")
+        println("⚠️ Abre esta URL en tu navegador para ver si el archivo existe")
+
+        try {
+            // Obtener DownloadManager
+            println("📱 Obteniendo DownloadManager...")
+            val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            println("✅ DownloadManager obtenido: $downloadManager")
+
+            // Configurar extensión
+            val extension = when (tipo.lowercase()) {
+                "pdf" -> "pdf"
+                "xml" -> "xml"
+                "cdr" -> "zip"
+                else -> {
+                    println("⚠️ Tipo desconocido: $tipo, usando 'dat'")
+                    "dat"
+                }
+            }
+            println("📄 Extensión: $extension")
+
+            // Construir nombre de archivo
+            val fileName = "${numeroComprobante}_${tipo.uppercase()}.$extension"
+            println("📁 Nombre archivo: $fileName")
+            println("💾 Se guardará en: ${Environment.DIRECTORY_DOWNLOADS}/$fileName")
+
+            // Verificar URL antes de crear la URI
+            println("🔍 Verificando formato de URL...")
+            println("🔍 URL tiene http/https: ${url.startsWith("http")}")
+
+            // Crear URI
+            println("🌐 Parseando URI...")
+            val uri = Uri.parse(url)
+            println("✅ URI parseada: $uri")
+            println("✅ Esquema: ${uri.scheme}")
+            println("✅ Host: ${uri.host}")
+            println("✅ Puerto: ${uri.port}")
+            println("✅ Path: ${uri.path}")
+
+            // Crear request
+            println("⚙️ Creando DownloadManager.Request...")
+            val request = DownloadManager.Request(uri)
+                .setTitle("Descargando $tipo: $numeroComprobante")
+                .setDescription("Descargando archivo $tipo de la factura")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                .setAllowedOverMetered(true)
+                .setAllowedOverRoaming(true)
+
+            println("✅ Request configurado")
+
+            // Encolar descarga
+            println("🚀 Encolando descarga con DownloadManager...")
+            val downloadId = downloadManager.enqueue(request)
+
+            println("✅✅✅ DESCARGA ENCOLADA EXITOSAMENTE")
+            println("📋 ID de descarga: $downloadId")
+            println("📱 La descarga se gestionará por el sistema Android")
+            println("🔔 Se mostrará notificación cuando termine")
+
+            // Mostrar mensaje en UI
+            _errorMessage.value = "Descarga iniciada. ID: $downloadId"
+
+            // Mensaje adicional en logs
+            println("ℹ️ Si la descarga falla, verifica:")
+            println("ℹ️ 1. Que la URL funcione en el navegador: $url")
+            println("ℹ️ 2. Que el servidor esté accesible desde tu dispositivo")
+            println("ℹ️ 3. Que el archivo exista en el servidor")
+
+        } catch (e: SecurityException) {
+            println("❌❌❌ ERROR DE PERMISOS")
+            println("❌ Mensaje: ${e.message}")
+            println("❌ Verifica permisos WRITE_EXTERNAL_STORAGE")
+            e.printStackTrace()
+            _errorMessage.value = "Error de permisos: ${e.message}"
+
+        } catch (e: IllegalArgumentException) {
+            println("❌❌❌ ERROR EN LA URL")
+            println("❌ URL inválida: $url")
+            println("❌ Mensaje: ${e.message}")
+            e.printStackTrace()
+            _errorMessage.value = "URL inválida: ${e.message}"
+
+        } catch (e: NullPointerException) {
+            println("❌❌❌ ERROR DE NULL")
+            println("❌ Context o DownloadManager es nulo")
+            println("❌ Mensaje: ${e.message}")
+            e.printStackTrace()
+            _errorMessage.value = "Error interno: ${e.message}"
+
+        } catch (e: Exception) {
+            println("❌❌❌ ERROR GENERAL")
+            println("❌ Tipo: ${e::class.java.name}")
+            println("❌ Mensaje: ${e.message}")
+            println("❌ URL intentada: $url")
+            e.printStackTrace()
+            _errorMessage.value = "Error al descargar: ${e.message}"
+        }
+
+        println("🏁 [descargarConDownloadManager] FINALIZADO")
+        println("==================================================================")
+    }
+
+    // Función privada para guardar archivo localmente
+    private fun guardarArchivo(
+        context: Context,
+        responseBody: ResponseBody,
+        numeroComprobante: String,
+        tipo: String
+    ) {
+        try {
+            val extension = when (tipo.lowercase()) {
+                "pdf" -> "pdf"
+                "xml" -> "xml"
+                "cdr" -> "zip"
+                else -> tipo
+            }
+
+            val fileName = "${numeroComprobante}_${tipo.uppercase()}.$extension"
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val file = File(downloadsDir, fileName)
+
+            file.outputStream().use { output ->
+                responseBody.byteStream().use { input ->
+                    input.copyTo(output)
+                }
+            }
+
+            // Mostrar notificación de éxito
+            _errorMessage.value = "Archivo descargado: ${file.absolutePath}"
+
+        } catch (e: Exception) {
+            _errorMessage.value = "Error al guardar archivo: ${e.message}"
         }
     }
 }

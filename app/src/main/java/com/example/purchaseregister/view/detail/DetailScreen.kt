@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.ui.unit.sp
 import com.example.purchaseregister.view.detail.DocumentItem
 import com.example.purchaseregister.view.detail.DocumentModal
+import com.example.purchaseregister.view.detail.crearDocumentosParaFactura  // ¡NUEVO IMPORT!
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +48,20 @@ fun DetailScreen(
     documentos: List<DocumentItem> = emptyList()
 ) {
     var showDocumentosDialog by remember { mutableStateOf(false) }
+
+    val numeroComprobante = if (serie != null && numero != null) "$serie-$numero" else ""
+    val fechaFormateada = fecha ?: ""
+    val serieValida = serie ?: ""
+
+    val documentosAutomaticos = remember(serieValida, numeroComprobante, fechaFormateada) {
+        if (serieValida.isNotBlank() && numeroComprobante.isNotBlank() && fechaFormateada.isNotBlank()) {
+            crearDocumentosParaFactura(serieValida, numeroComprobante, fechaFormateada)
+        } else {
+            emptyList()
+        }
+    }
+
+    val documentosAMostrar = if (documentos.isNotEmpty()) documentos else documentosAutomaticos
 
     fun formatearUnidadMedida(cantidad: String, unidad: String): String {
         val unidadFormateada = when (unidad.uppercase()) {
@@ -82,7 +97,7 @@ fun DetailScreen(
 
     if (showDocumentosDialog) {
         DocumentModal(
-            documentos = documentos,
+            documentos = documentosAMostrar,
             onDismiss = { showDocumentosDialog = false }
         )
     }
@@ -94,6 +109,7 @@ fun DetailScreen(
     println("🎯 [DetailScreen] ID recibido: $id")
     println("🎯 [DetailScreen] esCompra: $esCompra")
     println("🎯 [DetailScreen] Número de productos recibidos: ${productos.size}")
+    println("🎯 [DetailScreen] Documentos automáticos creados: ${documentosAutomaticos.size}")
 
     productos.forEachIndexed { index, producto ->
         println("🎯 [DetailScreen] Producto $index: ${producto.descripcion}, ${producto.costoUnitario}, ${producto.cantidad}")
@@ -392,6 +408,10 @@ fun DetailScreen(
                 Button(
                     onClick = {
                         println("📄 [DetailScreen] Presionando DOCUMENTACIÓN")
+                        println("📄 [DetailScreen] Documentos a mostrar: ${documentosAMostrar.size}")
+                        documentosAMostrar.forEachIndexed { index, doc ->
+                            println("📄 [DetailScreen] Documento $index: ${doc.nombre} - ${doc.tipo}")
+                        }
                         showDocumentosDialog = true
                     },
                     modifier = Modifier

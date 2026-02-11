@@ -3,6 +3,7 @@ package com.example.purchaseregister.api
 import com.example.purchaseregister.api.requests.*
 import com.example.purchaseregister.api.responses.*
 import retrofit2.http.*
+import okhttp3.ResponseBody
 
 interface SunatApiService {
     @GET("sunat/facturas")
@@ -10,11 +11,6 @@ interface SunatApiService {
         @Query("periodoInicio") periodoInicio: String,
         @Query("periodoFin") periodoFin: String
     ): SunatResponse
-
-//    @POST("sunat/descargar-xml")
-//    suspend fun obtenerDetalleFacturaXml(
-//        @Body request: DetalleFacturaRequest
-//    ): DetalleFacturaXmlResponse
 
     @PUT("factura/scraping-completado/{numeroComprobante}")
     @Headers("Content-Type: application/json")
@@ -66,4 +62,11 @@ interface SunatApiService {
     suspend fun obtenerEstadoJob(
         @Path("jobId") jobId: String
     ): EstadoJobResponse
+
+    @GET("factura/descargar/{numeroComprobante}/{tipo}")
+    @Headers("Content-Type: application/octet-stream")
+    suspend fun descargarArchivo(
+        @Path("numeroComprobante") numeroComprobante: String,
+        @Path("tipo") tipo: String
+    ): ResponseBody
 }

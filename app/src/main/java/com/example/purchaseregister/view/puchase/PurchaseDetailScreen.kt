@@ -466,34 +466,35 @@ fun PurchaseDetailScreen(
                                                             return@IconButton
                                                         }
 
-                                                        if (factura.estado == "CON DETALLE") {
+                                                        // ✅ CORREGIDO: Navegar tanto para "CON DETALLE" como para "REGISTRADO"
+                                                        if (factura.estado == "CON DETALLE" || factura.estado == "REGISTRADO") {
                                                             onNavigateToDetalle(
                                                                 DetailRoute(
                                                                     id = factura.id,
                                                                     esCompra = currentIsCompra
                                                                 )
                                                             )
-                                                        } else {
-                                                            if (claveSol == null) {
-                                                                facturaParaDetalle = factura
-                                                                esCompraParaDetalle = currentIsCompra
-                                                                showClaveSolDialog = true
-                                                            } else {
-                                                                val rucEmisor = viewModel.getRucEmisor(factura.id) ?: factura.ruc
+                                                            return@IconButton
+                                                        }
 
-                                                                viewModel.cargarDetalleFacturaXmlConUsuario(
-                                                                    facturaId = factura.id,
-                                                                    esCompra = currentIsCompra,
-                                                                    rucEmisor = rucEmisor,
-                                                                    context = context
-                                                                ) { success, message ->
-                                                                    if (success) {
-                                                                        // Solo mostrar Toast informativo
-                                                                        Toast.makeText(context, "✅ $message", Toast.LENGTH_SHORT).show()
-                                                                        // NO navegamos automáticamente, el usuario presionará el ojo cuando esté listo
-                                                                    } else {
-                                                                        Toast.makeText(context, "❌ $message", Toast.LENGTH_SHORT).show()
-                                                                    }
+                                                        // Solo para estados "CONSULTADO" u otros estados sin detalle
+                                                        if (claveSol == null) {
+                                                            facturaParaDetalle = factura
+                                                            esCompraParaDetalle = currentIsCompra
+                                                            showClaveSolDialog = true
+                                                        } else {
+                                                            val rucEmisor = viewModel.getRucEmisor(factura.id) ?: factura.ruc
+
+                                                            viewModel.cargarDetalleFacturaXmlConUsuario(
+                                                                facturaId = factura.id,
+                                                                esCompra = currentIsCompra,
+                                                                rucEmisor = rucEmisor,
+                                                                context = context
+                                                            ) { success, message ->
+                                                                if (success) {
+                                                                    Toast.makeText(context, "✅ $message", Toast.LENGTH_SHORT).show()
+                                                                } else {
+                                                                    Toast.makeText(context, "❌ $message", Toast.LENGTH_SHORT).show()
                                                                 }
                                                             }
                                                         }
@@ -505,7 +506,11 @@ fun PurchaseDetailScreen(
                                                         imageVector = Icons.Filled.Visibility,
                                                         contentDescription = "Ver detalle",
                                                         modifier = Modifier.size(20.dp),
-                                                        tint = if (factura.estado == "EN PROCESO") Color.Gray else Color.Unspecified
+                                                        tint = when {
+                                                            factura.estado == "EN PROCESO" -> Color.Gray
+                                                            factura.estado == "CON DETALLE" || factura.estado == "REGISTRADO" -> Color.Green
+                                                            else -> Color.Unspecified
+                                                        }
                                                     )
                                                 }
                                                 InvoiceStatusCircle(factura.estado, tamano = 14.dp)
