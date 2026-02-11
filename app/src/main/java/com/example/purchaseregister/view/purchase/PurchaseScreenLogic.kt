@@ -190,34 +190,3 @@ fun setupCommonEffects(
         }
     }
 }
-
-// Función para el botón Consultar
-fun handleConsultarClick(
-    context: Context,
-    selectedStartMillis: Long?,
-    selectedEndMillis: Long?,
-    hoyMillis: Long,
-    sectionActive: Section,
-    viewModel: PurchaseViewModel,
-    onShowSunatLogin: () -> Unit,
-    onShowList: () -> Unit
-) {
-    val token = SunatPrefs.getToken(context)
-    val ruc = SunatPrefs.getRuc(context)
-    val user = SunatPrefs.getUser(context)
-
-    if (token == null) {
-        onShowSunatLogin()
-    } else {
-        val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
-        val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
-
-        viewModel.cargarFacturasDesdeAPI(
-            periodoInicio = periodoInicio,
-            periodoFin = periodoFin,
-            esCompra = (sectionActive == Section.COMPRAS),
-        )
-
-        onShowList()
-    }
-}

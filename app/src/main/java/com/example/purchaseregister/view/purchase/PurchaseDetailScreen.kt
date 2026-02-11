@@ -31,14 +31,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
 import com.example.purchaseregister.viewmodel.InvoiceViewModel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 enum class Section { COMPRAS, VENTAS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PurchaseDetailScreen(
-    purchaseViewModel: PurchaseViewModel,  // ✅ Renombrado para claridad
-    invoiceViewModel: InvoiceViewModel,    // ✅ Agregar InvoiceViewModel
+    purchaseViewModel: PurchaseViewModel,
+    invoiceViewModel: InvoiceViewModel,
     onComprasClick: () -> Unit,
     onVentasClick: () -> Unit,
     onNavigateToRegistrar: () -> Unit,
@@ -51,29 +57,30 @@ fun PurchaseDetailScreen(
     var sectionActive by remember { mutableStateOf(Section.COMPRAS) }
     var isListVisible by rememberSaveable { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
-    var showSunatLogin by remember { mutableStateOf(false) }
     var showCustomDatePicker by remember { mutableStateOf(false) }
-    var hasLoadedSunatData by rememberSaveable {
-        mutableStateOf(SunatPrefs.getToken(context) != null)
-    }
-    var selectedStartMillis by rememberSaveable { mutableStateOf<Long?>(null) }
-    var selectedEndMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+
+    // ✅ CORREGIDO: Inicializar fechas con el mes actual
+    val hoyMillis = remember { getHoyMillisPeru() }
+    val primerDiaMes = remember { getPrimerDiaMesPeru(hoyMillis) }
+    val ultimoDiaMes = remember { getUltimoDiaMesPeru(hoyMillis) }
+
+    var selectedStartMillis by rememberSaveable { mutableStateOf<Long?>(primerDiaMes) }
+    var selectedEndMillis by rememberSaveable { mutableStateOf<Long?>(ultimoDiaMes) }
+
     var showLoadingDialog by remember { mutableStateOf(false) }
     var loadingStatus by remember { mutableStateOf("Obteniendo detalle de factura...") }
     var loadingDebugInfo by remember { mutableStateOf<String?>(null) }
     var facturaCargandoId by remember { mutableStateOf<Int?>(null) }
     var esCompraCargando by remember { mutableStateOf(false) }
-    var showClaveSolDialog by remember { mutableStateOf(false) }
-    var claveSolInput by remember { mutableStateOf("") }
-    var facturaParaDetalle by remember { mutableStateOf<Invoice?>(null) }
-    var esCompraParaDetalle by remember { mutableStateOf(false) }
     var facturasConTimerActivo by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var isDetallandoTodos by remember { mutableStateOf(false) }
-    var totalFacturasProcesar by remember { mutableStateOf(0) }
-    var facturasProcesadasExitosas by remember { mutableStateOf(0) }
-    var facturasProcesadasFallidas by remember { mutableStateOf(0) }
 
-    val hoyMillis = remember { getHoyMillisPeru() }
+    // Variables para el diálogo de credenciales
+    var rucInput by remember { mutableStateOf("") }
+    var usuarioInput by remember { mutableStateOf("") }
+    var claveSolInput by remember { mutableStateOf("") }
+    var showCredencialesDialog by remember { mutableStateOf(false) }
+    var consultarDespuesDeLogin by remember { mutableStateOf(false) }
 
     // ViewModel states
     val isLoadingViewModel by purchaseViewModel.isLoading.collectAsStateWithLifecycle()
@@ -81,13 +88,13 @@ fun PurchaseDetailScreen(
     val facturasCompras by purchaseViewModel.facturasCompras.collectAsStateWithLifecycle()
     val facturasVentas by purchaseViewModel.facturasVentas.collectAsStateWithLifecycle()
 
-    // Usar funciones extraídas - AHORA CON AMBOS VIEWMODELS
+    // Usar funciones extraídas
     handleAutoRegistroFacturas(
         facturasCompras = facturasCompras,
         facturasVentas = facturasVentas,
         facturasConTimerActivo = facturasConTimerActivo,
-        purchaseViewModel = purchaseViewModel,    // ✅ Pasamos PurchaseViewModel
-        invoiceViewModel = invoiceViewModel,      // ✅ Pasamos InvoiceViewModel
+        purchaseViewModel = purchaseViewModel,
+        invoiceViewModel = invoiceViewModel,
         context = context,
         onTimerUpdate = { newTimers ->
             facturasConTimerActivo = newTimers
@@ -100,7 +107,7 @@ fun PurchaseDetailScreen(
         showLoadingDialog = showLoadingDialog,
         facturaCargandoId = facturaCargandoId,
         esCompraCargando = esCompraCargando,
-        viewModel = purchaseViewModel,            // ✅ Solo necesita PurchaseViewModel
+        viewModel = purchaseViewModel,
         onIsLoadingChange = { isLoading = it },
         onLoadingDialogChange = { showLoadingDialog = it },
         onNavigateToDetalle = { id, esCompra ->
@@ -119,50 +126,158 @@ fun PurchaseDetailScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        if (SunatPrefs.getToken(context) != null && !hasLoadedSunatData) {
-            hasLoadedSunatData = true
-        }
-    }
-
     LaunchedEffect(selectedStartMillis) {
-        if (selectedStartMillis != null && !isListVisible && hasLoadedSunatData) {
+        if (selectedStartMillis != null && !isListVisible) {
             isListVisible = true
         }
     }
 
-    // Calcular lista filtrada usando función extraída
+    LaunchedEffect(Unit) {
+        // Pequeña pausa para que todo se inicialice
+        delay(500)
+
+        val ruc = SunatPrefs.getRuc(context)
+        val usuario = SunatPrefs.getUser(context)
+        val claveSol = SunatPrefs.getClaveSol(context)
+
+        if (ruc != null && usuario != null && claveSol != null) {
+            // Ya tiene credenciales -> Consultar automáticamente
+            val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
+            val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
+
+            purchaseViewModel.cargarFacturasDesdeAPI(
+                periodoInicio = periodoInicio,
+                periodoFin = periodoFin,
+                esCompra = (sectionActive == Section.COMPRAS)
+            )
+
+            isListVisible = true
+
+            Toast.makeText(
+                context,
+                "🔄 Cargando facturas automáticamente...",
+                Toast.LENGTH_SHORT
+            ).show()
+        } else {
+            // No tiene credenciales -> Mostrar diálogo
+            consultarDespuesDeLogin = true
+            showCredencialesDialog = true
+        }
+    }
+
+    // Calcular lista filtrada
     val listaFiltrada = calculateFilteredList(
         sectionActive = sectionActive,
         isListVisible = isListVisible,
         selectedStartMillis = selectedStartMillis,
         selectedEndMillis = selectedEndMillis,
-        hasLoadedSunatData = hasLoadedSunatData,
+        hasLoadedSunatData = true,
         facturasCompras = facturasCompras,
         facturasVentas = facturasVentas,
         hoyMillis = hoyMillis
     )
 
-    // Diálogos
-    if (showSunatLogin) {
-        SunatLoginDialog(
-            onDismiss = { showSunatLogin = false },
-            onLoginSuccess = {
-                showSunatLogin = false
-                hasLoadedSunatData = true
+    val hayFacturasEnProceso by remember {
+        derivedStateOf {
+            listaFiltrada.any { it.estado == "EN PROCESO" }
+        }
+    }
 
-                val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
-                val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
+    if (showCredencialesDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showCredencialesDialog = false
+                rucInput = ""
+                usuarioInput = ""
+                claveSolInput = ""
+                consultarDespuesDeLogin = false
+            },
+            title = { Text("Credenciales SUNAT") },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Complete sus credenciales SUNAT para continuar:")
 
-                purchaseViewModel.cargarFacturasDesdeAPI(
-                    periodoInicio = periodoInicio,
-                    periodoFin = periodoFin,
-                    esCompra = (sectionActive == Section.COMPRAS)
-                )
+                    OutlinedTextField(
+                        value = rucInput,
+                        onValueChange = { rucInput = it },
+                        label = { Text("RUC") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                isListVisible = true
+                    OutlinedTextField(
+                        value = usuarioInput,
+                        onValueChange = { usuarioInput = it },
+                        label = { Text("Usuario SOL") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                Toast.makeText(context, "✅ Login exitoso. Cargando facturas...", Toast.LENGTH_SHORT).show()
+                    OutlinedTextField(
+                        value = claveSolInput,
+                        onValueChange = { claveSolInput = it },
+                        label = { Text("Clave SOL") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (rucInput.isNotEmpty() && usuarioInput.isNotEmpty() && claveSolInput.isNotEmpty()) {
+                            // Guardar credenciales
+                            SunatPrefs.saveRuc(context, rucInput)
+                            SunatPrefs.saveUser(context, usuarioInput)
+                            SunatPrefs.saveClaveSol(context, claveSolInput)
+
+                            // Si la consulta estaba esperando, ejecutarla
+                            if (consultarDespuesDeLogin) {
+                                val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
+                                val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
+
+                                purchaseViewModel.cargarFacturasDesdeAPI(
+                                    periodoInicio = periodoInicio,
+                                    periodoFin = periodoFin,
+                                    esCompra = (sectionActive == Section.COMPRAS)
+                                )
+
+                                isListVisible = true
+                                consultarDespuesDeLogin = false
+                            }
+
+                            showCredencialesDialog = false
+                            rucInput = ""
+                            usuarioInput = ""
+                            claveSolInput = ""
+
+                            Toast.makeText(
+                                context,
+                                "✅ Credenciales guardadas correctamente",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    enabled = rucInput.isNotEmpty() && usuarioInput.isNotEmpty() && claveSolInput.isNotEmpty()
+                ) {
+                    Text("Guardar y Continuar")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showCredencialesDialog = false
+                        rucInput = ""
+                        usuarioInput = ""
+                        claveSolInput = ""
+                        consultarDespuesDeLogin = false
+                    }
+                ) {
+                    Text("Cancelar")
+                }
             }
         )
     }
@@ -203,74 +318,6 @@ fun PurchaseDetailScreen(
             }
         )
 
-        if (showClaveSolDialog) {
-            AlertDialog(
-                onDismissRequest = {
-                    showClaveSolDialog = false
-                    claveSolInput = ""
-                    facturaParaDetalle = null
-                },
-                title = { Text("Clave SOL requerida") },
-                text = {
-                    Column {
-                        Text("Por seguridad ingrese su Clave SOL nuevamente.")
-                        Spacer(Modifier.height(16.dp))
-                        OutlinedTextField(
-                            value = claveSolInput,
-                            onValueChange = { claveSolInput = it },
-                            label = { Text("Clave SOL") },
-                            visualTransformation = PasswordVisualTransformation(),
-                            singleLine = true
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            if (claveSolInput.isNotEmpty()) {
-                                SunatPrefs.saveClaveSol(context, claveSolInput)
-
-                                facturaParaDetalle?.let { factura ->
-                                    showClaveSolDialog = false
-                                    claveSolInput = ""
-
-                                    val rucEmisor = purchaseViewModel.getRucEmisor(factura.id) ?: factura.ruc
-
-                                    purchaseViewModel.cargarDetalleFacturaXmlConUsuario(
-                                        facturaId = factura.id,
-                                        esCompra = esCompraParaDetalle,
-                                        rucEmisor = rucEmisor,
-                                        context = context
-                                    ) { success, message ->
-                                        if (success) {
-                                            Toast.makeText(context, "✅ $message", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(context, "❌ $message", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                }
-
-                                facturaParaDetalle = null
-                            }
-                        },
-                        enabled = claveSolInput.isNotEmpty()
-                    ) {
-                        Text("Guardar y Continuar")
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = {
-                            showClaveSolDialog = false
-                            claveSolInput = ""
-                            facturaParaDetalle = null
-                        }
-                    ) {
-                        Text("Cancelar")
-                    }
-                }
-            )
-        }
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
@@ -319,6 +366,7 @@ fun PurchaseDetailScreen(
                 Text(text = "Ventas", style = MaterialTheme.typography.titleMedium)
             }
         }
+
         Spacer(modifier = Modifier.height(15.dp))
 
         Row(
@@ -332,12 +380,6 @@ fun PurchaseDetailScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val hayScrappingEnCurso = remember {
-                    derivedStateOf {
-                        listaFiltrada.any { it.estado == "EN PROCESO" }
-                    }
-                }
-
                 IconButton(
                     onClick = {
                         if (listaFiltrada.isEmpty()) {
@@ -346,65 +388,91 @@ fun PurchaseDetailScreen(
                                 "No hay facturas en lista para detallar",
                                 Toast.LENGTH_SHORT
                             ).show()
-                        } else {
-                            val facturasProcesables = listaFiltrada.filter { factura ->
-                                factura.estado != "CON DETALLE" &&
-                                        factura.estado != "REGISTRADO" &&
-                                        factura.estado != "EN PROCESO"
-                            }
+                            return@IconButton
+                        }
 
-                            if (facturasProcesables.isEmpty()) {
-                                Toast.makeText(
-                                    context,
-                                    "Todas las facturas ya tienen detalle o están en proceso",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                return@IconButton
-                            }
+                        val facturasProcesables = listaFiltrada.filter { factura ->
+                            factura.estado != "CON DETALLE" &&
+                                    factura.estado != "REGISTRADO" &&
+                                    factura.estado != "EN PROCESO"
+                        }
+
+                        if (facturasProcesables.isEmpty()) {
+                            Toast.makeText(
+                                context,
+                                "Todas las facturas ya tienen detalle o están en proceso",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            return@IconButton
+                        }
+
+                        // Verificar credenciales ANTES de empezar
+                        val ruc = SunatPrefs.getRuc(context)
+                        val usuario = SunatPrefs.getUser(context)
+                        val claveSol = SunatPrefs.getClaveSol(context)
+
+                        if (ruc == null || usuario == null || claveSol == null) {
+                            Toast.makeText(
+                                context,
+                                "⚠️ Primero configure sus credenciales SUNAT en el botón CONSULTAR",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@IconButton
+                        }
+
+                        // --- INICIAR PROCESAMIENTO MASIVO ---
+                        coroutineScope.launch {
+                            var exitosas = 0
+                            var fallidas = 0
+                            val total = facturasProcesables.size
+
+                            isDetallandoTodos = true
+                            loadingStatus = "Procesando 0/$total facturas..."
 
                             facturasProcesables.forEach { factura ->
                                 val currentIsCompra = (sectionActive == Section.COMPRAS)
-                                val ruc = SunatPrefs.getRuc(context)
-                                val usuario = SunatPrefs.getUser(context)
-                                val claveSol = SunatPrefs.getClaveSol(context)
+                                val rucEmisor = purchaseViewModel.getRucEmisor(factura.id) ?: factura.ruc
 
-                                if (ruc == null || usuario == null) {
-                                    showSunatLogin = true
-                                    return@forEach
-                                }
-
-                                if (claveSol == null) {
-                                    facturaParaDetalle = factura
-                                    esCompraParaDetalle = currentIsCompra
-                                    showClaveSolDialog = true
-                                } else {
-                                    val rucEmisor = purchaseViewModel.getRucEmisor(factura.id) ?: factura.ruc
-
+                                val resultado = suspendCoroutine { continuation ->
                                     purchaseViewModel.cargarDetalleFacturaXmlConUsuario(
                                         facturaId = factura.id,
                                         esCompra = currentIsCompra,
                                         rucEmisor = rucEmisor,
                                         context = context
-                                    ) { success, message ->
-                                        // NO mostrar Toast para no spamear
+                                    ) { success, _ ->
+                                        continuation.resume(success)
                                     }
                                 }
+
+                                if (resultado) exitosas++ else fallidas++
+
+                                withContext(Dispatchers.Main) {
+                                    loadingStatus = "Procesando ${exitosas + fallidas}/$total facturas...\n✅ Exitosas: $exitosas\n❌ Fallidas: $fallidas"
+                                }
+
+                                delay(300)
                             }
 
-                            Toast.makeText(
-                                context,
-                                "🔄 Procesando ${facturasProcesables.size} facturas...",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            withContext(Dispatchers.Main) {
+                                isDetallandoTodos = false
+                                Toast.makeText(
+                                    context,
+                                    "✅ Proceso completado: $exitosas exitosas, $fallidas fallidas",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
                         }
                     },
                     modifier = Modifier.size(40.dp),
-                    enabled = !hayScrappingEnCurso.value
+                    enabled = !hayFacturasEnProceso && !isDetallandoTodos
                 ) {
                     Icon(
                         imageVector = Icons.Default.Visibility,
                         contentDescription = "Detallar todas las facturas",
-                        tint = if (hayScrappingEnCurso.value) Color.Gray else Color(0xFF1FB8B9),
+                        tint = if (hayFacturasEnProceso || isDetallandoTodos)
+                            Color.Gray
+                        else
+                            Color(0xFF1FB8B9),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -429,6 +497,7 @@ fun PurchaseDetailScreen(
                     )
                 }
             }
+
             DateRangeSelector(
                 selectedStartMillis = selectedStartMillis,
                 selectedEndMillis = selectedEndMillis,
@@ -523,7 +592,7 @@ fun PurchaseDetailScreen(
                                             .padding(vertical = 8.dp, horizontal = 8.dp)
                                     ) {
                                         Text(
-                                            text = "${factura.razonSocial}",
+                                            text = factura.razonSocial ?: "",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = Color.Black
@@ -555,8 +624,12 @@ fun PurchaseDetailScreen(
                                                         val usuario = SunatPrefs.getUser(context)
                                                         val claveSol = SunatPrefs.getClaveSol(context)
 
-                                                        if (ruc == null || usuario == null) {
-                                                            showSunatLogin = true
+                                                        if (ruc == null || usuario == null || claveSol == null) {
+                                                            Toast.makeText(
+                                                                context,
+                                                                "⚠️ Primero configure sus credenciales SUNAT en el botón CONSULTAR",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
                                                             return@IconButton
                                                         }
 
@@ -570,24 +643,18 @@ fun PurchaseDetailScreen(
                                                             return@IconButton
                                                         }
 
-                                                        if (claveSol == null) {
-                                                            facturaParaDetalle = factura
-                                                            esCompraParaDetalle = currentIsCompra
-                                                            showClaveSolDialog = true
-                                                        } else {
-                                                            val rucEmisor = purchaseViewModel.getRucEmisor(factura.id) ?: factura.ruc
+                                                        val rucEmisor = purchaseViewModel.getRucEmisor(factura.id) ?: factura.ruc
 
-                                                            purchaseViewModel.cargarDetalleFacturaXmlConUsuario(
-                                                                facturaId = factura.id,
-                                                                esCompra = currentIsCompra,
-                                                                rucEmisor = rucEmisor,
-                                                                context = context
-                                                            ) { success, message ->
-                                                                if (success) {
-                                                                    Toast.makeText(context, "✅ $message", Toast.LENGTH_SHORT).show()
-                                                                } else {
-                                                                    Toast.makeText(context, "❌ $message", Toast.LENGTH_SHORT).show()
-                                                                }
+                                                        purchaseViewModel.cargarDetalleFacturaXmlConUsuario(
+                                                            facturaId = factura.id,
+                                                            esCompra = currentIsCompra,
+                                                            rucEmisor = rucEmisor,
+                                                            context = context
+                                                        ) { success, message ->
+                                                            if (success) {
+                                                                Toast.makeText(context, "✅ $message", Toast.LENGTH_SHORT).show()
+                                                            } else {
+                                                                Toast.makeText(context, "❌ $message", Toast.LENGTH_SHORT).show()
                                                             }
                                                         }
                                                     },
@@ -598,7 +665,10 @@ fun PurchaseDetailScreen(
                                                         imageVector = Icons.Filled.Visibility,
                                                         contentDescription = "Ver detalle",
                                                         modifier = Modifier.size(20.dp),
-                                                        tint = if (factura.estado == "EN PROCESO") Color.Gray else Color.Unspecified
+                                                        tint = if (factura.estado == "EN PROCESO")
+                                                            Color.Gray
+                                                        else
+                                                            Color.Black
                                                     )
                                                 }
                                                 InvoiceStatusCircle(factura.estado, tamano = 14.dp)
@@ -657,24 +727,28 @@ fun PurchaseDetailScreen(
         ) {
             Button(
                 onClick = {
-                    val token = SunatPrefs.getToken(context)
                     val ruc = SunatPrefs.getRuc(context)
-                    val user = SunatPrefs.getUser(context)
+                    val usuario = SunatPrefs.getUser(context)
+                    val claveSol = SunatPrefs.getClaveSol(context)
 
-                    if (token == null) {
-                        showSunatLogin = true
-                    } else {
-                        val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
-                        val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
-
-                        purchaseViewModel.cargarFacturasDesdeAPI(
-                            periodoInicio = periodoInicio,
-                            periodoFin = periodoFin,
-                            esCompra = (sectionActive == Section.COMPRAS),
-                        )
-
-                        isListVisible = true
+                    // Verificar si faltan credenciales
+                    if (ruc == null || usuario == null || claveSol == null) {
+                        consultarDespuesDeLogin = true
+                        showCredencialesDialog = true
+                        return@Button
                     }
+
+                    // Si ya tiene credenciales, consultar directamente
+                    val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
+                    val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
+
+                    purchaseViewModel.cargarFacturasDesdeAPI(
+                        periodoInicio = periodoInicio,
+                        periodoFin = periodoFin,
+                        esCompra = (sectionActive == Section.COMPRAS)
+                    )
+
+                    isListVisible = true
                 },
                 modifier = Modifier
                     .weight(1f)
@@ -684,6 +758,7 @@ fun PurchaseDetailScreen(
             ) {
                 Text("Consultar", style = MaterialTheme.typography.titleMedium)
             }
+
             if (sectionActive == Section.COMPRAS) {
                 Button(
                     onClick = onNavigateToRegistrar,
