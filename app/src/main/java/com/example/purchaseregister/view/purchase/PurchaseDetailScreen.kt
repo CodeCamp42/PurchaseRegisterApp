@@ -86,6 +86,7 @@ fun PurchaseDetailScreen(
 
     // Variables para el diálogo de logout
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var isInitialLoadDone by rememberSaveable { mutableStateOf(false) }
 
     // ViewModel states
     val isLoadingViewModel by purchaseViewModel.isLoading.collectAsStateWithLifecycle()
@@ -125,34 +126,44 @@ fun PurchaseDetailScreen(
 
     // Efecto inicial
     LaunchedEffect(Unit) {
-        delay(500)
-        val ruc = SunatPrefs.getRuc(context)
-        val usuario = SunatPrefs.getUser(context)
-        val claveSol = SunatPrefs.getClaveSol(context)
+        if (!isInitialLoadDone) {
+            delay(500)
+            val ruc = SunatPrefs.getRuc(context)
+            val usuario = SunatPrefs.getUser(context)
+            val claveSol = SunatPrefs.getClaveSol(context)
 
-        if (ruc != null && usuario != null && claveSol != null) {
-            val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
-            val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
-
-            purchaseViewModel.cargarFacturasDesdeAPI(
-                periodoInicio = periodoInicio,
-                periodoFin = periodoFin,
-                esCompra = (sectionActive == Section.COMPRAS),
-                ruc = ruc,
-                usuario = usuario,
-                claveSol = claveSol
+            // 🔴 FUERZA CARGA DE BD PRIMERO PARA VER SI FUNCIONA
+            println("🔴🔴🔴 MODO DEBUG: CARGANDO SOLO BD PRIMERO")
+            purchaseViewModel.cargarFacturasDesdeBD(
+                esCompra = (sectionActive == Section.COMPRAS)
             )
 
-            isListVisible = true
+            delay(200) // Esperar 2 segundos
 
-            Toast.makeText(
-                context,
-                "🔄 Cargando facturas automáticamente...",
-                Toast.LENGTH_SHORT
-            ).show()
-        } else {
-            consultarDespuesDeLogin = true
-            showCredencialesDialog = true
+            val facturasDespuesDeBD = facturasCompras
+            println("🔍 Facturas después de solo BD: ${facturasDespuesDeBD.size}")
+            facturasDespuesDeBD.forEach {
+                println("   - ${it.serie}-${it.numero} (Origen: ${if (it.id != null) "BD" else "API"})")
+            }
+
+            // Luego si hay credenciales, cargar API
+            if (ruc != null && usuario != null && claveSol != null) {
+                val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
+                val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
+
+                println("🟢 Cargando desde API SUNAT/SIRE...")
+                purchaseViewModel.cargarFacturasDesdeAPI(
+                    periodoInicio = periodoInicio,
+                    periodoFin = periodoFin,
+                    esCompra = (sectionActive == Section.COMPRAS),
+                    ruc = ruc,
+                    usuario = usuario,
+                    claveSol = claveSol
+                )
+            }
+
+            isListVisible = true
+            isInitialLoadDone = true
         }
     }
 

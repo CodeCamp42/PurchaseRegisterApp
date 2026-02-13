@@ -77,4 +77,9 @@ interface SunatApiService {
     suspend fun validarCredenciales(
         @Body request: ValidarCredencialesRequest
     ): ValidarCredencialesResponse
+
+    @GET("factura/ui/usuario/{usuarioId}/completo")
+    suspend fun obtenerFacturasUsuarioCompleto(
+        @Path("usuarioId") usuarioId: String
+    ): FacturasUIResponse
 }

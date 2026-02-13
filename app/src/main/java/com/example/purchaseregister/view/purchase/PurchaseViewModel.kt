@@ -27,6 +27,107 @@ class PurchaseViewModel : ViewModel() {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    fun cargarFacturasDesdeBD(esCompra: Boolean = true) {
+        viewModelScope.launch {
+            try {
+                println("🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴")
+                println("📥 INICIANDO CARGA DESDE BD")
+                println("🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴")
+
+                val response = apiService.obtenerFacturasUsuarioCompleto("1")
+
+                println("📦 RESPUESTA BD RECIBIDA:")
+                println("   - success: ${response.success}")
+                println("   - facturas size: ${response.facturas?.size ?: 0}")
+
+                if (response.facturas != null) {
+                    response.facturas.forEachIndexed { index, f ->
+                        println("   BD[$index]: ${f.serie}-${f.numero} (ID: ${f.idFactura})")
+                    }
+                }
+
+                if (response.success) {
+                    println("✅ Facturas cargadas desde BD: ${response.facturas.size}")
+
+                    val facturasBD = response.facturas.map { facturaResponse ->
+                        println("🔄 Mapeando factura BD: ${facturaResponse.serie}-${facturaResponse.numero}")
+                        Invoice(
+                            id = facturaResponse.idFactura,
+                            ruc = facturaResponse.proveedorRuc ?: "",
+                            razonSocial = facturaResponse.proveedor?.razonSocial ?: "",
+                            serie = facturaResponse.serie,
+                            numero = facturaResponse.numero,
+                            fechaEmision = facturaResponse.fechaEmision,
+                            tipoDocumento = "FACTURA",
+                            moneda = facturaResponse.moneda,
+                            costoTotal = facturaResponse.costoTotal,
+                            igv = facturaResponse.igv,
+                            importeTotal = facturaResponse.importeTotal,
+                            estado = facturaResponse.estado,
+                            isSelected = false,
+                            productos = facturaResponse.detalles?.map { detalle ->
+                                ProductItem(
+                                    descripcion = detalle.descripcion,
+                                    cantidad = detalle.cantidad,
+                                    costoUnitario = detalle.costoUnitario,
+                                    unidadMedida = detalle.unidadMedida
+                                )
+                            } ?: emptyList(),
+                            anio = facturaResponse.fechaEmision.take(4),
+                            tipoCambio = ""
+                        )
+                    }
+
+                    // Obtener facturas actuales (de API) ANTES de combinar
+                    val facturasActuales = if (esCompra) {
+                        FacturaRepository.getFacturasCompras()
+                    } else {
+                        FacturaRepository.getFacturasVentas()
+                    }
+
+                    println("📊 Facturas de API actuales: ${facturasActuales.size}")
+                    facturasActuales.forEachIndexed { index, f ->
+                        println("   API[$index]: ${f.serie}-${f.numero} (ID: ${f.id})")
+                    }
+
+                    // COMBINAR: facturas de API + facturas de BD
+                    val facturasCombinadas = combinarFacturas(
+                        facturasDeAPI = facturasActuales,
+                        facturasLocales = facturasBD
+                    )
+
+                    println("📊 Facturas combinadas (API + BD): ${facturasCombinadas.size}")
+                    facturasCombinadas.forEachIndexed { index, f ->
+                        println("   COMBINADA[$index]: ${f.serie}-${f.numero} (ID: ${f.id})")
+                    }
+
+                    // ✅ PASO CLAVE: Guardar las combinadas en el StateFlow principal
+                    if (esCompra) {
+                        FacturaRepository.setFacturasCompras(facturasCombinadas)
+                        println("💾 Guardadas en facturasCompras: ${facturasCombinadas.size}")
+                    } else {
+                        FacturaRepository.setFacturasVentas(facturasCombinadas)
+                        println("💾 Guardadas en facturasVentas: ${facturasCombinadas.size}")
+                    }
+
+                    // ✅ PASO CLAVE #2: Actualizar el CACHÉ que usa cargarFacturasDesdeAPI()
+                    val cacheKey = FacturaRepository.getCacheKey(esCompra, "ultimo_periodo")
+                    FacturaRepository.updateCache(cacheKey, facturasCombinadas)
+                    println("💾 Caché actualizado con ${facturasCombinadas.size} facturas (incluyendo BD)")
+
+                    println("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅")
+                    println("🎉 CARGA DESDE BD COMPLETADA EXITOSAMENTE")
+                    println("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅")
+                } else {
+                    println("❌❌❌ response.success es false")
+                }
+            } catch (e: Exception) {
+                println("💥💥💥 ERROR EN CARGA DESDE BD: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
     fun cargarFacturasDesdeAPI(
         periodoInicio: String,
         periodoFin: String,
@@ -41,82 +142,19 @@ class PurchaseViewModel : ViewModel() {
 
             _errorMessage.value = null
 
-            // 🔴 Guardar las facturas actuales (las registradas localmente)
-            val facturasActuales = if (esCompra) {
-                FacturaRepository.getFacturasCompras()
-            } else {
-                FacturaRepository.getFacturasVentas()
-            }
-
-            // 🔴 SI HAY CACHE, actualizar estados desde BD
+            // SI HAY CACHE, usarlo directamente
             if (facturasEnCache != null) {
-                try {
-                    val facturasActualizadas = mutableListOf<Invoice>()
+                println("📦 Usando cache para periodo: $periodoInicio")
 
-                    for (factura in facturasEnCache) {
-                        try {
-                            val numeroComprobante = "${factura.serie}-${factura.numero}"
-                            val facturaUI = apiService.obtenerFacturaParaUI(numeroComprobante)
-
-                            val estadoActual = facturaUI.factura.estado
-
-                            val productosActuales = if (facturaUI.factura.detalles != null) {
-                                facturaUI.factura.detalles.map { detalle ->
-                                    ProductItem(
-                                        descripcion = detalle.descripcion,
-                                        cantidad = detalle.cantidad,
-                                        costoUnitario = detalle.costoUnitario,
-                                        unidadMedida = detalle.unidadMedida
-                                    )
-                                }
-                            } else {
-                                factura.productos
-                            }
-
-                            val facturaActualizada = factura.copy(
-                                estado = estadoActual,
-                                productos = productosActuales
-                            )
-
-                            facturasActualizadas.add(facturaActualizada)
-                        } catch (e: Exception) {
-                            facturasActualizadas.add(factura)
-                        }
-                    }
-
-                    FacturaRepository.updateCache(cacheKey, facturasActualizadas)
-
-                    // 🔴 COMBINAR con facturas registradas localmente
-                    val facturasCombinadas = combinarFacturas(
-                        facturasDeAPI = facturasActualizadas,
-                        facturasLocales = facturasActuales
-                    )
-
-                    if (esCompra) {
-                        FacturaRepository.setFacturasCompras(facturasCombinadas)
-                    } else {
-                        FacturaRepository.setFacturasVentas(facturasCombinadas)
-                    }
-
-                } catch (e: Exception) {
-                    _errorMessage.value = "Error actualizando estados: ${e.message}"
-
-                    // 🔴 También combinar en caso de error
-                    val facturasCombinadas = combinarFacturas(
-                        facturasDeAPI = facturasEnCache,
-                        facturasLocales = facturasActuales
-                    )
-
-                    if (esCompra) {
-                        FacturaRepository.setFacturasCompras(facturasCombinadas)
-                    } else {
-                        FacturaRepository.setFacturasVentas(facturasCombinadas)
-                    }
+                if (esCompra) {
+                    FacturaRepository.setFacturasCompras(facturasEnCache)
+                } else {
+                    FacturaRepository.setFacturasVentas(facturasEnCache)
                 }
                 return@launch
             }
 
-            // 🔴 SI NO HAY CACHE, consultar a SUNAT
+            // SI NO HAY CACHE, consultar a SUNAT
             _isLoading.value = true
 
             try {
@@ -129,99 +167,65 @@ class PurchaseViewModel : ViewModel() {
                 )
 
                 if (response.success) {
-                    val facturas = parsearContenidoSunat(response.resultados, esCompra)
+                    val facturasAPI = parsearContenidoSunat(response.resultados, esCompra)
 
-                    // 🔴 ANTES de guardar en cache, CONSULTAR BD para obtener facturas registradas
-                    val facturasConBD = mutableListOf<Invoice>()
-
-                    for (factura in facturas) {
-                        try {
-                            val numeroComprobante = "${factura.serie}-${factura.numero}"
-                            val facturaUI = apiService.obtenerFacturaParaUI(numeroComprobante)
-
-                            // Si existe en BD, usar sus datos
-                            val facturaConBD = factura.copy(
-                                estado = facturaUI.factura.estado,
-                                productos = facturaUI.factura.detalles?.map { detalle ->
-                                    ProductItem(
-                                        descripcion = detalle.descripcion,
-                                        cantidad = detalle.cantidad,
-                                        costoUnitario = detalle.costoUnitario,
-                                        unidadMedida = detalle.unidadMedida
-                                    )
-                                } ?: factura.productos
-                            )
-                            facturasConBD.add(facturaConBD)
-                        } catch (e: Exception) {
-                            // No existe en BD, mantener como viene de SUNAT
-                            facturasConBD.add(factura)
-                        }
-                    }
+                    println("🌐 Facturas obtenidas de SUNAT: ${facturasAPI.size}")
 
                     // Guardar en cache
-                    FacturaRepository.updateCache(cacheKey, facturasConBD)
+                    FacturaRepository.updateCache(cacheKey, facturasAPI)
 
-                    // 🔴 COMBINAR con facturas registradas localmente
-                    val facturasCombinadas = combinarFacturas(
-                        facturasDeAPI = facturasConBD,
-                        facturasLocales = facturasActuales
-                    )
-
+                    // SOLO guardar facturas de API (sin combinar aún)
                     if (esCompra) {
-                        FacturaRepository.setFacturasCompras(facturasCombinadas)
+                        FacturaRepository.setFacturasCompras(facturasAPI)
                     } else {
-                        FacturaRepository.setFacturasVentas(facturasCombinadas)
+                        FacturaRepository.setFacturasVentas(facturasAPI)
                     }
                 } else {
                     _errorMessage.value = "Error en la respuesta del servidor"
                 }
             } catch (e: Exception) {
                 _errorMessage.value = "Error al conectar con el servidor: ${e.message}"
+                println("❌ Error en API: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    // 🔴 NUEVA FUNCIÓN: Combina facturas de API con facturas locales
+    // Combina facturas de API con facturas locales SIN DUPLICADOS
     private fun combinarFacturas(
         facturasDeAPI: List<Invoice>,
         facturasLocales: List<Invoice>
     ): List<Invoice> {
-        // Mapa de facturas locales por clave única (serie-numero)
-        val facturasLocalesMap = facturasLocales.associateBy {
-            "${it.serie}-${it.numero}"
-        }
+        val resultado = mutableMapOf<String, Invoice>()
 
-        val resultado = mutableListOf<Invoice>()
+        println("🔄 Combinando facturas:")
+        println("   - API: ${facturasDeAPI.size}")
+        println("   - Locales: ${facturasLocales.size}")
 
-        // Primero agregar todas las facturas de API, pero preservando las locales
-        facturasDeAPI.forEach { facturaAPI ->
-            val clave = "${facturaAPI.serie}-${facturaAPI.numero}"
-            val facturaLocal = facturasLocalesMap[clave]
-
-            if (facturaLocal != null) {
-                // 🔴 Si existe localmente, USAR LA LOCAL (ya tiene el ID real de BD)
-                resultado.add(facturaLocal)
-            } else {
-                // Si no existe localmente, usar la de API
-                resultado.add(facturaAPI)
-            }
-        }
-
-        // 🔴 Agregar facturas locales que NO están en API (como las registradas manualmente)
+        // 1. Primero agregar TODAS las facturas locales (prioridad máxima)
         facturasLocales.forEach { facturaLocal ->
             val clave = "${facturaLocal.serie}-${facturaLocal.numero}"
-            val existeEnAPI = facturasDeAPI.any {
-                "${it.serie}-${it.numero}" == clave
-            }
+            resultado[clave] = facturaLocal
+            println("   ✅ Local: ${clave} (ID: ${facturaLocal.id}, Estado: ${facturaLocal.estado})")
+        }
 
-            if (!existeEnAPI) {
-                resultado.add(facturaLocal)
+        // 2. Agregar facturas de API que NO existen localmente
+        var agregadas = 0
+        facturasDeAPI.forEach { facturaAPI ->
+            val clave = "${facturaAPI.serie}-${facturaAPI.numero}"
+            if (!resultado.containsKey(clave)) {
+                resultado[clave] = facturaAPI
+                agregadas++
+                println("   ➕ API nueva: ${clave}")
+            } else {
+                println("   🔄 API duplicada: ${clave} (preservando local)")
             }
         }
 
-        return resultado.sortedBy { factura ->
+        println("📊 Resultado final: ${resultado.size} facturas (${facturasLocales.size} locales + ${agregadas} nuevas de API)")
+
+        return resultado.values.sortedBy { factura ->
             try {
                 SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(factura.fechaEmision)?.time ?: 0L
             } catch (e: Exception) {
