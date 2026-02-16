@@ -7,79 +7,79 @@ import okhttp3.ResponseBody
 
 interface SunatApiService {
     @GET("sunat/facturas")
-    suspend fun obtenerFacturas(
-        @Query("periodoInicio") periodoInicio: String,
-        @Query("periodoFin") periodoFin: String,
+    suspend fun getInvoices(
+        @Query("periodoInicio") periodStart: String,
+        @Query("periodoFin") periodEnd: String,
         @Query("ruc") ruc: String,
-        @Query("usuario") usuario: String,
-        @Query("claveSol") claveSol: String
+        @Query("usuario") user: String,
+        @Query("claveSol") solPassword: String
     ): SunatResponse
 
     @PUT("factura/scraping-completado/{numeroComprobante}")
     @Headers("Content-Type: application/json")
-    suspend fun marcarScrapingCompletado(
-        @Path("numeroComprobante") numeroComprobante: String,
-        @Body request: ScrapingCompletadoRequest? = null
-    ): ScrapingCompletadoResponse
+    suspend fun markScrapingCompleted(
+        @Path("numeroComprobante") documentNumber: String,
+        @Body request: ScrapingCompletedRequest? = null
+    ): ScrapingCompletedResponse
 
     @POST("factura/guardar-productos/{numeroComprobante}")
     @Headers("Content-Type: application/json")
-    suspend fun guardarProductosFactura(
-        @Path("numeroComprobante") numeroComprobante: String,
-        @Body request: GuardarProductosRequest
-    ): GuardarProductosResponse
+    suspend fun saveInvoiceProducts(
+        @Path("numeroComprobante") documentNumber: String,
+        @Body request: SaveProductsRequest
+    ): SaveProductsResponse
 
     @POST("factura/procesarFactura")
     @Headers("Content-Type: application/json")
-    suspend fun registrarFacturasEnBD(
-        @Body request: RegistroFacturasRequest
-    ): RegistroFacturasResponse
+    suspend fun registerInvoicesInDB(
+        @Body request: RegisterInvoicesRequest
+    ): RegisterInvoicesResponse
 
     @GET("factura/{numeroComprobante}")
-    suspend fun verificarFacturaRegistrada(
-        @Path("numeroComprobante") numeroComprobante: String
-    ): FacturaRegistradaResponse
+    suspend fun checkRegisteredInvoice(
+        @Path("numeroComprobante") documentNumber: String
+    ): RegisteredInvoiceResponse
 
     @POST("factura/registrar-desde-sunat")
     @Headers("Content-Type: application/json")
-    suspend fun registrarFacturaDesdeSunat(
-        @Body request: RegistrarFacturaDesdeSunatRequest
-    ): RegistrarFacturaDesdeSunatResponse
+    suspend fun registerInvoiceFromSunat(
+        @Body request: RegisterInvoiceFromSunatRequest
+    ): RegisterInvoiceFromSunatResponse
 
     @GET("factura/ui/{numeroComprobante}")
-    suspend fun obtenerFacturaParaUI(
-        @Path("numeroComprobante") numeroComprobante: String
-    ): FacturaUIResponse
+    suspend fun getInvoiceForUI(
+        @Path("numeroComprobante") documentNumber: String
+    ): InvoiceUIResponse
 
     @GET("factura/ui/usuario/{usuarioId}")
-    suspend fun obtenerFacturasUsuarioParaUI(
-        @Path("usuarioId") usuarioId: String
-    ): FacturasUIResponse
+    suspend fun getUserInvoicesForUI(
+        @Path("usuarioId") userId: String
+    ): InvoicesUIResponse
 
     @POST("sunat/descargar-xml")
-    suspend fun descargarXmlConCola(
-        @Body request: DetalleFacturaRequest
-    ): EncoladoResponse
+    suspend fun downloadXmlWithQueue(
+        @Body request: InvoiceDetailRequest
+    ): QueuedResponse
 
     @GET("sunat/job/{jobId}")
-    suspend fun obtenerEstadoJob(
+    suspend fun getJobStatus(
         @Path("jobId") jobId: String
-    ): EstadoJobResponse
+    ): JobStatusResponse
 
     @GET("factura/descargar/{numeroComprobante}/{tipo}")
     @Headers("Content-Type: application/octet-stream")
-    suspend fun descargarArchivo(
-        @Path("numeroComprobante") numeroComprobante: String,
-        @Path("tipo") tipo: String
+    suspend fun downloadFile(
+        @Path("numeroComprobante") documentNumber: String,
+        @Path("tipo") type: String
     ): ResponseBody
 
     @POST("sunat/validar-credenciales")
-    suspend fun validarCredenciales(
-        @Body request: ValidarCredencialesRequest
-    ): ValidarCredencialesResponse
+    suspend fun validateCredentials(
+        @Body request: ValidateCredentialsRequest
+    ): ValidateCredentialsResponse
 
     @GET("factura/ui/usuario/{usuarioId}/completo")
-    suspend fun obtenerFacturasUsuarioCompleto(
-        @Path("usuarioId") usuarioId: String
-    ): FacturasUIResponse
+    suspend fun getCompleteUserInvoices(
+        @Path("usuarioId") userId: String
+    ): InvoicesUIResponse
 }

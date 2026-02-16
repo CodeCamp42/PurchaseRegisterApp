@@ -28,8 +28,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.purchaseregister.BuildConfig
 import com.example.purchaseregister.model.ProductItem
 import com.example.purchaseregister.service.GeminiService
-import com.example.purchaseregister.utils.FormatoUtils
-import com.example.purchaseregister.utils.MonedaUtils
+import com.example.purchaseregister.utils.FormatUtils
+import com.example.purchaseregister.utils.CurrencyUtils
 import com.example.purchaseregister.utils.SunatPrefs
 import com.example.purchaseregister.view.components.ReadOnlyField
 import kotlinx.coroutines.launch
@@ -38,13 +38,12 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RegistroCompraScreen(
+fun RegisterPurchaseScreen(
     onBack: () -> Unit,
     viewModel: PurchaseRegistrationViewModel = viewModel()
 ) {
     val context = LocalContext.current
 
-    // Verificar si está logueado en SUNAT
     LaunchedEffect(Unit) {
         val ruc = SunatPrefs.getRuc(context)
         if (ruc.isNullOrEmpty()) {
@@ -58,7 +57,6 @@ fun RegistroCompraScreen(
         File.createTempFile("factura_", ".jpg", context.cacheDir)
     }
 
-    // URI usando FileProvider
     val photoUri = remember {
         FileProvider.getUriForFile(
             context,
@@ -67,32 +65,29 @@ fun RegistroCompraScreen(
         )
     }
 
-    // Estados de control
-    var fotoTomada by remember { mutableStateOf(false) }
-    var modoEdicion by remember { mutableStateOf(false) }
+    var photoTaken by remember { mutableStateOf(false) }
+    var editMode by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
 
-    // Estados de datos
-    var rucPropio by remember { mutableStateOf("") }
-    var serie by remember { mutableStateOf("") }
-    var numero by remember { mutableStateOf("") }
-    var fecha by remember { mutableStateOf("") }
-    var esImportacion by remember { mutableStateOf(false) }
-    var anioImportacion by remember { mutableStateOf("") }
-    var moneda by remember { mutableStateOf("") }
-    var tipoDocumento by remember { mutableStateOf("") }
-    var rucProveedor by remember { mutableStateOf("") }
-    var razonSocialProveedor by remember { mutableStateOf("") }
-    var tipoCambio by remember { mutableStateOf("") }
-    var costoTotal by remember { mutableStateOf("") }
+    var myRuc by remember { mutableStateOf("") }
+    var series by remember { mutableStateOf("") }
+    var number by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf("") }
+    var isImport by remember { mutableStateOf(false) }
+    var importYear by remember { mutableStateOf("") }
+    var currency by remember { mutableStateOf("") }
+    var documentType by remember { mutableStateOf("") }
+    var providerRuc by remember { mutableStateOf("") }
+    var providerBusinessName by remember { mutableStateOf("") }
+    var exchangeRate by remember { mutableStateOf("") }
+    var totalCost by remember { mutableStateOf("") }
     var igv by remember { mutableStateOf("") }
-    var importeTotal by remember { mutableStateOf("") }
+    var totalAmount by remember { mutableStateOf("") }
 
-    val listaProductos = remember {
+    val productList = remember {
         mutableStateListOf(ProductItem("", "", ""))
     }
 
-    // Lógica de cámara y permisos
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success ->
@@ -108,8 +103,8 @@ fun RegistroCompraScreen(
         }
 
         isLoading = true
-        fotoTomada = true
-        modoEdicion = false
+        photoTaken = true
+        editMode = false
 
         val prompt = """
         Analiza esta factura/boleta peruana y extrae los datos.
@@ -170,76 +165,72 @@ fun RegistroCompraScreen(
                         val json = JSONObject(jsonText)
                         Log.d("GEMINI_JSON_KEYS", "Claves en JSON: ${json.keys().asSequence().toList()}")
 
-                        // Extraer datos
-                        tipoDocumento = json.optString("tipo_documento")
-                        rucProveedor = json.optString("ruc_provider")
-                        razonSocialProveedor = json.optString("razon_social")
-                        serie = json.optString("serie")
-                        numero = json.optString("numero")
-                        fecha = json.optString("fecha")
-                        val monedaExtraida = json.optString("moneda")
-                        moneda = MonedaUtils.formatearMoneda(monedaExtraida)
-                        val tipoCambioExtraido = json.optString("tipo_cambio")
+                        documentType = json.optString("tipo_documento")
+                        providerRuc = json.optString("ruc_provider")
+                        providerBusinessName = json.optString("razon_social")
+                        series = json.optString("serie")
+                        number = json.optString("numero")
+                        date = json.optString("fecha")
+                        val extractedCurrency = json.optString("moneda")
+                        currency = CurrencyUtils.formatCurrency(extractedCurrency)
+                        val extractedExchangeRate = json.optString("tipo_cambio")
 
-                        // Procesar productos
-                        json.optJSONArray("productos")?.let { productosArray ->
-                            Log.d("GEMINI_PRODUCTOS", "Número de productos: ${productosArray.length()}")
+                        json.optJSONArray("productos")?.let { productsArray ->
+                            Log.d("GEMINI_PRODUCTOS", "Número de productos: ${productsArray.length()}")
 
-                            for (i in 0 until productosArray.length()) {
-                                val producto = productosArray.getJSONObject(i)
+                            for (i in 0 until productsArray.length()) {
+                                val product = productsArray.getJSONObject(i)
                                 Log.d("GEMINI_PRODUCTOS",
-                                    "Producto $i: desc=${producto.optString("descripcion")}, " +
-                                            "costo=${producto.optString("costo_unitario")}, " +
-                                            "cant=${producto.optString("cantidad")}")
+                                    "Producto $i: desc=${product.optString("descripcion")}, " +
+                                            "costo=${product.optString("costo_unitario")}, " +
+                                            "cant=${product.optString("cantidad")}")
                             }
                         }
 
-                        // Manejar tipo de cambio para dólares
-                        if (MonedaUtils.esMonedaDolares(moneda)) {
-                            tipoCambio = when {
-                                tipoCambioExtraido.matches(Regex("[0-9]+(\\.[0-9]+)?")) -> tipoCambioExtraido
-                                tipoCambioExtraido == "null" || tipoCambioExtraido.isEmpty() -> ""
+                        if (CurrencyUtils.isDollarCurrency(currency)) {
+                            exchangeRate = when {
+                                extractedExchangeRate.matches(Regex("[0-9]+(\\.[0-9]+)?")) -> extractedExchangeRate
+                                extractedExchangeRate == "null" || extractedExchangeRate.isEmpty() -> ""
                                 else -> {
-                                    Regex("[0-9]+(\\.[0-9]+)?").find(tipoCambioExtraido)?.value ?: ""
+                                    Regex("[0-9]+(\\.[0-9]+)?").find(extractedExchangeRate)?.value ?: ""
                                 }
                             }
 
-                            if (tipoCambio.isEmpty()) {
+                            if (exchangeRate.isEmpty()) {
                                 Log.w("TIPO_CAMBIO", "No se pudo extraer tipo de cambio para dólares")
                                 Toast.makeText(context, "Ingrese manualmente el tipo de cambio", Toast.LENGTH_SHORT).show()
                             }
                         } else {
-                            tipoCambio = ""
+                            exchangeRate = ""
                         }
 
-                        costoTotal = FormatoUtils.limpiarMonto(json.optString("costo_total"))
-                        igv = FormatoUtils.limpiarMonto(json.optString("igv"))
-                        importeTotal = FormatoUtils.limpiarMonto(json.optString("importe_total"))
-                        rucPropio = SunatPrefs.getRuc(context) ?: ""
+                        totalCost = FormatUtils.cleanAmount(json.optString("costo_total"))
+                        igv = FormatUtils.cleanAmount(json.optString("igv"))
+                        totalAmount = FormatUtils.cleanAmount(json.optString("importe_total"))
+                        myRuc = SunatPrefs.getRuc(context) ?: ""
 
                         Log.d("GEMINI_MONTOS",
-                            "CostoTotal: $costoTotal, IGV: $igv, ImporteTotal: $importeTotal")
+                            "CostoTotal: $totalCost, IGV: $igv, ImporteTotal: $totalAmount")
 
-                        // Procesar productos
-                        listaProductos.clear()
+                        productList.clear()
                         json.optJSONArray("productos")?.let { arr ->
                             for (i in 0 until arr.length()) {
                                 val p = arr.getJSONObject(i)
-                                listaProductos.add(
+                                productList.add(
                                     ProductItem(
                                         p.optString("descripcion"),
                                         p.optString("costo_unitario"),
                                         p.optString("cantidad"),
-                                        unidadMedida = p.optString("unidad_medida")
+                                        unitOfMeasure = p.optString("unidad_medida")
                                     )
                                 )
                             }
-                            Log.d("GEMINI_PRODUCTOS", "Productos agregados a lista: ${listaProductos.size}")
+                            Log.d("GEMINI_PRODUCTOS", "Productos agregados a lista: ${productList.size}")
                         }
 
-                        if (listaProductos.isEmpty()) {
+                        if (productList.isEmpty()) {
                             Log.w("GEMINI_PRODUCTOS", "⚠️ Lista de productos vacía, agregando uno vacío")
-                            listaProductos.add(ProductItem("", "", ""))
+                            productList.add(ProductItem("", "", ""))
                         }
 
                         Toast.makeText(context, "✅ Factura analizada!", Toast.LENGTH_LONG).show()
@@ -263,7 +254,6 @@ fun RegistroCompraScreen(
         )
     }
 
-    // Lanzador para permiso de cámara
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {
@@ -274,8 +264,8 @@ fun RegistroCompraScreen(
         }
     }
 
-    val esDolares = MonedaUtils.esMonedaDolares(moneda)
-    val monedaWeight = if (esDolares) 1.2f else 2f
+    val isDollar = CurrencyUtils.isDollarCurrency(currency)
+    val currencyWeight = if (isDollar) 1.2f else 2f
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -286,7 +276,6 @@ fun RegistroCompraScreen(
                         .padding(top = 16.dp, start = 8.dp, end = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Flecha de retroceso
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
@@ -295,7 +284,6 @@ fun RegistroCompraScreen(
                         )
                     }
 
-                    // Título con Icono de Cámara
                     Row(
                         modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
@@ -335,64 +323,61 @@ fun RegistroCompraScreen(
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // --- FILA 1: RUC, SERIE, NUMERO---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     ReadOnlyField(
-                        value = rucPropio,
-                        onValueChange = { rucPropio = it },
+                        value = myRuc,
+                        onValueChange = { myRuc = it },
                         label = "RUC",
-                        isReadOnly = !modoEdicion,
+                        isReadOnly = !editMode,
                         modifier = Modifier.weight(2.8f)
                     )
                     ReadOnlyField(
-                        value = serie,
-                        onValueChange = { serie = it },
+                        value = series,
+                        onValueChange = { series = it },
                         label = "Serie",
-                        isReadOnly = !modoEdicion,
+                        isReadOnly = !editMode,
                         modifier = Modifier.weight(1.5f)
                     )
                     ReadOnlyField(
-                        value = numero,
-                        onValueChange = { numero = it },
+                        value = number,
+                        onValueChange = { number = it },
                         label = "N°",
-                        isReadOnly = !modoEdicion,
+                        isReadOnly = !editMode,
                         modifier = Modifier.weight(2f)
                     )
                 }
 
-                // --- FILA 2: FECHA, TIPO DOCUMENTO, IMPORTACIÓN, AÑO ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ReadOnlyField(
-                        value = fecha,
-                        onValueChange = { fecha = it },
+                        value = date,
+                        onValueChange = { date = it },
                         label = "Fecha Emisión",
-                        isReadOnly = !modoEdicion,
+                        isReadOnly = !editMode,
                         modifier = Modifier.weight(1.8f)
                     )
                     ReadOnlyField(
-                        value = tipoDocumento,
-                        onValueChange = { tipoDocumento = it },
+                        value = documentType,
+                        onValueChange = { documentType = it },
                         label = "Tipo de Documento",
-                        isReadOnly = !modoEdicion,
+                        isReadOnly = !editMode,
                         modifier = Modifier.weight(1.8f)
                     )
                     ReadOnlyField(
-                        value = anioImportacion,
-                        onValueChange = { anioImportacion = it },
+                        value = importYear,
+                        onValueChange = { importYear = it },
                         label = "Año",
-                        isReadOnly = !modoEdicion,
+                        isReadOnly = !editMode,
                         modifier = Modifier.weight(1f)
                     )
                 }
 
-                // --- FILA 3: RUC Y RAZÓN SOCIAL EN UNA SOLA LÍNEA ---
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -400,19 +385,19 @@ fun RegistroCompraScreen(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     ReadOnlyField(
-                        value = rucProveedor,
-                        onValueChange = { rucProveedor = it },
+                        value = providerRuc,
+                        onValueChange = { providerRuc = it },
                         label = "RUC Proveedor",
-                        isReadOnly = !modoEdicion,
+                        isReadOnly = !editMode,
                         modifier = Modifier
                             .weight(1.5f)
                             .fillMaxHeight()
                     )
                     ReadOnlyField(
-                        value = razonSocialProveedor,
-                        onValueChange = { razonSocialProveedor = it },
+                        value = providerBusinessName,
+                        onValueChange = { providerBusinessName = it },
                         label = "Razón Social del Proveedor",
-                        isReadOnly = !modoEdicion,
+                        isReadOnly = !editMode,
                         modifier = Modifier
                             .weight(3f)
                             .fillMaxHeight(),
@@ -421,8 +406,7 @@ fun RegistroCompraScreen(
                     )
                 }
 
-                // --- FILA 4: DESCRIPCIÓN, COSTO UNIT, CANTIDAD ---
-                listaProductos.forEachIndexed { index, producto ->
+                productList.forEachIndexed { index, product ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -430,13 +414,13 @@ fun RegistroCompraScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         ReadOnlyField(
-                            value = FormatoUtils.formatearUnidadMedida(producto.cantidad, producto.unidadMedida),
-                            onValueChange = { nuevoValor ->
-                                val partes = nuevoValor.split(" ")
-                                val cantidad = partes.firstOrNull() ?: ""
-                                val unidadRaw = if (partes.size > 1) partes.drop(1).joinToString(" ") else ""
+                            value = FormatUtils.formatUnitOfMeasure(product.quantity, product.unitOfMeasure),
+                            onValueChange = { newValue ->
+                                val parts = newValue.split(" ")
+                                val quantity = parts.firstOrNull() ?: ""
+                                val unitRaw = if (parts.size > 1) parts.drop(1).joinToString(" ") else ""
 
-                                val unidadParaAlmacenar = when (unidadRaw.uppercase().trim()) {
+                                val unitToStore = when (unitRaw.uppercase().trim()) {
                                     "KG", "KGS", "KILO", "KILOS" -> "KILOGRAMOS"
                                     "L", "LT", "LTS", "LITRO", "LITROS" -> "LITROS"
                                     "UN", "UND", "UNDS", "UNIDAD", "UNIDADES" -> "UNIDADES"
@@ -444,39 +428,39 @@ fun RegistroCompraScreen(
                                     "M", "MT", "MTS", "METRO", "METROS" -> "METROS"
                                     "CM", "CMS", "CENTIMETRO", "CENTIMETROS" -> "CENTIMETROS"
                                     "MM", "MMS", "MILIMETRO", "MILIMETROS" -> "MILIMETROS"
-                                    else -> unidadRaw
+                                    else -> unitRaw
                                 }
 
-                                listaProductos[index] = producto.copy(
-                                    cantidad = cantidad,
-                                    unidadMedida = unidadParaAlmacenar
+                                productList[index] = product.copy(
+                                    quantity = quantity,
+                                    unitOfMeasure = unitToStore
                                 )
                             },
                             label = if (index == 0) "Cant" else "",
-                            isReadOnly = !modoEdicion,
+                            isReadOnly = !editMode,
                             modifier = Modifier
                                 .weight(1.2f)
                                 .fillMaxHeight()
                         )
                         ReadOnlyField(
-                            value = producto.descripcion,
-                            onValueChange = { nuevaDesc ->
-                                listaProductos[index] = producto.copy(descripcion = nuevaDesc)
+                            value = product.description,
+                            onValueChange = { newDesc ->
+                                productList[index] = product.copy(description = newDesc)
                             },
                             label = if (index == 0) "Descripción" else "",
-                            isReadOnly = !modoEdicion,
+                            isReadOnly = !editMode,
                             modifier = Modifier
                                 .weight(2.5f)
                                 .fillMaxHeight(),
                             isSingleLine = false
                         )
                         ReadOnlyField(
-                            value = producto.costoUnitario,
-                            onValueChange = { nuevoCosto ->
-                                listaProductos[index] = producto.copy(costoUnitario = nuevoCosto)
+                            value = product.unitCost,
+                            onValueChange = { newCost ->
+                                productList[index] = product.copy(unitCost = newCost)
                             },
                             label = if (index == 0) "Costo Unit." else "",
-                            isReadOnly = !modoEdicion,
+                            isReadOnly = !editMode,
                             modifier = Modifier
                                 .weight(1.2f)
                                 .fillMaxHeight()
@@ -484,53 +468,51 @@ fun RegistroCompraScreen(
                     }
                 }
 
-                // --- FILA 5: MONEDA, T. CAMBIO (CONDICIONAL) ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ReadOnlyField(
-                        value = moneda,
-                        onValueChange = { moneda = it },
+                        value = currency,
+                        onValueChange = { currency = it },
                         label = "Moneda",
-                        isReadOnly = !modoEdicion,
-                        modifier = Modifier.weight(monedaWeight)
+                        isReadOnly = !editMode,
+                        modifier = Modifier.weight(currencyWeight)
                     )
-                    if (esDolares) {
+                    if (isDollar) {
                         ReadOnlyField(
-                            value = tipoCambio,
-                            onValueChange = { tipoCambio = it },
+                            value = exchangeRate,
+                            onValueChange = { exchangeRate = it },
                             label = "T. Cambio",
-                            isReadOnly = !modoEdicion,
+                            isReadOnly = !editMode,
                             modifier = Modifier.weight(0.8f)
                         )
                     }
                 }
 
-                // --- FILA 6: COSTO TOTAL, IGV e IMPORTE TOTAL ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ReadOnlyField(
-                        value = costoTotal,
-                        onValueChange = { costoTotal = it },
+                        value = totalCost,
+                        onValueChange = { totalCost = it },
                         label = "Costo Total",
-                        isReadOnly = !modoEdicion,
+                        isReadOnly = !editMode,
                         modifier = Modifier.weight(1.8f)
                     )
                     ReadOnlyField(
                         value = igv,
                         onValueChange = { igv = it },
                         label = "IGV",
-                        isReadOnly = !modoEdicion,
+                        isReadOnly = !editMode,
                         modifier = Modifier.weight(1.5f)
                     )
                     ReadOnlyField(
-                        value = importeTotal,
-                        onValueChange = { importeTotal = it },
+                        value = totalAmount,
+                        onValueChange = { totalAmount = it },
                         label = "Importe Total",
-                        isReadOnly = !modoEdicion,
+                        isReadOnly = !editMode,
                         modifier = Modifier.weight(2f),
                         isHighlight = true
                     )
@@ -538,41 +520,40 @@ fun RegistroCompraScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // --- BOTONES FINALES ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Button(
                         onClick = {
-                            if (rucProveedor.isEmpty() || serie.isEmpty() || numero.isEmpty()) {
+                            if (providerRuc.isEmpty() || series.isEmpty() || number.isEmpty()) {
                                 Toast.makeText(context, "Complete los datos de la factura", Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
 
-                            listaProductos.forEachIndexed { index, producto ->
+                            productList.forEachIndexed { index, product ->
                                 Log.d("RegistroScreen",
-                                    "Producto $index: ${producto.descripcion}, " +
-                                            "Cantidad=${producto.cantidad}, " +
-                                            "Unidad=${producto.unidadMedida}, " +
-                                            "Costo=${producto.costoUnitario}")
+                                    "Producto $index: ${product.description}, " +
+                                            "Cantidad=${product.quantity}, " +
+                                            "Unidad=${product.unitOfMeasure}, " +
+                                            "Costo=${product.unitCost}")
                             }
 
-                            viewModel.agregarNuevaFacturaCompra(
-                                ruc = rucProveedor,
-                                razonSocial = razonSocialProveedor,
-                                serie = serie,
-                                numero = numero,
-                                fechaEmision = fecha,
-                                tipoDocumento = tipoDocumento,
-                                moneda = moneda,
-                                costoTotal = costoTotal,
+                            viewModel.addNewPurchaseInvoice(
+                                ruc = providerRuc,
+                                businessName = providerBusinessName,
+                                series = series,
+                                number = number,
+                                issueDate = date,
+                                documentType = documentType,
+                                currency = currency,
+                                totalCost = totalCost,
                                 igv = igv,
-                                importeTotal = importeTotal,
-                                anio = if (esImportacion) anioImportacion else "",
-                                tipoCambio = tipoCambio,
-                                productos = listaProductos.filter {
-                                    it.descripcion.isNotBlank() && it.cantidad.isNotBlank()
+                                totalAmount = totalAmount,
+                                year = if (isImport) importYear else "",
+                                exchangeRate = exchangeRate,
+                                products = productList.filter {
+                                    it.description.isNotBlank() && it.quantity.isNotBlank()
                                 }
                             )
 
@@ -584,28 +565,27 @@ fun RegistroCompraScreen(
                             .height(48.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9)),
                         shape = MaterialTheme.shapes.medium,
-                        enabled = fotoTomada && !isLoading
+                        enabled = photoTaken && !isLoading
                     ) {
                         Text(text = "REGISTRAR", fontWeight = FontWeight.Bold)
                     }
 
                     Button(
-                        onClick = { modoEdicion = !modoEdicion },
+                        onClick = { editMode = !editMode },
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (modoEdicion) Color(0xFF1FB8B9) else Color.Gray
+                            containerColor = if (editMode) Color(0xFF1FB8B9) else Color.Gray
                         ),
                         shape = MaterialTheme.shapes.medium,
-                        enabled = fotoTomada && !isLoading
+                        enabled = photoTaken && !isLoading
                     ) { Text("EDITAR", fontWeight = FontWeight.Bold) }
                 }
                 Spacer(modifier = Modifier.height(5.dp))
             }
         }
 
-        // --- CAPA DE LOADING
         if (isLoading) {
             Box(
                 modifier = Modifier
@@ -629,7 +609,7 @@ fun RegistroCompraScreen(
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
-fun RegistroCompraScreenPreview() {
+fun RegisterPurchaseScreenPreview() {
     val viewModel: PurchaseRegistrationViewModel = viewModel()
-    RegistroCompraScreen(onBack = { }, viewModel = viewModel)
+    RegisterPurchaseScreen(onBack = { }, viewModel = viewModel)
 }

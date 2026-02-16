@@ -13,8 +13,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
-// Función para convertir fecha a período
-fun convertirFechaAPeriodo(millis: Long): String {
+fun convertDateToPeriod(millis: Long): String {
     val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
         timeInMillis = millis
     }
@@ -23,7 +22,6 @@ fun convertirFechaAPeriodo(millis: Long): String {
     return "${year}${String.format("%02d", month)}"
 }
 
-// Función para calcular lista filtrada
 @Composable
 fun calculateFilteredList(
     sectionActive: Section,
@@ -31,9 +29,9 @@ fun calculateFilteredList(
     selectedStartMillis: Long?,
     selectedEndMillis: Long?,
     hasLoadedSunatData: Boolean,
-    facturasCompras: List<Invoice>,
-    facturasVentas: List<Invoice>,
-    hoyMillis: Long
+    purchaseInvoices: List<Invoice>,
+    salesInvoices: List<Invoice>,
+    todayMillis: Long
 ): List<Invoice> {
     return remember(
         sectionActive,
@@ -41,34 +39,34 @@ fun calculateFilteredList(
         selectedStartMillis,
         selectedEndMillis,
         hasLoadedSunatData,
-        facturasCompras,
-        facturasVentas
+        purchaseInvoices,
+        salesInvoices
     ) {
         derivedStateOf {
             if (!hasLoadedSunatData) return@derivedStateOf emptyList()
             if (!isListVisible) return@derivedStateOf emptyList()
 
-            val start = selectedStartMillis ?: hoyMillis
+            val start = selectedStartMillis ?: todayMillis
             val end = selectedEndMillis ?: start
 
             val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
                 timeZone = PERU_TIME_ZONE
             }
 
-            val listaActualBase = if (sectionActive == Section.COMPRAS) facturasCompras else facturasVentas
+            val currentBaseList = if (sectionActive == Section.PURCHASES) purchaseInvoices else salesInvoices
 
-            val facturasFiltradas = listaActualBase.filter { factura ->
+            val filteredInvoices = currentBaseList.filter { invoice ->
                 try {
-                    val fechaFacturaTime = sdf.parse(factura.fechaEmision)?.time ?: 0L
-                    fechaFacturaTime in start..end
+                    val invoiceDateMillis = sdf.parse(invoice.issueDate)?.time ?: 0L
+                    invoiceDateMillis in start..end
                 } catch (e: Exception) {
                     false
                 }
             }
 
-            facturasFiltradas.sortedByDescending { factura ->
+            filteredInvoices.sortedByDescending { invoice ->
                 try {
-                    sdf.parse(factura.fechaEmision)?.time ?: 0L
+                    sdf.parse(invoice.issueDate)?.time ?: 0L
                 } catch (e: Exception) {
                     0L
                 }
@@ -77,88 +75,83 @@ fun calculateFilteredList(
     }
 }
 
-// Función para manejar auto-registro de facturas
 @Composable
-fun handleAutoRegistroFacturas(
-    facturasCompras: List<Invoice>,
-    facturasVentas: List<Invoice>,
-    facturasConTimerActivo: Set<Int>,
+fun handleAutoRegisterInvoices(
+    purchaseInvoices: List<Invoice>,
+    salesInvoices: List<Invoice>,
+    invoicesWithActiveTimer: Set<Int>,
     purchaseViewModel: PurchaseViewModel,
     invoiceViewModel: InvoiceViewModel,
     context: Context,
     onTimerUpdate: (Set<Int>) -> Unit
 ) {
-    LaunchedEffect(facturasCompras, facturasVentas) {
-        val todasLasFacturas = facturasCompras + facturasVentas
+    LaunchedEffect(purchaseInvoices, salesInvoices) {
+        val allInvoices = purchaseInvoices + salesInvoices
 
-        val facturasParaAutoRegistrar = todasLasFacturas.filter { factura ->
-            factura.estado == "CON DETALLE" && !facturasConTimerActivo.contains(factura.id)
+        val invoicesToAutoRegister = allInvoices.filter { invoice ->
+            invoice.status == "CON DETALLE" && !invoicesWithActiveTimer.contains(invoice.id)
         }
 
-        facturasParaAutoRegistrar.forEach { factura ->
-            val nuevosTimers = facturasConTimerActivo + factura.id
-            onTimerUpdate(nuevosTimers)
+        invoicesToAutoRegister.forEach { invoice ->
+            val newTimers = invoicesWithActiveTimer + invoice.id
+            onTimerUpdate(newTimers)
 
             launch {
                 delay(10000L)
 
-                val estadoActual = todasLasFacturas.firstOrNull { it.id == factura.id }?.estado
+                val currentStatus = allInvoices.firstOrNull { it.id == invoice.id }?.status
 
-                if (estadoActual == "CON DETALLE") {
-                    val esCompra = facturasCompras.any { it.id == factura.id }
-                    val listaFacturasParaRegistrar = listOf(factura)
+                if (currentStatus == "CON DETALLE") {
+                    val isPurchase = purchaseInvoices.any { it.id == invoice.id }
+                    val invoicesToRegister = listOf(invoice)
 
-                    // ✅ InvoiceViewModel para registrar en BD
-                    invoiceViewModel.registrarFacturasEnBaseDeDatos(
-                        facturas = listaFacturasParaRegistrar,
-                        esCompra = esCompra,
+                    invoiceViewModel.registerInvoicesInDatabase(
+                        invoices = invoicesToRegister,
+                        isPurchase = isPurchase,
                         context = context,
-                        mostrarLoading = false
+                        showLoading = false
                     )
 
-                    // ✅ PurchaseViewModel para actualizar estado
-                    purchaseViewModel.actualizarEstadoFactura(
-                        facturaId = factura.id,
-                        nuevoEstado = "REGISTRADO",
-                        esCompra = esCompra
+                    purchaseViewModel.updateInvoiceStatus(
+                        invoiceId = invoice.id,
+                        newStatus = "REGISTRADO",
+                        isPurchase = isPurchase
                     )
 
                     Toast.makeText(
                         context,
-                        "✅ Factura ${factura.serie}-${factura.numero} registrada automáticamente",
+                        "✅ Factura ${invoice.series}-${invoice.number} registrada automáticamente",
                         Toast.LENGTH_SHORT
                     ).show()
                 }
 
-                onTimerUpdate(facturasConTimerActivo - factura.id)
+                onTimerUpdate(invoicesWithActiveTimer - invoice.id)
             }
         }
 
-        val facturasConDetalle = todasLasFacturas.filter { it.estado == "CON DETALLE" }.map { it.id }.toSet()
-        val timersParaLimpiar = facturasConTimerActivo.filter { !facturasConDetalle.contains(it) }
-        if (timersParaLimpiar.isNotEmpty()) {
-            onTimerUpdate(facturasConTimerActivo.filter { facturasConDetalle.contains(it) }.toSet())
+        val invoicesWithDetail = allInvoices.filter { it.status == "CON DETALLE" }.map { it.id }.toSet()
+        val timersToClean = invoicesWithActiveTimer.filter { !invoicesWithDetail.contains(it) }
+        if (timersToClean.isNotEmpty()) {
+            onTimerUpdate(invoicesWithActiveTimer.filter { invoicesWithDetail.contains(it) }.toSet())
         }
     }
 }
 
-// Función para setup de efectos comunes
 @Composable
 fun setupCommonEffects(
     isLoadingViewModel: Boolean,
     errorMessage: String?,
     showLoadingDialog: Boolean,
-    facturaCargandoId: Int?,
-    esCompraCargando: Boolean,
+    loadingInvoiceId: Int?,
+    isLoadingPurchase: Boolean,
     viewModel: PurchaseViewModel,
     onIsLoadingChange: (Boolean) -> Unit,
     onLoadingDialogChange: (Boolean) -> Unit,
-    onNavigateToDetalle: (Int, Boolean) -> Unit,
+    onNavigateToDetail: (Int, Boolean) -> Unit,
     onLoadingStatusChange: (String) -> Unit,
     onLoadingDebugInfoChange: (String?) -> Unit,
-    onFacturaCargandoIdChange: (Int?) -> Unit
+    onLoadingInvoiceIdChange: (Int?) -> Unit
 ) {
-    // Efecto para isLoading
     LaunchedEffect(isLoadingViewModel) {
         onIsLoadingChange(isLoadingViewModel)
 
@@ -167,24 +160,23 @@ fun setupCommonEffects(
                 onLoadingDialogChange(false)
                 onLoadingDebugInfoChange(null)
 
-                facturaCargandoId?.let { id ->
-                    onNavigateToDetalle(id, esCompraCargando)
+                loadingInvoiceId?.let { id ->
+                    onNavigateToDetail(id, isLoadingPurchase)
                 }
-                onFacturaCargandoIdChange(null)
+                onLoadingInvoiceIdChange(null)
             }, 1500)
         }
     }
 
-    // Efecto para errorMessage
     LaunchedEffect(errorMessage) {
-        errorMessage?.let { mensaje ->
+        errorMessage?.let { message ->
             if (showLoadingDialog) {
-                onLoadingStatusChange("Error: $mensaje")
+                onLoadingStatusChange("Error: $message")
                 Handler(Looper.getMainLooper()).postDelayed({
                     onLoadingDialogChange(false)
                     onLoadingDebugInfoChange(null)
-                    onFacturaCargandoIdChange(null)
-                    viewModel.limpiarError()
+                    onLoadingInvoiceIdChange(null)
+                    viewModel.clearError()
                 }, 3000)
             }
         }

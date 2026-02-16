@@ -23,48 +23,48 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.ui.unit.sp
 import com.example.purchaseregister.view.detail.DocumentItem
 import com.example.purchaseregister.view.detail.DocumentModal
-import com.example.purchaseregister.view.detail.crearDocumentosParaFactura  // ¡NUEVO IMPORT!
+import com.example.purchaseregister.view.detail.createDocumentsForInvoice
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
     id: Int,
     onBack: () -> Unit,
-    rucProveedor: String?,
-    serie: String?,
-    numero: String?,
-    fecha: String?,
-    razonSocial: String?,
-    tipoDocumento: String?,
-    anio: String?,
-    moneda: String?,
-    costoTotal: String?,
+    providerRuc: String?,
+    series: String?,
+    number: String?,
+    date: String?,
+    businessName: String?,
+    documentType: String?,
+    year: String?,
+    currency: String?,
+    totalCost: String?,
     igv: String?,
-    tipoCambio: String?,
-    importeTotal: String?,
-    esCompra: Boolean = true,
-    productos: List<ProductItem> = emptyList(),
-    onAceptar: () -> Unit = {},
-    documentos: List<DocumentItem> = emptyList()
+    exchangeRate: String?,
+    totalAmount: String?,
+    isPurchase: Boolean = true,
+    products: List<ProductItem> = emptyList(),
+    onAccept: () -> Unit = {},
+    documents: List<DocumentItem> = emptyList()
 ) {
-    var showDocumentosDialog by remember { mutableStateOf(false) }
+    var showDocumentsDialog by remember { mutableStateOf(false) }
 
-    val numeroComprobante = if (serie != null && numero != null) "$serie-$numero" else ""
-    val fechaFormateada = fecha ?: ""
-    val serieValida = serie ?: ""
+    val documentNumber = if (series != null && number != null) "$series-$number" else ""
+    val formattedDate = date ?: ""
+    val validSeries = series ?: ""
 
-    val documentosAutomaticos = remember(serieValida, numeroComprobante, fechaFormateada) {
-        if (serieValida.isNotBlank() && numeroComprobante.isNotBlank() && fechaFormateada.isNotBlank()) {
-            crearDocumentosParaFactura(serieValida, numeroComprobante, fechaFormateada)
+    val autoDocuments = remember(validSeries, documentNumber, formattedDate) {
+        if (validSeries.isNotBlank() && documentNumber.isNotBlank() && formattedDate.isNotBlank()) {
+            createDocumentsForInvoice(validSeries, documentNumber, formattedDate)
         } else {
             emptyList()
         }
     }
 
-    val documentosAMostrar = if (documentos.isNotEmpty()) documentos else documentosAutomaticos
+    val documentsToShow = if (documents.isNotEmpty()) documents else autoDocuments
 
-    fun formatearUnidadMedida(cantidad: String, unidad: String): String {
-        val unidadFormateada = when (unidad.uppercase()) {
+    fun formatUnitOfMeasure(quantity: String, unit: String): String {
+        val formattedUnit = when (unit.uppercase()) {
             "KILO", "KILOS", "KILOGRAMO", "KILOGRAMOS", "KG", "KGS" -> "Kg"
             "GRAMO", "GRAMOS", "GR", "GRS", "G" -> "Gr"
             "LITRO", "LITROS", "L", "LT", "LTS" -> "Lt"
@@ -76,29 +76,29 @@ fun DetailScreen(
             "CAJA", "CAJAS", "CJ", "CJA", "CJAS" -> "Bx"
             "GALON", "US GALON", "GALONES", "GAL", "GALS" -> "Gal"
             "CASE", "CS" -> "Cs"
-            else -> if (unidad.isNotBlank()) unidad else ""
+            else -> if (unit.isNotBlank()) unit else ""
         }
 
-        return if (unidadFormateada.isNotBlank()) {
-            "$cantidad $unidadFormateada"
+        return if (formattedUnit.isNotBlank()) {
+            "$quantity $formattedUnit"
         } else {
-            cantidad
+            quantity
         }
     }
 
     val context = LocalContext.current
-    val rucPropio = remember { SunatPrefs.getRuc(context) ?: "" }
-    val esOperacionInafecta = igv?.toDoubleOrNull() == 0.0 && costoTotal?.toDoubleOrNull() == 0.0
-    val valorVentaInafecto = if (esOperacionInafecta) {
-        importeTotal ?: "0.00"
+    val myRuc = remember { SunatPrefs.getRuc(context) ?: "" }
+    val isUnaffectedOperation = igv?.toDoubleOrNull() == 0.0 && totalCost?.toDoubleOrNull() == 0.0
+    val unaffectedSaleValue = if (isUnaffectedOperation) {
+        totalAmount ?: "0.00"
     } else {
-        costoTotal ?: "0.00"
+        totalCost ?: "0.00"
     }
 
-    if (showDocumentosDialog) {
+    if (showDocumentsDialog) {
         DocumentModal(
-            documentos = documentosAMostrar,
-            onDismiss = { showDocumentosDialog = false }
+            documents = documentsToShow,
+            onDismiss = { showDocumentsDialog = false }
         )
     }
 
@@ -107,12 +107,12 @@ fun DetailScreen(
     }
 
     println("🎯 [DetailScreen] ID recibido: $id")
-    println("🎯 [DetailScreen] esCompra: $esCompra")
-    println("🎯 [DetailScreen] Número de productos recibidos: ${productos.size}")
-    println("🎯 [DetailScreen] Documentos automáticos creados: ${documentosAutomaticos.size}")
+    println("🎯 [DetailScreen] isPurchase: $isPurchase")
+    println("🎯 [DetailScreen] Número de productos recibidos: ${products.size}")
+    println("🎯 [DetailScreen] Documentos automáticos creados: ${autoDocuments.size}")
 
-    productos.forEachIndexed { index, producto ->
-        println("🎯 [DetailScreen] Producto $index: ${producto.descripcion}, ${producto.costoUnitario}, ${producto.cantidad}")
+    products.forEachIndexed { index, product ->
+        println("🎯 [DetailScreen] Producto $index: ${product.description}, ${product.unitCost}, ${product.quantity}")
     }
 
     Scaffold(
@@ -123,7 +123,6 @@ fun DetailScreen(
                     .padding(top = 16.dp, start = 8.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Flecha de retroceso a la izquierda
                 IconButton(
                     onClick = {
                         println("◀️ [DetailScreen] Icono flecha presionado")
@@ -137,7 +136,6 @@ fun DetailScreen(
                     )
                 }
 
-                // Título
                 Text(
                     text = "Detalle de factura",
                     style = MaterialTheme.typography.headlineSmall,
@@ -146,7 +144,6 @@ fun DetailScreen(
                     textAlign = TextAlign.Center
                 )
 
-                // Spacer para equilibrar el espacio de la flecha y mantener el título centrado
                 Spacer(modifier = Modifier.width(48.dp))
             }
         }
@@ -160,27 +157,27 @@ fun DetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
-            // --- FILA 1: RUC, SERIE, NUMERO, FECHA ---
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 ReadOnlyField(
-                    value = rucPropio,
+                    value = myRuc,
                     onValueChange = { },
                     label = "RUC Propio",
                     modifier = Modifier.weight(2.8f),
                     textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
-                    value = serie ?: "",
+                    value = series ?: "",
                     onValueChange = { },
                     label = "Serie",
                     modifier = Modifier.weight(1.5f),
                     textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
-                    value = numero ?: "",
+                    value = number ?: "",
                     onValueChange = { },
                     label = "N°",
                     modifier = Modifier.weight(2f),
@@ -188,28 +185,27 @@ fun DetailScreen(
                 )
             }
 
-            // --- FILA 2: TIPO DOCUMENTO, IMPORTACIÓN, AÑO ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ReadOnlyField(
-                    value = fecha ?: "",
+                    value = date ?: "",
                     onValueChange = { },
                     label = "Fecha Emisión",
                     modifier = Modifier.weight(1.8f),
                     textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
-                    value = tipoDocumento ?: "",
+                    value = documentType ?: "",
                     onValueChange = { },
                     label = "Tipo de Documento",
                     modifier = Modifier.weight(1.8f),
                     textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
-                    value = anio ?: "",
+                    value = year ?: "",
                     onValueChange = { },
                     label = "Año",
                     modifier = Modifier.weight(1f),
@@ -217,7 +213,6 @@ fun DetailScreen(
                 )
             }
 
-            // --- FILA 3: RUC Y RAZÓN SOCIAL EN UNA SOLA LÍNEA ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -225,7 +220,7 @@ fun DetailScreen(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 ReadOnlyField(
-                    value = rucProveedor ?: "",
+                    value = providerRuc ?: "",
                     onValueChange = { },
                     label = "RUC Proveedor",
                     modifier = Modifier
@@ -234,7 +229,7 @@ fun DetailScreen(
                     textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
-                    value = razonSocial ?: "",
+                    value = businessName ?: "",
                     onValueChange = { },
                     label = "Razón Social del Proveedor",
                     modifier = Modifier
@@ -245,9 +240,8 @@ fun DetailScreen(
                 )
             }
 
-            // --- FILA 4: DESCRIPCIÓN GENERAL (DESC + UNIDAD + CANTIDAD), COSTO UNITARIO ---
-            if (productos.isNotEmpty()) {
-                productos.forEachIndexed { index, producto ->
+            if (products.isNotEmpty()) {
+                products.forEachIndexed { index, product ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -255,7 +249,7 @@ fun DetailScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         ReadOnlyField(
-                            value = formatearUnidadMedida(producto.cantidad, producto.unidadMedida),
+                            value = formatUnitOfMeasure(product.quantity, product.unitOfMeasure),
                             onValueChange = { },
                             label = if (index == 0) "Cant" else "",
                             modifier = Modifier
@@ -264,7 +258,7 @@ fun DetailScreen(
                             textAlign = TextAlign.Center
                         )
                         ReadOnlyField(
-                            value = producto.descripcion,
+                            value = product.description,
                             onValueChange = { },
                             label = if (index == 0) "Descripción" else "",
                             modifier = Modifier
@@ -274,7 +268,7 @@ fun DetailScreen(
                             textAlign = TextAlign.Center
                         )
                         ReadOnlyField(
-                            value = producto.costoUnitario,
+                            value = product.unitCost,
                             onValueChange = { },
                             label = if (index == 0) "Costo Unit." else "",
                             modifier = Modifier
@@ -285,7 +279,6 @@ fun DetailScreen(
                     }
                 }
             } else {
-                // Si no hay productos, mostrar un campo vacío
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -323,20 +316,19 @@ fun DetailScreen(
                 }
             }
 
-            // --- FILA 5: MONEDA Y TIPO DE CAMBIO ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ReadOnlyField(
-                    value = moneda ?: "",
+                    value = currency ?: "",
                     onValueChange = { },
                     label = "Moneda",
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center
                 )
                 ReadOnlyField(
-                    value = tipoCambio ?: "",
+                    value = exchangeRate ?: "",
                     onValueChange = { },
                     label = "T. Cambio",
                     modifier = Modifier.weight(1f),
@@ -344,24 +336,20 @@ fun DetailScreen(
                 )
             }
 
-            // --- FILA 6: COSTO TOTAL, IGV, IMPORTE TOTAL---
-            if (esOperacionInafecta) {
-                // Para operaciones inafectas (sin IGV)
+            if (isUnaffectedOperation) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // VALOR VENTA INAFECTO
                     ReadOnlyField(
-                        value = valorVentaInafecto,
+                        value = unaffectedSaleValue,
                         onValueChange = { },
                         label = "VALOR VENTA INAFECTO",
                         modifier = Modifier.weight(2f),
                         textAlign = TextAlign.Center
                     )
-                    // IMPORTE TOTAL
                     ReadOnlyField(
-                        value = importeTotal ?: "",
+                        value = totalAmount ?: "",
                         onValueChange = { },
                         label = "IMPORTE TOTAL",
                         modifier = Modifier.weight(2f),
@@ -369,13 +357,12 @@ fun DetailScreen(
                     )
                 }
             } else {
-                // Para operaciones normales (con IGV)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ReadOnlyField(
-                        value = costoTotal ?: "",
+                        value = totalCost ?: "",
                         onValueChange = { },
                         label = "Costo Total",
                         modifier = Modifier.weight(1.8f),
@@ -389,7 +376,7 @@ fun DetailScreen(
                         textAlign = TextAlign.Center
                     )
                     ReadOnlyField(
-                        value = importeTotal ?: "",
+                        value = totalAmount ?: "",
                         onValueChange = { },
                         label = "IMPORTE TOTAL",
                         modifier = Modifier.weight(2f),
@@ -400,7 +387,6 @@ fun DetailScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // --- BOTONES---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
@@ -408,11 +394,11 @@ fun DetailScreen(
                 Button(
                     onClick = {
                         println("📄 [DetailScreen] Presionando DOCUMENTACIÓN")
-                        println("📄 [DetailScreen] Documentos a mostrar: ${documentosAMostrar.size}")
-                        documentosAMostrar.forEachIndexed { index, doc ->
-                            println("📄 [DetailScreen] Documento $index: ${doc.nombre} - ${doc.tipo}")
+                        println("📄 [DetailScreen] Documentos a mostrar: ${documentsToShow.size}")
+                        documentsToShow.forEachIndexed { index, doc ->
+                            println("📄 [DetailScreen] Documento $index: ${doc.name} - ${doc.type}")
                         }
-                        showDocumentosDialog = true
+                        showDocumentsDialog = true
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -466,20 +452,20 @@ fun DetailScreenPreview() {
     DetailScreen(
         id = 1,
         onBack = { },
-        rucProveedor = "20551234891",
-        serie = "F001",
-        numero = "10",
-        fecha = "28/01/2026",
-        razonSocial = "PRODUCTOS TECNOLOGICOS S.A.",
-        tipoDocumento = "FACTURA",
-        anio = "2026",
-        moneda = "Soles (PEN)",
-        costoTotal = "100.00",
+        providerRuc = "20551234891",
+        series = "F001",
+        number = "10",
+        date = "28/01/2026",
+        businessName = "PRODUCTOS TECNOLOGICOS S.A.",
+        documentType = "FACTURA",
+        year = "2026",
+        currency = "Soles (PEN)",
+        totalCost = "100.00",
         igv = "18.00",
-        tipoCambio = "3.75",
-        importeTotal = "118.00",
-        esCompra = true,
-        productos = listOf(
+        exchangeRate = "3.75",
+        totalAmount = "118.00",
+        isPurchase = true,
+        products = listOf(
             ProductItem("Laptop Dell", "850.00", "3", "UN"),
             ProductItem("Arroz Extra", "15.00", "30", "KG"),
             ProductItem("Aceite Vegetal", "8.50", "5", "L"),

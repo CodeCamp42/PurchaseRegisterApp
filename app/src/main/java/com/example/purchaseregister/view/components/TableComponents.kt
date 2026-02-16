@@ -14,7 +14,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Componente para celdas de cabecera
 @Composable
 fun HeaderCell(text: String, width: Dp) {
     Text(
@@ -27,7 +26,6 @@ fun HeaderCell(text: String, width: Dp) {
     )
 }
 
-// Componente para celdas simples
 @Composable
 fun SimpleTableCell(text: String, width: Dp) {
     Text(
@@ -42,20 +40,20 @@ fun SimpleTableCell(text: String, width: Dp) {
 
 @Composable
 fun InvoiceStatusCircle(
-    estado: String,
-    tamano: Dp = 20.dp
+    status: String,
+    size: Dp = 20.dp
 ) {
-    val color = when (estado.uppercase()) {
+    val color = when (status.uppercase()) {
         "CONSULTADO" -> Color(0xFF2196F3)
         "EN PROCESO" -> Color(0xFF808080)
         "CON DETALLE" -> Color(0xFFFF5A00)
         "REGISTRADO" -> Color(0xFF4CAF50)
-        else -> Color.Gray // Gris
+        else -> Color.Gray
     }
 
     Box(
         modifier = Modifier
-            .size(tamano)
+            .size(size)
             .clip(CircleShape)
             .background(color)
     )

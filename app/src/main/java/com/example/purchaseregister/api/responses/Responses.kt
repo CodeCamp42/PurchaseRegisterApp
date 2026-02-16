@@ -1,155 +1,155 @@
 package com.example.purchaseregister.api.responses
 
-data class GuardarProductosResponse(
+data class SaveProductsResponse(
     val success: Boolean,
     val message: String,
-    val productosGuardados: Int,
-    val facturaId: Int?,
-    val estadoActualizado: Boolean?
+    val savedProducts: Int,
+    val invoiceId: Int?,
+    val updatedStatus: Boolean?
 )
 
-data class FacturaUIResponse(
+data class InvoiceUIResponse(
     val success: Boolean,
     val message: String,
-    val factura: FacturaRegistradaResponse,
-    val nota: String
+    val invoice: RegisteredInvoiceResponse,
+    val note: String
 )
 
-data class FacturasUIResponse(
+data class InvoicesUIResponse(
     val success: Boolean,
     val message: String,
     val count: Int,
-    val distribucionEstados: Map<String, Int>,
-    val facturas: List<FacturaRegistradaResponse>,
-    val nota: String
+    val statusDistribution: Map<String, Int>,
+    val invoices: List<RegisteredInvoiceResponse>,
+    val note: String
 )
 
-data class DetalleFacturaXmlResponse(
+data class InvoiceDetailXmlResponse(
     val id: String,
-    val fechaEmision: String?,
-    val horaEmision: String?,
-    val moneda: String?,
-    val emisor: EmisorResponse?,
-    val receptor: ReceptorResponse?,
+    val issueDate: String?,
+    val issueTime: String?,
+    val currency: String?,
+    val issuer: IssuerResponse?,
+    val receiver: ReceiverResponse?,
     val subtotal: Double?,
     val igv: Double?,
     val total: Double?,
     val items: List<ItemResponse>?,
-    val archivoXml: String?
+    val xmlFile: String?
 )
 
-data class EmisorResponse(val ruc: String?, val nombre: String?)
-data class ReceptorResponse(val ruc: String?, val nombre: String?)
+data class IssuerResponse(val ruc: String?, val name: String?)
+data class ReceiverResponse(val ruc: String?, val name: String?)
 
 data class ItemResponse(
-    val cantidad: Double,
-    val unidad: String,
-    val codigo: String?,
-    val descripcion: String,
-    val valorUnitario: Double
+    val quantity: Double,
+    val unit: String,
+    val code: String?,
+    val description: String,
+    val unitValue: Double
 )
 
 data class SunatResponse(
     val success: Boolean,
-    val periodoInicio: String,
-    val periodoFin: String,
-    val resultados: List<SunatResultado>
+    val periodStart: String,
+    val periodEnd: String,
+    val results: List<SunatResult>
 )
 
-data class SunatResultado(
-    val periodo: String,
-    val contenido: List<ContenidoItem>
+data class SunatResult(
+    val period: String,
+    val content: List<ContentItem>
 )
 
-data class ContenidoItem(
-    val rucEmisor: String,
-    val razonSocialEmisor: String,
-    val periodo: String,
-    val carSunat: String,
-    val fechaEmision: String,
-    val tipoCP: String,
-    val serie: String,
-    val numero: String,
-    val tipoDocReceptor: String,
-    val nroDocReceptor: String,
-    val nombreReceptor: String,
-    val baseGravada: Double,
+data class ContentItem(
+    val issuerRuc: String,
+    val issuerBusinessName: String,
+    val period: String,
+    val sunatFile: String,
+    val issueDate: String,
+    val documentType: String,
+    val series: String,
+    val number: String,
+    val receiverDocType: String,
+    val receiverDocNumber: String,
+    val receiverName: String,
+    val taxableBase: Double,
     val igv: Double,
-    val montoNoGravado: Double,
+    val nonTaxedAmount: Double,
     val total: Double,
-    val moneda: String,
-    val tipodecambio: Double?,
-    val estado: String
+    val currency: String,
+    val exchangeRate: Double?,
+    val status: String
 )
 
-data class RegistroFacturasResponse(
+data class RegisterInvoicesResponse(
     val message: String,
-    val resultados: List<ResultadoRegistro>
+    val results: List<RegistrationResult>
 )
 
-data class ResultadoRegistro(
+data class RegistrationResult(
     val success: Boolean,
     val id: Int,
-    val numeroComprobante: String
+    val documentNumber: String
 )
 
-data class FacturaRegistradaResponse(
-    val idFactura: Int,
-    val numeroComprobante: String,
-    val fechaEmision: String,
-    val estado: String,
-    val proveedorRuc: String,
-    val costoTotal: String,
+data class RegisteredInvoiceResponse(
+    val invoiceId: Int,
+    val documentNumber: String,
+    val issueDate: String,
+    val status: String,
+    val providerRuc: String,
+    val totalCost: String,
     val igv: String,
-    val importeTotal: String,
-    val moneda: String,
-    val numero: String,
-    val serie: String,
-    val detalles: List<DetalleRegistrado>?,
-    val proveedor: ProveedorRegistrado?
+    val totalAmount: String,
+    val currency: String,
+    val number: String,
+    val series: String,
+    val details: List<RegisteredDetail>?,
+    val provider: RegisteredProvider?
 )
 
-data class DetalleRegistrado(
-    val descripcion: String,
-    val cantidad: String,
-    val costoUnitario: String,
-    val unidadMedida: String
+data class RegisteredDetail(
+    val description: String,
+    val quantity: String,
+    val unitCost: String,
+    val unitOfMeasure: String
 )
 
-data class ProveedorRegistrado(
-    val rucProveedor: String,
-    val razonSocial: String
+data class RegisteredProvider(
+    val providerRuc: String,
+    val businessName: String
 )
 
-data class ScrapingCompletadoResponse(
+data class ScrapingCompletedResponse(
     val message: String,
     val timestamp: String,
-    val factura: FacturaScrapingResponse?,
-    val estado: String?,
-    val productosGuardados: Int?,
-    val advertencia: String?
+    val invoice: ScrapedInvoiceResponse?,
+    val status: String?,
+    val savedProducts: Int?,
+    val warning: String?
 )
 
-data class FacturaScrapingResponse(
-    val idFactura: Int,
-    val numeroComprobante: String,
-    val estado: String
+data class ScrapedInvoiceResponse(
+    val invoiceId: Int,
+    val documentNumber: String,
+    val status: String
 )
 
-data class RegistrarFacturaDesdeSunatResponse(
+data class RegisterInvoiceFromSunatResponse(
     val success: Boolean,
-    val idFactura: Int?,
-    val numeroComprobante: String,
+    val invoiceId: Int?,
+    val documentNumber: String,
     val message: String
 )
 
-data class EncoladoResponse(
+data class QueuedResponse(
     val success: Boolean,
     val jobId: String,
     val message: String
 )
 
-data class EstadoJobResponse(
+data class JobStatusResponse(
     val id: String,
     val state: String,
     val progress: Int,
@@ -159,20 +159,20 @@ data class EstadoJobResponse(
 
 data class JobResult(
     val id: String,
-    val fechaEmision: String?,
-    val horaEmision: String?,
-    val moneda: String?,
-    val emisor: EmisorResponse?,
-    val receptor: ReceptorResponse?,
+    val issueDate: String?,
+    val issueTime: String?,
+    val currency: String?,
+    val issuer: IssuerResponse?,
+    val receiver: ReceiverResponse?,
     val subtotal: Double?,
     val igv: Double?,
     val total: Double?,
     val items: List<ItemResponse>?,
-    val archivoXml: String?
+    val xmlFile: String?
 )
 
-data class ValidarCredencialesResponse(
-    val valido: Boolean,
-    val mensaje: String? = null,
+data class ValidateCredentialsResponse(
+    val valid: Boolean,
+    val message: String? = null,
     val token: String? = null
 )

@@ -15,7 +15,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.window.DialogProperties
 
 @Composable
-fun FacturaLoadingDialog(
+fun InvoiceLoadingDialog(
     isLoading: Boolean,
     statusMessage: String = "Obteniendo detalle de factura...",
     debugInfo: String? = null,
@@ -29,10 +29,8 @@ fun FacturaLoadingDialog(
     val screenWidth = configuration.screenWidthDp.dp
     val screenHeight = configuration.screenHeightDp.dp
 
-    // Calculamos el ancho como porcentaje de la pantalla (máximo 400dp)
     val dialogWidth = minOf(screenWidth * 0.85f, 400.dp)
-    // Calculamos el ancho mínimo necesario para el texto
-    val minWidthNeeded = 300.dp // Ancho mínimo para que el texto quepa en una línea
+    val minWidthNeeded = 300.dp
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -41,7 +39,7 @@ fun FacturaLoadingDialog(
         Card(
             modifier = Modifier
                 .widthIn(min = minWidthNeeded, max = dialogWidth)
-                .heightIn(min = 220.dp, max = screenHeight * 0.4f) // Máximo 40% de altura
+                .heightIn(min = 220.dp, max = screenHeight * 0.4f)
         ) {
             Column(
                 modifier = Modifier
@@ -50,7 +48,6 @@ fun FacturaLoadingDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Círculo de carga
                 CircularProgressIndicator(
                     color = Color(0xFF1FB8B9),
                     modifier = Modifier.size(48.dp)
@@ -62,7 +59,6 @@ fun FacturaLoadingDialog(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // Título opcional
                     title?.let {
                         Text(
                             text = it,
@@ -77,7 +73,6 @@ fun FacturaLoadingDialog(
 
                     Spacer(modifier = Modifier.height(if (title != null) 8.dp else 0.dp))
 
-                    // Mensaje principal
                     Text(
                         text = statusMessage,
                         fontSize = 14.sp,
@@ -88,7 +83,6 @@ fun FacturaLoadingDialog(
                     )
                 }
 
-                // Información de debug (opcional)
                 debugInfo?.let {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(

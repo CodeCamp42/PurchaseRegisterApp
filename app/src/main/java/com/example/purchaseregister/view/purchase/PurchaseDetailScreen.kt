@@ -40,49 +40,49 @@ import kotlin.coroutines.suspendCoroutine
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 
-enum class Section { COMPRAS, VENTAS }
+enum class Section { PURCHASES, SALES }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PurchaseDetailScreen(
     purchaseViewModel: PurchaseViewModel,
     invoiceViewModel: InvoiceViewModel,
-    onComprasClick: () -> Unit,
-    onVentasClick: () -> Unit,
-    onNavigateToRegistrar: () -> Unit,
-    onNavigateToDetalle: (DetailRoute) -> Unit
+    onPurchasesClick: () -> Unit,
+    onSalesClick: () -> Unit,
+    onNavigateToRegister: () -> Unit,
+    onNavigateToDetail: (DetailRoute) -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     // Estados
-    var sectionActive by remember { mutableStateOf(Section.COMPRAS) }
+    var sectionActive by remember { mutableStateOf(Section.PURCHASES) }
     var isListVisible by rememberSaveable { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var showCustomDatePicker by remember { mutableStateOf(false) }
 
     // Fechas
-    val hoyMillis = remember { getHoyMillisPeru() }
-    val primerDiaMes = remember { getPrimerDiaMesPeru(hoyMillis) }
-    val ultimoDiaMes = remember { getUltimoDiaMesPeru(hoyMillis) }
+    val todayMillis = remember { getTodayMillisPeru() }
+    val firstDayOfMonth = remember { getFirstDayOfMonthPeru(todayMillis) }
+    val lastDayOfMonth = remember { getLastDayOfMonthPeru(todayMillis) }
 
-    var selectedStartMillis by rememberSaveable { mutableStateOf<Long?>(primerDiaMes) }
-    var selectedEndMillis by rememberSaveable { mutableStateOf<Long?>(ultimoDiaMes) }
+    var selectedStartMillis by rememberSaveable { mutableStateOf<Long?>(firstDayOfMonth) }
+    var selectedEndMillis by rememberSaveable { mutableStateOf<Long?>(lastDayOfMonth) }
 
     var showLoadingDialog by remember { mutableStateOf(false) }
     var loadingStatus by remember { mutableStateOf("Obteniendo detalle de factura...") }
     var loadingDebugInfo by remember { mutableStateOf<String?>(null) }
-    var facturaCargandoId by remember { mutableStateOf<Int?>(null) }
-    var esCompraCargando by remember { mutableStateOf(false) }
-    var facturasConTimerActivo by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var isDetallandoTodos by remember { mutableStateOf(false) }
+    var loadingInvoiceId by remember { mutableStateOf<Int?>(null) }
+    var isLoadingPurchase by remember { mutableStateOf(false) }
+    var invoicesWithActiveTimer by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var isDetailingAll by remember { mutableStateOf(false) }
 
     // Variables para el diálogo de credenciales
     var rucInput by remember { mutableStateOf("") }
-    var usuarioInput by remember { mutableStateOf("") }
-    var claveSolInput by remember { mutableStateOf("") }
-    var showCredencialesDialog by remember { mutableStateOf(false) }
-    var consultarDespuesDeLogin by remember { mutableStateOf(false) }
+    var userInput by remember { mutableStateOf("") }
+    var solPasswordInput by remember { mutableStateOf("") }
+    var showCredentialsDialog by remember { mutableStateOf(false) }
+    var consultAfterLogin by remember { mutableStateOf(false) }
 
     // Variables para el diálogo de logout
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -91,19 +91,19 @@ fun PurchaseDetailScreen(
     // ViewModel states
     val isLoadingViewModel by purchaseViewModel.isLoading.collectAsStateWithLifecycle()
     val errorMessage by purchaseViewModel.errorMessage.collectAsStateWithLifecycle()
-    val facturasCompras by purchaseViewModel.facturasCompras.collectAsStateWithLifecycle()
-    val facturasVentas by purchaseViewModel.facturasVentas.collectAsStateWithLifecycle()
+    val purchaseInvoices by purchaseViewModel.purchaseInvoices.collectAsStateWithLifecycle()
+    val salesInvoices by purchaseViewModel.salesInvoices.collectAsStateWithLifecycle()
 
     // Usar funciones extraídas
-    handleAutoRegistroFacturas(
-        facturasCompras = facturasCompras,
-        facturasVentas = facturasVentas,
-        facturasConTimerActivo = facturasConTimerActivo,
+    handleAutoRegisterInvoices(
+        purchaseInvoices = purchaseInvoices,
+        salesInvoices = salesInvoices,
+        invoicesWithActiveTimer = invoicesWithActiveTimer,
         purchaseViewModel = purchaseViewModel,
         invoiceViewModel = invoiceViewModel,
         context = context,
         onTimerUpdate = { newTimers ->
-            facturasConTimerActivo = newTimers
+            invoicesWithActiveTimer = newTimers
         }
     )
 
@@ -111,17 +111,17 @@ fun PurchaseDetailScreen(
         isLoadingViewModel = isLoadingViewModel,
         errorMessage = errorMessage,
         showLoadingDialog = showLoadingDialog,
-        facturaCargandoId = facturaCargandoId,
-        esCompraCargando = esCompraCargando,
+        loadingInvoiceId = loadingInvoiceId,
+        isLoadingPurchase = isLoadingPurchase,
         viewModel = purchaseViewModel,
         onIsLoadingChange = { isLoading = it },
         onLoadingDialogChange = { showLoadingDialog = it },
-        onNavigateToDetalle = { id, esCompra ->
-            onNavigateToDetalle(DetailRoute(id = id, esCompra = esCompra))
+        onNavigateToDetail = { id, isPurchase ->
+            onNavigateToDetail(DetailRoute(id = id, isPurchase = isPurchase))
         },
         onLoadingStatusChange = { loadingStatus = it },
         onLoadingDebugInfoChange = { loadingDebugInfo = it },
-        onFacturaCargandoIdChange = { facturaCargandoId = it }
+        onLoadingInvoiceIdChange = { loadingInvoiceId = it }
     )
 
     // Efecto inicial
@@ -129,36 +129,36 @@ fun PurchaseDetailScreen(
         if (!isInitialLoadDone) {
             delay(500)
             val ruc = SunatPrefs.getRuc(context)
-            val usuario = SunatPrefs.getUser(context)
-            val claveSol = SunatPrefs.getClaveSol(context)
+            val user = SunatPrefs.getUser(context)
+            val solPassword = SunatPrefs.getSolPassword(context)
 
             // 🔴 FUERZA CARGA DE BD PRIMERO PARA VER SI FUNCIONA
             println("🔴🔴🔴 MODO DEBUG: CARGANDO SOLO BD PRIMERO")
-            purchaseViewModel.cargarFacturasDesdeBD(
-                esCompra = (sectionActive == Section.COMPRAS)
+            purchaseViewModel.loadInvoicesFromDB(
+                isPurchase = (sectionActive == Section.PURCHASES)
             )
 
             delay(200) // Esperar 2 segundos
 
-            val facturasDespuesDeBD = facturasCompras
-            println("🔍 Facturas después de solo BD: ${facturasDespuesDeBD.size}")
-            facturasDespuesDeBD.forEach {
-                println("   - ${it.serie}-${it.numero} (Origen: ${if (it.id != null) "BD" else "API"})")
+            val invoicesAfterDB = purchaseInvoices
+            println("🔍 Facturas después de solo BD: ${invoicesAfterDB.size}")
+            invoicesAfterDB.forEach {
+                println("   - ${it.series}-${it.number} (Origen: ${if (it.id != null) "BD" else "API"})")
             }
 
             // Luego si hay credenciales, cargar API
-            if (ruc != null && usuario != null && claveSol != null) {
-                val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
-                val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
+            if (ruc != null && user != null && solPassword != null) {
+                val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+                val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
 
                 println("🟢 Cargando desde API SUNAT/SIRE...")
-                purchaseViewModel.cargarFacturasDesdeAPI(
-                    periodoInicio = periodoInicio,
-                    periodoFin = periodoFin,
-                    esCompra = (sectionActive == Section.COMPRAS),
+                purchaseViewModel.loadInvoicesFromAPI(
+                    periodStart = periodStart,
+                    periodEnd = periodEnd,
+                    isPurchase = (sectionActive == Section.PURCHASES),
                     ruc = ruc,
-                    usuario = usuario,
-                    claveSol = claveSol
+                    user = user,
+                    solPassword = solPassword
                 )
             }
 
@@ -168,37 +168,37 @@ fun PurchaseDetailScreen(
     }
 
     // Calcular lista filtrada
-    val listaFiltrada = calculateFilteredList(
+    val filteredList = calculateFilteredList(
         sectionActive = sectionActive,
         isListVisible = isListVisible,
         selectedStartMillis = selectedStartMillis,
         selectedEndMillis = selectedEndMillis,
         hasLoadedSunatData = true,
-        facturasCompras = facturasCompras,
-        facturasVentas = facturasVentas,
-        hoyMillis = hoyMillis
+        purchaseInvoices = purchaseInvoices,
+        salesInvoices = salesInvoices,
+        todayMillis = todayMillis
     )
 
-    val hayFacturasEnProceso by remember {
+    val hasInvoicesInProcess by remember {
         derivedStateOf {
-            listaFiltrada.any { it.estado == "EN PROCESO" }
+            filteredList.any { it.status == "EN PROCESO" }
         }
     }
 
     // Diálogo de credenciales
-    if (showCredencialesDialog) {
-        var isValidando by remember { mutableStateOf(false) }
-        var errorMensaje by remember { mutableStateOf<String?>(null) }
+    if (showCredentialsDialog) {
+        var isValidating by remember { mutableStateOf(false) }
+        var errorMessage by remember { mutableStateOf<String?>(null) }
 
         AlertDialog(
             onDismissRequest = {
-                if (!isValidando) {
-                    showCredencialesDialog = false
+                if (!isValidating) {
+                    showCredentialsDialog = false
                     rucInput = ""
-                    usuarioInput = ""
-                    claveSolInput = ""
-                    consultarDespuesDeLogin = false
-                    errorMensaje = null
+                    userInput = ""
+                    solPasswordInput = ""
+                    consultAfterLogin = false
+                    errorMessage = null
                 }
             },
             title = { Text("Credenciales SUNAT") },
@@ -212,18 +212,18 @@ fun PurchaseDetailScreen(
                     OutlinedTextField(
                         value = rucInput,
                         onValueChange = {
-                            val nuevoValor = it.filter { char -> char.isDigit() }
-                            if (nuevoValor.length <= 11) {
-                                rucInput = nuevoValor
-                                errorMensaje = null
+                            val newValue = it.filter { char -> char.isDigit() }
+                            if (newValue.length <= 11) {
+                                rucInput = newValue
+                                errorMessage = null
                             }
                         },
                         label = { Text("RUC") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        isError = errorMensaje != null,
-                        supportingText = if (errorMensaje != null) {
-                            { Text(errorMensaje!!, color = Color.Red) }
+                        isError = errorMessage != null,
+                        supportingText = if (errorMessage != null) {
+                            { Text(errorMessage!!, color = Color.Red) }
                         } else {
                             { Text("${rucInput.length}/11 dígitos") }
                         }
@@ -231,37 +231,37 @@ fun PurchaseDetailScreen(
 
                     // Usuario (siempre mayúsculas)
                     OutlinedTextField(
-                        value = usuarioInput,
+                        value = userInput,
                         onValueChange = {
-                            usuarioInput = it.uppercase()
-                            errorMensaje = null
+                            userInput = it.uppercase()
+                            errorMessage = null
                         },
                         label = { Text("Usuario SOL") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        isError = errorMensaje != null
+                        isError = errorMessage != null
                     )
 
                     // Clave SOL
                     OutlinedTextField(
-                        value = claveSolInput,
+                        value = solPasswordInput,
                         onValueChange = {
                             if (it.length <= 12) {
-                                claveSolInput = it
-                                errorMensaje = null
+                                solPasswordInput = it
+                                errorMessage = null
                             }
                         },
                         label = { Text("Clave SOL") },
                         visualTransformation = PasswordVisualTransformation(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        isError = errorMensaje != null,
+                        isError = errorMessage != null,
                         supportingText = {
-                            Text("${claveSolInput.length}/12 caracteres")
+                            Text("${solPasswordInput.length}/12 caracteres")
                         }
                     )
 
-                    if (isValidando) {
+                    if (isValidating) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Center,
@@ -286,52 +286,52 @@ fun PurchaseDetailScreen(
                     onClick = {
                         coroutineScope.launch {
                             if (rucInput.length != 11) {
-                                errorMensaje = "El RUC debe tener 11 dígitos"
+                                errorMessage = "El RUC debe tener 11 dígitos"
                                 return@launch
                             }
 
-                            if (claveSolInput.isEmpty()) {
-                                errorMensaje = "La clave SOL no puede estar vacía"
+                            if (solPasswordInput.isEmpty()) {
+                                errorMessage = "La clave SOL no puede estar vacía"
                                 return@launch
                             }
 
-                            isValidando = true
-                            errorMensaje = null
+                            isValidating = true
+                            errorMessage = null
 
-                            val esValido = purchaseViewModel.validarCredencialesSUNAT(
+                            val isValid = purchaseViewModel.validateSunatCredentials(
                                 ruc = rucInput,
-                                usuario = usuarioInput,
-                                claveSol = claveSolInput,
+                                user = userInput,
+                                solPassword = solPasswordInput,
                             )
 
-                            isValidando = false
+                            isValidating = false
 
-                            if (esValido) {
+                            if (isValid) {
                                 SunatPrefs.saveRuc(context, rucInput)
-                                SunatPrefs.saveUser(context, usuarioInput)
-                                SunatPrefs.saveClaveSol(context, claveSolInput)
+                                SunatPrefs.saveUser(context, userInput)
+                                SunatPrefs.saveSolPassword(context, solPasswordInput)
 
-                                if (consultarDespuesDeLogin) {
-                                    val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
-                                    val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
+                                if (consultAfterLogin) {
+                                    val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+                                    val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
 
-                                    purchaseViewModel.cargarFacturasDesdeAPI(
-                                        periodoInicio = periodoInicio,
-                                        periodoFin = periodoFin,
-                                        esCompra = (sectionActive == Section.COMPRAS),
+                                    purchaseViewModel.loadInvoicesFromAPI(
+                                        periodStart = periodStart,
+                                        periodEnd = periodEnd,
+                                        isPurchase = (sectionActive == Section.PURCHASES),
                                         ruc = rucInput,
-                                        usuario = usuarioInput,
-                                        claveSol = claveSolInput
+                                        user = userInput,
+                                        solPassword = solPasswordInput
                                     )
 
                                     isListVisible = true
-                                    consultarDespuesDeLogin = false
+                                    consultAfterLogin = false
                                 }
 
-                                showCredencialesDialog = false
+                                showCredentialsDialog = false
                                 rucInput = ""
-                                usuarioInput = ""
-                                claveSolInput = ""
+                                userInput = ""
+                                solPasswordInput = ""
 
                                 Toast.makeText(
                                     context,
@@ -339,17 +339,17 @@ fun PurchaseDetailScreen(
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } else {
-                                errorMensaje = "Credenciales incorrectas. Verifique RUC, Usuario y Clave SOL."
+                                errorMessage = "Credenciales incorrectas. Verifique RUC, Usuario y Clave SOL."
                             }
                         }
                     },
-                    enabled = !isValidando &&
+                    enabled = !isValidating &&
                             rucInput.length == 11 &&
-                            usuarioInput.isNotEmpty() &&
-                            claveSolInput.isNotEmpty() &&
-                            claveSolInput.length <= 12
+                            userInput.isNotEmpty() &&
+                            solPasswordInput.isNotEmpty() &&
+                            solPasswordInput.length <= 12
                 ) {
-                    if (isValidando) {
+                    if (isValidating) {
                         Text("Validando...")
                     } else {
                         Text("Validar y Guardar")
@@ -359,16 +359,16 @@ fun PurchaseDetailScreen(
             dismissButton = {
                 TextButton(
                     onClick = {
-                        if (!isValidando) {
-                            showCredencialesDialog = false
+                        if (!isValidating) {
+                            showCredentialsDialog = false
                             rucInput = ""
-                            usuarioInput = ""
-                            claveSolInput = ""
-                            consultarDespuesDeLogin = false
-                            errorMensaje = null
+                            userInput = ""
+                            solPasswordInput = ""
+                            consultAfterLogin = false
+                            errorMessage = null
                         }
                     },
-                    enabled = !isValidando
+                    enabled = !isValidating
                 ) {
                     Text("Cancelar")
                 }
@@ -391,15 +391,15 @@ fun PurchaseDetailScreen(
                         SunatPrefs.clearCredentials(context)
 
                         // Limpiar lista de facturas
-                        purchaseViewModel.limpiarFacturas()
+                        purchaseViewModel.clearInvoices()
 
                         // Resetear estados
                         isListVisible = false
                         showLogoutDialog = false
 
                         // Volver a mostrar el diálogo de credenciales
-                        consultarDespuesDeLogin = true
-                        showCredencialesDialog = true
+                        consultAfterLogin = true
+                        showCredentialsDialog = true
 
                         Toast.makeText(
                             context,
@@ -429,14 +429,14 @@ fun PurchaseDetailScreen(
     if (showCustomDatePicker) {
         CustomDatePickerDialog(
             onDismiss = { showCustomDatePicker = false },
-            onPeriodoSelected = { inicio, fin ->
-                selectedStartMillis = inicio
-                selectedEndMillis = fin
+            onPeriodSelected = { start, end ->
+                selectedStartMillis = start
+                selectedEndMillis = end
                 showCustomDatePicker = false
             },
-            onRangoSelected = { inicio, fin ->
-                selectedStartMillis = inicio
-                selectedEndMillis = fin
+            onRangeSelected = { start, end ->
+                selectedStartMillis = start
+                selectedEndMillis = end
                 showCustomDatePicker = false
             },
             initialStartMillis = selectedStartMillis,
@@ -451,14 +451,14 @@ fun PurchaseDetailScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
-        FacturaLoadingDialog(
+        InvoiceLoadingDialog(
             isLoading = showLoadingDialog,
             statusMessage = loadingStatus,
             debugInfo = loadingDebugInfo,
             onDismiss = {
                 showLoadingDialog = false
                 loadingDebugInfo = null
-                facturaCargandoId = null
+                loadingInvoiceId = null
             }
         )
 
@@ -503,15 +503,15 @@ fun PurchaseDetailScreen(
         ) {
             Button(
                 onClick = {
-                    sectionActive = Section.COMPRAS
-                    onComprasClick()
+                    sectionActive = Section.PURCHASES
+                    onPurchasesClick()
                 },
                 modifier = Modifier
                     .weight(1f)
                     .height(45.dp),
                 shape = MaterialTheme.shapes.medium,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (sectionActive == Section.COMPRAS) Color(0xFFFF5A00) else Color.Gray
+                    containerColor = if (sectionActive == Section.PURCHASES) Color(0xFFFF5A00) else Color.Gray
                 )
             ) {
                 Text(text = "Compras", style = MaterialTheme.typography.titleMedium)
@@ -519,15 +519,15 @@ fun PurchaseDetailScreen(
 
             Button(
                 onClick = {
-                    sectionActive = Section.VENTAS
-                    onVentasClick()
+                    sectionActive = Section.SALES
+                    onSalesClick()
                 },
                 modifier = Modifier
                     .weight(1f)
                     .height(45.dp),
                 shape = MaterialTheme.shapes.medium,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (sectionActive == Section.VENTAS) Color(0xFFFF5A00) else Color.Gray
+                    containerColor = if (sectionActive == Section.SALES) Color(0xFFFF5A00) else Color.Gray
                 )
             ) {
                 Text(text = "Ventas", style = MaterialTheme.typography.titleMedium)
@@ -549,7 +549,7 @@ fun PurchaseDetailScreen(
             ) {
                 IconButton(
                     onClick = {
-                        if (listaFiltrada.isEmpty()) {
+                        if (filteredList.isEmpty()) {
                             Toast.makeText(
                                 context,
                                 "No hay facturas en lista para detallar",
@@ -558,13 +558,13 @@ fun PurchaseDetailScreen(
                             return@IconButton
                         }
 
-                        val facturasProcesables = listaFiltrada.filter { factura ->
-                            factura.estado != "CON DETALLE" &&
-                                    factura.estado != "REGISTRADO" &&
-                                    factura.estado != "EN PROCESO"
+                        val processableInvoices = filteredList.filter { invoice ->
+                            invoice.status != "CON DETALLE" &&
+                                    invoice.status != "REGISTRADO" &&
+                                    invoice.status != "EN PROCESO"
                         }
 
-                        if (facturasProcesables.isEmpty()) {
+                        if (processableInvoices.isEmpty()) {
                             Toast.makeText(
                                 context,
                                 "Todas las facturas ya tienen detalle o están en proceso",
@@ -574,10 +574,10 @@ fun PurchaseDetailScreen(
                         }
 
                         val ruc = SunatPrefs.getRuc(context)
-                        val usuario = SunatPrefs.getUser(context)
-                        val claveSol = SunatPrefs.getClaveSol(context)
+                        val user = SunatPrefs.getUser(context)
+                        val solPassword = SunatPrefs.getSolPassword(context)
 
-                        if (ruc == null || usuario == null || claveSol == null) {
+                        if (ruc == null || user == null || solPassword == null) {
                             Toast.makeText(
                                 context,
                                 "⚠️ Primero configure sus credenciales SUNAT en el botón CONSULTAR",
@@ -587,54 +587,54 @@ fun PurchaseDetailScreen(
                         }
 
                         coroutineScope.launch {
-                            var exitosas = 0
-                            var fallidas = 0
-                            val total = facturasProcesables.size
+                            var successful = 0
+                            var failed = 0
+                            val total = processableInvoices.size
 
-                            isDetallandoTodos = true
+                            isDetailingAll = true
                             loadingStatus = "Procesando 0/$total facturas..."
 
-                            facturasProcesables.forEach { factura ->
-                                val currentIsCompra = (sectionActive == Section.COMPRAS)
-                                val rucEmisor = purchaseViewModel.getRucEmisor(factura.id) ?: factura.ruc
+                            processableInvoices.forEach { invoice ->
+                                val currentIsPurchase = (sectionActive == Section.PURCHASES)
+                                val issuerRuc = purchaseViewModel.getIssuerRuc(invoice.id) ?: invoice.ruc
 
-                                val resultado = suspendCoroutine { continuation ->
-                                    purchaseViewModel.cargarDetalleFacturaXmlConUsuario(
-                                        facturaId = factura.id,
-                                        esCompra = currentIsCompra,
-                                        rucEmisor = rucEmisor,
+                                val result = suspendCoroutine { continuation ->
+                                    purchaseViewModel.loadInvoiceDetailXmlWithUser(
+                                        invoiceId = invoice.id,
+                                        isPurchase = currentIsPurchase,
+                                        issuerRuc = issuerRuc,
                                         context = context
                                     ) { success, _ ->
                                         continuation.resume(success)
                                     }
                                 }
 
-                                if (resultado) exitosas++ else fallidas++
+                                if (result) successful++ else failed++
 
                                 withContext(Dispatchers.Main) {
-                                    loadingStatus = "Procesando ${exitosas + fallidas}/$total facturas...\n✅ Exitosas: $exitosas\n❌ Fallidas: $fallidas"
+                                    loadingStatus = "Procesando ${successful + failed}/$total facturas...\n✅ Exitosas: $successful\n❌ Fallidas: $failed"
                                 }
 
                                 delay(300)
                             }
 
                             withContext(Dispatchers.Main) {
-                                isDetallandoTodos = false
+                                isDetailingAll = false
                                 Toast.makeText(
                                     context,
-                                    "✅ Proceso completado: $exitosas exitosas, $fallidas fallidas",
+                                    "✅ Proceso completado: $successful exitosas, $failed fallidas",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
                         }
                     },
                     modifier = Modifier.size(40.dp),
-                    enabled = !hayFacturasEnProceso && !isDetallandoTodos
+                    enabled = !hasInvoicesInProcess && !isDetailingAll
                 ) {
                     Icon(
                         imageVector = Icons.Default.Visibility,
                         contentDescription = "Detallar todas las facturas",
-                        tint = if (hayFacturasEnProceso || isDetallandoTodos)
+                        tint = if (hasInvoicesInProcess || isDetailingAll)
                             Color.Gray
                         else
                             Color(0xFF1FB8B9),
@@ -673,7 +673,7 @@ fun PurchaseDetailScreen(
 
         Spacer(modifier = Modifier.height(15.dp))
 
-        status(
+        StatusLegend(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
@@ -736,7 +736,7 @@ fun PurchaseDetailScreen(
                                 textAlign = TextAlign.Center,
                                 color = Color.Gray
                             )
-                        } else if (listaFiltrada.isEmpty()) {
+                        } else if (filteredList.isEmpty()) {
                             Text(
                                 "No hay facturas para mostrar",
                                 modifier = Modifier
@@ -746,7 +746,7 @@ fun PurchaseDetailScreen(
                                 color = Color.Gray
                             )
                         } else {
-                            listaFiltrada.forEachIndexed { index, factura ->
+                            filteredList.forEachIndexed { index, invoice ->
                                 Column(
                                     modifier = Modifier.width(totalWidth)
                                 ) {
@@ -757,7 +757,7 @@ fun PurchaseDetailScreen(
                                             .padding(vertical = 8.dp, horizontal = 8.dp)
                                     ) {
                                         Text(
-                                            text = factura.razonSocial ?: "",
+                                            text = invoice.businessName ?: "",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = Color.Black
@@ -779,17 +779,17 @@ fun PurchaseDetailScreen(
                                             ) {
                                                 IconButton(
                                                     onClick = {
-                                                        if (factura.estado == "EN PROCESO") {
+                                                        if (invoice.status == "EN PROCESO") {
                                                             return@IconButton
                                                         }
 
-                                                        val currentIsCompra = (sectionActive == Section.COMPRAS)
+                                                        val currentIsPurchase = (sectionActive == Section.PURCHASES)
 
                                                         val ruc = SunatPrefs.getRuc(context)
-                                                        val usuario = SunatPrefs.getUser(context)
-                                                        val claveSol = SunatPrefs.getClaveSol(context)
+                                                        val user = SunatPrefs.getUser(context)
+                                                        val solPassword = SunatPrefs.getSolPassword(context)
 
-                                                        if (ruc == null || usuario == null || claveSol == null) {
+                                                        if (ruc == null || user == null || solPassword == null) {
                                                             Toast.makeText(
                                                                 context,
                                                                 "⚠️ Primero configure sus credenciales SUNAT en el botón CONSULTAR",
@@ -798,22 +798,22 @@ fun PurchaseDetailScreen(
                                                             return@IconButton
                                                         }
 
-                                                        if (factura.estado == "CON DETALLE" || factura.estado == "REGISTRADO") {
-                                                            onNavigateToDetalle(
+                                                        if (invoice.status == "CON DETALLE" || invoice.status == "REGISTRADO") {
+                                                            onNavigateToDetail(
                                                                 DetailRoute(
-                                                                    id = factura.id,
-                                                                    esCompra = currentIsCompra
+                                                                    id = invoice.id,
+                                                                    isPurchase = currentIsPurchase
                                                                 )
                                                             )
                                                             return@IconButton
                                                         }
 
-                                                        val rucEmisor = purchaseViewModel.getRucEmisor(factura.id) ?: factura.ruc
+                                                        val issuerRuc = purchaseViewModel.getIssuerRuc(invoice.id) ?: invoice.ruc
 
-                                                        purchaseViewModel.cargarDetalleFacturaXmlConUsuario(
-                                                            facturaId = factura.id,
-                                                            esCompra = currentIsCompra,
-                                                            rucEmisor = rucEmisor,
+                                                        purchaseViewModel.loadInvoiceDetailXmlWithUser(
+                                                            invoiceId = invoice.id,
+                                                            isPurchase = currentIsPurchase,
+                                                            issuerRuc = issuerRuc,
                                                             context = context
                                                         ) { success, message ->
                                                             if (success) {
@@ -824,35 +824,35 @@ fun PurchaseDetailScreen(
                                                         }
                                                     },
                                                     modifier = Modifier.size(24.dp),
-                                                    enabled = factura.estado != "EN PROCESO"
+                                                    enabled = invoice.status != "EN PROCESO"
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Filled.Visibility,
                                                         contentDescription = "Ver detalle",
                                                         modifier = Modifier.size(20.dp),
-                                                        tint = if (factura.estado == "EN PROCESO")
+                                                        tint = if (invoice.status == "EN PROCESO")
                                                             Color.Gray
                                                         else
                                                             Color.Black
                                                     )
                                                 }
-                                                InvoiceStatusCircle(factura.estado, tamano = 14.dp)
+                                                InvoiceStatusCircle(invoice.status, size = 14.dp)
                                             }
                                         }
-                                        SimpleTableCell(factura.ruc, 110.dp)
+                                        SimpleTableCell(invoice.ruc, 110.dp)
                                         Box(
                                             modifier = Modifier.width(160.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = "${factura.serie} - ${factura.numero}",
+                                                text = "${invoice.series} - ${invoice.number}",
                                                 fontSize = 13.sp,
                                                 color = Color.Black
                                             )
                                         }
-                                        SimpleTableCell(factura.fechaEmision, 100.dp)
+                                        SimpleTableCell(invoice.issueDate, 100.dp)
                                     }
-                                    if (index < listaFiltrada.size - 1) {
+                                    if (index < filteredList.size - 1) {
                                         Divider(
                                             modifier = Modifier.width(totalWidth),
                                             thickness = 0.5.dp,
@@ -873,7 +873,7 @@ fun PurchaseDetailScreen(
                             horizontalArrangement = Arrangement.Start
                         ) {
                             Text(
-                                text = "Facturas registradas: ${listaFiltrada.size}",
+                                text = "Facturas registradas: ${filteredList.size}",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black
@@ -893,25 +893,25 @@ fun PurchaseDetailScreen(
             Button(
                 onClick = {
                     val ruc = SunatPrefs.getRuc(context)
-                    val usuario = SunatPrefs.getUser(context)
-                    val claveSol = SunatPrefs.getClaveSol(context)
+                    val user = SunatPrefs.getUser(context)
+                    val solPassword = SunatPrefs.getSolPassword(context)
 
-                    if (ruc == null || usuario == null || claveSol == null) {
-                        consultarDespuesDeLogin = true
-                        showCredencialesDialog = true
+                    if (ruc == null || user == null || solPassword == null) {
+                        consultAfterLogin = true
+                        showCredentialsDialog = true
                         return@Button
                     }
 
-                    val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
-                    val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
+                    val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+                    val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
 
-                    purchaseViewModel.cargarFacturasDesdeAPI(
-                        periodoInicio = periodoInicio,
-                        periodoFin = periodoFin,
-                        esCompra = (sectionActive == Section.COMPRAS),
+                    purchaseViewModel.loadInvoicesFromAPI(
+                        periodStart = periodStart,
+                        periodEnd = periodEnd,
+                        isPurchase = (sectionActive == Section.PURCHASES),
                         ruc = ruc,
-                        usuario = usuario,
-                        claveSol = claveSol
+                        user = user,
+                        solPassword = solPassword
                     )
                     isListVisible = true
                 },
@@ -924,9 +924,9 @@ fun PurchaseDetailScreen(
                 Text("Consultar", style = MaterialTheme.typography.titleMedium)
             }
 
-            if (sectionActive == Section.COMPRAS) {
+            if (sectionActive == Section.PURCHASES) {
                 Button(
-                    onClick = onNavigateToRegistrar,
+                    onClick = onNavigateToRegister,
                     modifier = Modifier
                         .weight(1f)
                         .height(45.dp),
@@ -948,9 +948,9 @@ fun PurchaseScreenPreview() {
     PurchaseDetailScreen(
         purchaseViewModel = purchaseViewModel,
         invoiceViewModel = invoiceViewModel,
-        onComprasClick = { },
-        onVentasClick = { },
-        onNavigateToRegistrar = { },
-        onNavigateToDetalle = { }
+        onPurchasesClick = { },
+        onSalesClick = { },
+        onNavigateToRegister = { },
+        onNavigateToDetail = { }
     )
 }

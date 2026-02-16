@@ -52,7 +52,6 @@ fun ReadOnlyField(
             }
         }
 
-        // Usar Box con BasicTextField para control total del padding
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -90,7 +89,6 @@ fun ReadOnlyField(
                 singleLine = isSingleLine,
                 maxLines = if (isSingleLine) 1 else 8,
                 decorationBox = { innerTextField ->
-                    // Permite centrar el texto
                     Box(
                         modifier = Modifier.fillMaxWidth(),
                         contentAlignment = when (textAlign) {

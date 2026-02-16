@@ -18,35 +18,35 @@ import com.example.purchaseregister.utils.*
 import java.util.*
 
 enum class DatePickerMode {
-    PERIODO,
-    RANGO
+    PERIOD,
+    RANGE
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomDatePickerDialog(
     onDismiss: () -> Unit,
-    onPeriodoSelected: (Long, Long) -> Unit,
-    onRangoSelected: (Long, Long) -> Unit,
+    onPeriodSelected: (Long, Long) -> Unit,
+    onRangeSelected: (Long, Long) -> Unit,
     initialStartMillis: Long? = null,
     initialEndMillis: Long? = null
 ) {
-    val hoyMillis = getHoyMillisPeru()
-    var pickerMode by remember { mutableStateOf(DatePickerMode.PERIODO) }
+    val todayMillis = getTodayMillisPeru()
+    var pickerMode by remember { mutableStateOf(DatePickerMode.PERIOD) }
 
     var selectedMonthMillis by remember {
-        mutableStateOf(initialStartMillis ?: getPrimerDiaMesPeru(hoyMillis))
+        mutableStateOf(initialStartMillis ?: getFirstDayOfMonthPeru(todayMillis))
     }
 
     var startDateMillis by remember {
         mutableStateOf(
-            initialStartMillis?.let { normalizarFechaAMedianochePeru(it) } ?: normalizarFechaAMedianochePeru(hoyMillis)
+            initialStartMillis?.let { normalizeDateToPeruMidnight(it) } ?: normalizeDateToPeruMidnight(todayMillis)
         )
     }
 
     var endDateMillis by remember {
         mutableStateOf(
-            initialEndMillis?.let { normalizarFechaAMedianochePeru(it) } ?: normalizarFechaAMedianochePeru(hoyMillis)
+            initialEndMillis?.let { normalizeDateToPeruMidnight(it) } ?: normalizeDateToPeruMidnight(todayMillis)
         )
     }
 
@@ -90,18 +90,18 @@ fun CustomDatePickerDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = { pickerMode = DatePickerMode.PERIODO },
+                        onClick = { pickerMode = DatePickerMode.PERIOD },
                         modifier = Modifier.weight(1f),
                         shape = MaterialTheme.shapes.medium,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (pickerMode == DatePickerMode.PERIODO)
+                            containerColor = if (pickerMode == DatePickerMode.PERIOD)
                                 Color(0xFF1FB8B9) else Color.LightGray
                         )
                     ) {
                         Text(
                             text = "Período (mes)",
                             fontSize = 12.sp,
-                            color = if (pickerMode == DatePickerMode.PERIODO)
+                            color = if (pickerMode == DatePickerMode.PERIOD)
                                 Color.White else Color.Black,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
@@ -109,18 +109,18 @@ fun CustomDatePickerDialog(
                     }
 
                     Button(
-                        onClick = { pickerMode = DatePickerMode.RANGO },
+                        onClick = { pickerMode = DatePickerMode.RANGE },
                         modifier = Modifier.weight(1f),
                         shape = MaterialTheme.shapes.medium,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (pickerMode == DatePickerMode.RANGO)
+                            containerColor = if (pickerMode == DatePickerMode.RANGE)
                                 Color(0xFF1FB8B9) else Color.LightGray
                         )
                     ) {
                         Text(
                             text = "Rango de fechas",
                             fontSize = 12.sp,
-                            color = if (pickerMode == DatePickerMode.RANGO)
+                            color = if (pickerMode == DatePickerMode.RANGE)
                                 Color.White else Color.Black,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
@@ -129,14 +129,14 @@ fun CustomDatePickerDialog(
                 }
 
                 when (pickerMode) {
-                    DatePickerMode.PERIODO -> {
-                        PeriodoSelector(
+                    DatePickerMode.PERIOD -> {
+                        PeriodSelector(
                             selectedMonthMillis = selectedMonthMillis,
                             onMonthChange = { selectedMonthMillis = it }
                         )
                     }
-                    DatePickerMode.RANGO -> {
-                        RangoSelector(
+                    DatePickerMode.RANGE -> {
+                        RangeSelector(
                             startDateMillis = startDateMillis,
                             endDateMillis = endDateMillis,
                             onStartDateClick = { showStartDatePicker = true },
@@ -167,13 +167,13 @@ fun CustomDatePickerDialog(
                     Button(
                         onClick = {
                             when (pickerMode) {
-                                DatePickerMode.PERIODO -> {
-                                    val primerDia = getPrimerDiaMesPeru(selectedMonthMillis)
-                                    val ultimoDia = getUltimoDiaMesPeru(selectedMonthMillis)
-                                    onPeriodoSelected(primerDia, ultimoDia)
+                                DatePickerMode.PERIOD -> {
+                                    val firstDay = getFirstDayOfMonthPeru(selectedMonthMillis)
+                                    val lastDay = getLastDayOfMonthPeru(selectedMonthMillis)
+                                    onPeriodSelected(firstDay, lastDay)
                                 }
-                                DatePickerMode.RANGO -> {
-                                    onRangoSelected(startDateMillis, endDateMillis)
+                                DatePickerMode.RANGE -> {
+                                    onRangeSelected(startDateMillis, endDateMillis)
                                 }
                             }
                             onDismiss()
@@ -201,7 +201,7 @@ fun CustomDatePickerDialog(
             confirmButton = {
                 TextButton(onClick = {
                     startDatePickerState.selectedDateMillis?.let {
-                        startDateMillis = convertirDatePickerUTCaPeru(it)
+                        startDateMillis = convertUtcDatePickerToPeru(it)
                     }
                     showStartDatePicker = false
                 }) {
@@ -224,7 +224,7 @@ fun CustomDatePickerDialog(
             confirmButton = {
                 TextButton(onClick = {
                     endDatePickerState.selectedDateMillis?.let {
-                        endDateMillis = convertirDatePickerUTCaPeru(it)
+                        endDateMillis = convertUtcDatePickerToPeru(it)
                     }
                     showEndDatePicker = false
                 }) {
@@ -243,7 +243,7 @@ fun CustomDatePickerDialog(
 }
 
 @Composable
-fun PeriodoSelector(
+fun PeriodSelector(
     selectedMonthMillis: Long,
     onMonthChange: (Long) -> Unit
 ) {
@@ -290,7 +290,7 @@ fun PeriodoSelector(
             }
 
             Text(
-                text = getNombreMesPeru(selectedMonthMillis),
+                text = getMonthNamePeru(selectedMonthMillis),
                 modifier = Modifier.weight(2f),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
@@ -319,8 +319,8 @@ fun PeriodoSelector(
             }
         }
 
-        val primerDia = getPrimerDiaMesPeru(selectedMonthMillis)
-        val ultimoDia = getUltimoDiaMesPeru(selectedMonthMillis)
+        val firstDay = getFirstDayOfMonthPeru(selectedMonthMillis)
+        val lastDay = getLastDayOfMonthPeru(selectedMonthMillis)
 
         Text(
             text = "Período seleccionado:",
@@ -330,7 +330,7 @@ fun PeriodoSelector(
             textAlign = TextAlign.Center
         )
         Text(
-            text = "${primerDia.toFormattedDatePeru()} - ${ultimoDia.toFormattedDatePeru()}",
+            text = "${firstDay.toFormattedDatePeru()} - ${lastDay.toFormattedDatePeru()}",
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             color = Color.Black,
@@ -341,7 +341,7 @@ fun PeriodoSelector(
 }
 
 @Composable
-fun RangoSelector(
+fun RangeSelector(
     startDateMillis: Long,
     endDateMillis: Long,
     onStartDateClick: () -> Unit,

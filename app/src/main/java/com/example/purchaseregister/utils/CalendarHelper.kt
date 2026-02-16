@@ -17,7 +17,7 @@ import java.util.*
 
 val PERU_TIME_ZONE = TimeZone.getTimeZone("America/Lima")
 
-fun normalizarFechaAMedianochePeru(millis: Long): Long {
+fun normalizeDateToPeruMidnight(millis: Long): Long {
     val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
         timeInMillis = millis
         set(Calendar.HOUR_OF_DAY, 0)
@@ -28,7 +28,7 @@ fun normalizarFechaAMedianochePeru(millis: Long): Long {
     return calendar.timeInMillis
 }
 
-fun getHoyMillisPeru(): Long {
+fun getTodayMillisPeru(): Long {
     return Calendar.getInstance(PERU_TIME_ZONE).apply {
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
@@ -47,13 +47,13 @@ fun Long?.toFormattedDatePeru(): String {
     return format.format(calendar.time)
 }
 
-fun convertirDatePickerUTCaPeru(millisUTC: Long): Long {
-    val offset = PERU_TIME_ZONE.getOffset(millisUTC)
-    val fechaEnPeru = millisUTC - offset
-    return normalizarFechaAMedianochePeru(fechaEnPeru)
+fun convertUtcDatePickerToPeru(utcMillis: Long): Long {
+    val offset = PERU_TIME_ZONE.getOffset(utcMillis)
+    val peruDate = utcMillis - offset
+    return normalizeDateToPeruMidnight(peruDate)
 }
 
-fun getPrimerDiaMesPeru(millis: Long): Long {
+fun getFirstDayOfMonthPeru(millis: Long): Long {
     val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
         timeInMillis = millis
         set(Calendar.DAY_OF_MONTH, 1)
@@ -65,7 +65,7 @@ fun getPrimerDiaMesPeru(millis: Long): Long {
     return calendar.timeInMillis
 }
 
-fun getUltimoDiaMesPeru(millis: Long): Long {
+fun getLastDayOfMonthPeru(millis: Long): Long {
     val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
         timeInMillis = millis
         set(Calendar.DAY_OF_MONTH, 1)
@@ -79,7 +79,7 @@ fun getUltimoDiaMesPeru(millis: Long): Long {
     return calendar.timeInMillis
 }
 
-fun getNombreMesPeru(millis: Long): String {
+fun getMonthNamePeru(millis: Long): String {
     val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
         timeInMillis = millis
     }
@@ -95,24 +95,24 @@ fun DateRangeSelector(
     onDateRangeClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val hoyMillis = getHoyMillisPeru()
+    val todayMillis = getTodayMillisPeru()
     val selectedDateRangeText = if (selectedStartMillis != null) {
         val startStr = selectedStartMillis.toFormattedDatePeru()
         val endStr = selectedEndMillis?.toFormattedDatePeru() ?: startStr
 
-        val primerDiaMes = getPrimerDiaMesPeru(selectedStartMillis)
-        val ultimoDiaMes = getUltimoDiaMesPeru(selectedStartMillis)
+        val firstDayOfMonth = getFirstDayOfMonthPeru(selectedStartMillis)
+        val lastDayOfMonth = getLastDayOfMonthPeru(selectedStartMillis)
 
-        if (selectedStartMillis == primerDiaMes && selectedEndMillis == ultimoDiaMes) {
-            getNombreMesPeru(selectedStartMillis)
+        if (selectedStartMillis == firstDayOfMonth && selectedEndMillis == lastDayOfMonth) {
+            getMonthNamePeru(selectedStartMillis)
         } else if (startStr == endStr) {
             startStr
         } else {
             "$startStr - $endStr"
         }
     } else {
-        val primerDia = getPrimerDiaMesPeru(hoyMillis)
-        getNombreMesPeru(primerDia)
+        val firstDay = getFirstDayOfMonthPeru(todayMillis)
+        getMonthNamePeru(firstDay)
     }
 
     Surface(

@@ -1,6 +1,5 @@
 package com.example.purchaseregister.viewmodel.shared
 
-import androidx.lifecycle.viewModelScope
 import com.example.purchaseregister.api.RetrofitClient
 import com.example.purchaseregister.api.requests.*
 import com.example.purchaseregister.model.ProductItem
@@ -14,97 +13,97 @@ import com.example.purchaseregister.model.Invoice
 object ScrapingManager {
     private val apiService = RetrofitClient.sunatApiService
 
-    fun iniciarScrapingConCola(
+    fun startScrapingWithQueue(
         viewModelScope: CoroutineScope,
-        facturaId: Int,
-        esCompra: Boolean,
-        rucEmisor: String,
-        factura: Invoice,
+        invoiceId: Int,
+        isPurchase: Boolean,
+        issuerRuc: String,
+        invoice: Invoice,
         context: Context,
-        onEstadoActualizado: (Int, String) -> Unit,
-        onProductosActualizados: (Int, List<ProductItem>, Boolean) -> Unit,
+        onStatusUpdated: (Int, String) -> Unit,
+        onProductsUpdated: (Int, List<ProductItem>, Boolean) -> Unit,
         onError: (String) -> Unit,
-        onJobEncolado: (String) -> Unit = {}
+        onJobQueued: (String) -> Unit = {}
     ) {
         viewModelScope.launch {
             try {
-                val miRuc = SunatPrefs.getRuc(context) ?: return@launch
-                val usuario = SunatPrefs.getUser(context) ?: return@launch
-                val claveSol = SunatPrefs.getClaveSol(context) ?: return@launch
+                val myRuc = SunatPrefs.getRuc(context) ?: return@launch
+                val user = SunatPrefs.getUser(context) ?: return@launch
+                val solPassword = SunatPrefs.getSolPassword(context) ?: return@launch
 
-                val request = DetalleFacturaRequest(
-                    rucEmisor = rucEmisor,
-                    serie = factura.serie,
-                    numero = factura.numero,
-                    ruc = if (esCompra) miRuc else factura.ruc,
-                    usuario_sol = usuario,
-                    clave_sol = claveSol
+                val request = InvoiceDetailRequest(
+                    issuerRuc = issuerRuc,
+                    series = invoice.series,
+                    number = invoice.number,
+                    ruc = if (isPurchase) myRuc else invoice.ruc,
+                    solUser = user,
+                    solPassword = solPassword
                 )
 
-                val encoladoResponse = apiService.descargarXmlConCola(request)
+                val queuedResponse = apiService.downloadXmlWithQueue(request)
 
-                if (encoladoResponse.success) {
-                    val jobId = encoladoResponse.jobId
-                    onJobEncolado(jobId)
+                if (queuedResponse.success) {
+                    val jobId = queuedResponse.jobId
+                    onJobQueued(jobId)
 
-                    iniciarPollingJob(
+                    startPollingJob(
                         viewModelScope = viewModelScope,
                         jobId = jobId,
-                        facturaId = facturaId,
-                        esCompra = esCompra,
-                        onEstadoActualizado = onEstadoActualizado,
-                        onProductosActualizados = onProductosActualizados,
+                        invoiceId = invoiceId,
+                        isPurchase = isPurchase,
+                        onStatusUpdated = onStatusUpdated,
+                        onProductsUpdated = onProductsUpdated,
                         onError = onError
                     )
                 } else {
-                    onEstadoActualizado(facturaId, "CONSULTADO")
-                    onError("Error al encolar trabajo: ${encoladoResponse.message}")
+                    onStatusUpdated(invoiceId, "CONSULTADO")
+                    onError("Error al encolar trabajo: ${queuedResponse.message}")
                 }
             } catch (e: Exception) {
-                onEstadoActualizado(facturaId, "CONSULTADO")
+                onStatusUpdated(invoiceId, "CONSULTADO")
                 onError("Error: ${e.message}")
             }
         }
     }
 
-    private fun iniciarPollingJob(
+    private fun startPollingJob(
         viewModelScope: CoroutineScope,
         jobId: String,
-        facturaId: Int,
-        esCompra: Boolean,
-        onEstadoActualizado: (Int, String) -> Unit,
-        onProductosActualizados: (Int, List<ProductItem>, Boolean) -> Unit,
+        invoiceId: Int,
+        isPurchase: Boolean,
+        onStatusUpdated: (Int, String) -> Unit,
+        onProductsUpdated: (Int, List<ProductItem>, Boolean) -> Unit,
         onError: (String) -> Unit
     ) {
         viewModelScope.launch {
-            var intentos = 0
-            val maxIntentos = 60
+            var attempts = 0
+            val maxAttempts = 60
 
-            while (intentos < maxIntentos) {
+            while (attempts < maxAttempts) {
                 delay(3000)
 
                 try {
-                    val estadoJob = apiService.obtenerEstadoJob(jobId)
+                    val jobStatus = apiService.getJobStatus(jobId)
 
-                    when (estadoJob.state) {
+                    when (jobStatus.state) {
                         "completed" -> {
-                            val productos = estadoJob.result?.items?.map { item ->
+                            val products = jobStatus.result?.items?.map { item ->
                                 ProductItem(
-                                    descripcion = item.descripcion,
-                                    cantidad = item.cantidad.toString(),
-                                    costoUnitario = String.format("%.2f", item.valorUnitario),
-                                    unidadMedida = item.unidad
+                                    description = item.description,
+                                    quantity = item.quantity.toString(),
+                                    unitCost = String.format("%.2f", item.unitValue),
+                                    unitOfMeasure = item.unit
                                 )
                             } ?: emptyList()
 
-                            onProductosActualizados(facturaId, productos, esCompra)
-                            onEstadoActualizado(facturaId, "CON DETALLE")
-                            guardarProductosEnBackend(estadoJob.result?.id ?: "sin-id", productos)
+                            onProductsUpdated(invoiceId, products, isPurchase)
+                            onStatusUpdated(invoiceId, "CON DETALLE")
+                            saveProductsInBackend(jobStatus.result?.id ?: "sin-id", products)
                             break
                         }
                         "failed" -> {
-                            onEstadoActualizado(facturaId, "CONSULTADO")
-                            onError("Scraping falló: ${estadoJob.reason}")
+                            onStatusUpdated(invoiceId, "CONSULTADO")
+                            onError("Scraping falló: ${jobStatus.reason}")
                             break
                         }
                     }
@@ -112,40 +111,40 @@ object ScrapingManager {
                     // Ignorar
                 }
 
-                intentos++
+                attempts++
             }
 
-            if (intentos >= maxIntentos) {
-                onEstadoActualizado(facturaId, "CONSULTADO")
+            if (attempts >= maxAttempts) {
+                onStatusUpdated(invoiceId, "CONSULTADO")
                 onError("Timeout: El scraping no se completó")
             }
         }
     }
 
-    private suspend fun guardarProductosEnBackend(
-        numeroComprobante: String,
-        productos: List<ProductItem>
+    private suspend fun saveProductsInBackend(
+        documentNumber: String,
+        products: List<ProductItem>
     ) {
         try {
-            val productosParaGuardar = productos.map { producto ->
-                ProductoRequest(
-                    descripcion = producto.descripcion,
-                    cantidad = producto.cantidad.toDoubleOrNull() ?: 0.0,
-                    costoUnitario = producto.costoUnitario.toDoubleOrNull() ?: 0.0,
-                    unidadMedida = producto.unidadMedida
+            val productsToSave = products.map { product ->
+                ProductRequest(
+                    description = product.description,
+                    quantity = product.quantity.toDoubleOrNull() ?: 0.0,
+                    unitCost = product.unitCost.toDoubleOrNull() ?: 0.0,
+                    unitOfMeasure = product.unitOfMeasure
                 )
             }
 
-            apiService.guardarProductosFactura(
-                numeroComprobante,
-                GuardarProductosRequest(productos = productosParaGuardar)
+            apiService.saveInvoiceProducts(
+                documentNumber,
+                SaveProductsRequest(products = productsToSave)
             )
 
-            val scrapingRequest = ScrapingCompletadoRequest(
-                productos = productosParaGuardar
+            val scrapingRequest = ScrapingCompletedRequest(
+                products = productsToSave
             )
 
-            apiService.marcarScrapingCompletado(numeroComprobante, scrapingRequest)
+            apiService.markScrapingCompleted(documentNumber, scrapingRequest)
         } catch (e: Exception) {
             // Silencioso
         }

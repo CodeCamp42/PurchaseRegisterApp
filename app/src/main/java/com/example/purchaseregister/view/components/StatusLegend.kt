@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun status(
+fun StatusLegend(
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -24,7 +24,6 @@ fun status(
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Estado CONSULTADO
         Row(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -43,7 +42,6 @@ fun status(
             )
         }
 
-        // Estado CON DETALLE
         Row(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -62,7 +60,6 @@ fun status(
             )
         }
 
-        // Estado REGISTRADO
         Row(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,

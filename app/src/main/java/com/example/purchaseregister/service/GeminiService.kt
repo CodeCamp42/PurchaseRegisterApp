@@ -1,4 +1,3 @@
-// com.example.purchaseregister.service.GeminiService.kt
 package com.example.purchaseregister.service
 
 import android.graphics.Bitmap

@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.purchaseregister.model.Invoice
 import com.example.purchaseregister.model.ProductItem
 import com.example.purchaseregister.utils.SunatPrefs
-import com.example.purchaseregister.viewmodel.shared.FacturaRepository
+import com.example.purchaseregister.viewmodel.shared.InvoiceRepository
 import com.example.purchaseregister.viewmodel.shared.ScrapingManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,100 +20,96 @@ import com.example.purchaseregister.api.responses.*
 
 class PurchaseViewModel : ViewModel() {
     private val apiService = RetrofitClient.sunatApiService
-    val facturasCompras: StateFlow<List<Invoice>> = FacturaRepository.facturasCompras
-    val facturasVentas: StateFlow<List<Invoice>> = FacturaRepository.facturasVentas
+    val purchaseInvoices: StateFlow<List<Invoice>> = InvoiceRepository.purchaseInvoices
+    val salesInvoices: StateFlow<List<Invoice>> = InvoiceRepository.salesInvoices
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    fun cargarFacturasDesdeBD(esCompra: Boolean = true) {
+    fun loadInvoicesFromDB(isPurchase: Boolean = true) {
         viewModelScope.launch {
             try {
                 println("🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴")
                 println("📥 INICIANDO CARGA DESDE BD")
                 println("🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴")
 
-                val response = apiService.obtenerFacturasUsuarioCompleto("1")
+                val response = apiService.getCompleteUserInvoices("1")
 
                 println("📦 RESPUESTA BD RECIBIDA:")
                 println("   - success: ${response.success}")
-                println("   - facturas size: ${response.facturas?.size ?: 0}")
+                println("   - facturas size: ${response.invoices?.size ?: 0}")
 
-                if (response.facturas != null) {
-                    response.facturas.forEachIndexed { index, f ->
-                        println("   BD[$index]: ${f.serie}-${f.numero} (ID: ${f.idFactura})")
+                if (response.invoices != null) {
+                    response.invoices.forEachIndexed { index, f ->
+                        println("   BD[$index]: ${f.series}-${f.number} (ID: ${f.invoiceId})")
                     }
                 }
 
                 if (response.success) {
-                    println("✅ Facturas cargadas desde BD: ${response.facturas.size}")
+                    println("✅ Facturas cargadas desde BD: ${response.invoices.size}")
 
-                    val facturasBD = response.facturas.map { facturaResponse ->
-                        println("🔄 Mapeando factura BD: ${facturaResponse.serie}-${facturaResponse.numero}")
+                    val dbInvoices = response.invoices.map { invoiceResponse ->
+                        println("🔄 Mapeando factura BD: ${invoiceResponse.series}-${invoiceResponse.number}")
                         Invoice(
-                            id = facturaResponse.idFactura,
-                            ruc = facturaResponse.proveedorRuc ?: "",
-                            razonSocial = facturaResponse.proveedor?.razonSocial ?: "",
-                            serie = facturaResponse.serie,
-                            numero = facturaResponse.numero,
-                            fechaEmision = facturaResponse.fechaEmision,
-                            tipoDocumento = "FACTURA",
-                            moneda = facturaResponse.moneda,
-                            costoTotal = facturaResponse.costoTotal,
-                            igv = facturaResponse.igv,
-                            importeTotal = facturaResponse.importeTotal,
-                            estado = facturaResponse.estado,
+                            id = invoiceResponse.invoiceId,
+                            ruc = invoiceResponse.providerRuc ?: "",
+                            businessName = invoiceResponse.provider?.businessName ?: "",
+                            series = invoiceResponse.series,
+                            number = invoiceResponse.number,
+                            issueDate = invoiceResponse.issueDate,
+                            documentType = "FACTURA",
+                            currency = invoiceResponse.currency,
+                            totalCost = invoiceResponse.totalCost,
+                            igv = invoiceResponse.igv,
+                            totalAmount = invoiceResponse.totalAmount,
+                            status = invoiceResponse.status,
                             isSelected = false,
-                            productos = facturaResponse.detalles?.map { detalle ->
+                            products = invoiceResponse.details?.map { detail ->
                                 ProductItem(
-                                    descripcion = detalle.descripcion,
-                                    cantidad = detalle.cantidad,
-                                    costoUnitario = detalle.costoUnitario,
-                                    unidadMedida = detalle.unidadMedida
+                                    description = detail.description,
+                                    quantity = detail.quantity,
+                                    unitCost = detail.unitCost,
+                                    unitOfMeasure = detail.unitOfMeasure
                                 )
                             } ?: emptyList(),
-                            anio = facturaResponse.fechaEmision.take(4),
-                            tipoCambio = ""
+                            year = invoiceResponse.issueDate.take(4),
+                            exchangeRate = ""
                         )
                     }
 
-                    // Obtener facturas actuales (de API) ANTES de combinar
-                    val facturasActuales = if (esCompra) {
-                        FacturaRepository.getFacturasCompras()
+                    val currentInvoices = if (isPurchase) {
+                        InvoiceRepository.getPurchaseInvoices()
                     } else {
-                        FacturaRepository.getFacturasVentas()
+                        InvoiceRepository.getSalesInvoices()
                     }
 
-                    println("📊 Facturas de API actuales: ${facturasActuales.size}")
-                    facturasActuales.forEachIndexed { index, f ->
-                        println("   API[$index]: ${f.serie}-${f.numero} (ID: ${f.id})")
+                    println("📊 Facturas de API actuales: ${currentInvoices.size}")
+                    currentInvoices.forEachIndexed { index, f ->
+                        println("   API[$index]: ${f.series}-${f.number} (ID: ${f.id})")
                     }
 
-                    // COMBINAR: facturas de API + facturas de BD
-                    val facturasCombinadas = combinarFacturas(
-                        facturasDeAPI = facturasActuales,
-                        facturasLocales = facturasBD
+                    val combinedInvoices = combineInvoices(
+                        apiInvoices = currentInvoices,
+                        localInvoices = dbInvoices
                     )
 
-                    println("📊 Facturas combinadas (API + BD): ${facturasCombinadas.size}")
-                    facturasCombinadas.forEachIndexed { index, f ->
-                        println("   COMBINADA[$index]: ${f.serie}-${f.numero} (ID: ${f.id})")
+                    println("📊 Facturas combinadas (API + BD): ${combinedInvoices.size}")
+                    combinedInvoices.forEachIndexed { index, f ->
+                        println("   COMBINADA[$index]: ${f.series}-${f.number} (ID: ${f.id})")
                     }
 
-                    // ✅ PASO CLAVE: Guardar las combinadas en el StateFlow principal
-                    if (esCompra) {
-                        FacturaRepository.setFacturasCompras(facturasCombinadas)
-                        println("💾 Guardadas en facturasCompras: ${facturasCombinadas.size}")
+                    if (isPurchase) {
+                        InvoiceRepository.setPurchaseInvoices(combinedInvoices)
+                        println("💾 Guardadas en purchaseInvoices: ${combinedInvoices.size}")
                     } else {
-                        FacturaRepository.setFacturasVentas(facturasCombinadas)
-                        println("💾 Guardadas en facturasVentas: ${facturasCombinadas.size}")
+                        InvoiceRepository.setSalesInvoices(combinedInvoices)
+                        println("💾 Guardadas en salesInvoices: ${combinedInvoices.size}")
                     }
 
-                    // ✅ PASO CLAVE #2: Actualizar el CACHÉ que usa cargarFacturasDesdeAPI()
-                    val cacheKey = FacturaRepository.getCacheKey(esCompra, "ultimo_periodo")
-                    FacturaRepository.updateCache(cacheKey, facturasCombinadas)
-                    println("💾 Caché actualizado con ${facturasCombinadas.size} facturas (incluyendo BD)")
+                    val cacheKey = InvoiceRepository.getCacheKey(isPurchase, "ultimo_periodo")
+                    InvoiceRepository.updateCache(cacheKey, combinedInvoices)
+                    println("💾 Caché actualizado con ${combinedInvoices.size} facturas (incluyendo BD)")
 
                     println("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅")
                     println("🎉 CARGA DESDE BD COMPLETADA EXITOSAMENTE")
@@ -128,57 +124,53 @@ class PurchaseViewModel : ViewModel() {
         }
     }
 
-    fun cargarFacturasDesdeAPI(
-        periodoInicio: String,
-        periodoFin: String,
-        esCompra: Boolean = true,
+    fun loadInvoicesFromAPI(
+        periodStart: String,
+        periodEnd: String,
+        isPurchase: Boolean = true,
         ruc: String,
-        usuario: String,
-        claveSol: String
+        user: String,
+        solPassword: String
     ) {
         viewModelScope.launch {
-            val cacheKey = FacturaRepository.getCacheKey(esCompra, periodoInicio)
-            val facturasEnCache = FacturaRepository.getCachedFacturas(cacheKey)
+            val cacheKey = InvoiceRepository.getCacheKey(isPurchase, periodStart)
+            val cachedInvoices = InvoiceRepository.getCachedInvoices(cacheKey)
 
             _errorMessage.value = null
 
-            // SI HAY CACHE, usarlo directamente
-            if (facturasEnCache != null) {
-                println("📦 Usando cache para periodo: $periodoInicio")
+            if (cachedInvoices != null) {
+                println("📦 Usando cache para periodo: $periodStart")
 
-                if (esCompra) {
-                    FacturaRepository.setFacturasCompras(facturasEnCache)
+                if (isPurchase) {
+                    InvoiceRepository.setPurchaseInvoices(cachedInvoices)
                 } else {
-                    FacturaRepository.setFacturasVentas(facturasEnCache)
+                    InvoiceRepository.setSalesInvoices(cachedInvoices)
                 }
                 return@launch
             }
 
-            // SI NO HAY CACHE, consultar a SUNAT
             _isLoading.value = true
 
             try {
-                val response = apiService.obtenerFacturas(
-                    periodoInicio,
-                    periodoFin,
+                val response = apiService.getInvoices(
+                    periodStart,
+                    periodEnd,
                     ruc,
-                    usuario,
-                    claveSol
+                    user,
+                    solPassword
                 )
 
                 if (response.success) {
-                    val facturasAPI = parsearContenidoSunat(response.resultados, esCompra)
+                    val apiInvoices = parseSunatContent(response.results, isPurchase)
 
-                    println("🌐 Facturas obtenidas de SUNAT: ${facturasAPI.size}")
+                    println("🌐 Facturas obtenidas de SUNAT: ${apiInvoices.size}")
 
-                    // Guardar en cache
-                    FacturaRepository.updateCache(cacheKey, facturasAPI)
+                    InvoiceRepository.updateCache(cacheKey, apiInvoices)
 
-                    // SOLO guardar facturas de API (sin combinar aún)
-                    if (esCompra) {
-                        FacturaRepository.setFacturasCompras(facturasAPI)
+                    if (isPurchase) {
+                        InvoiceRepository.setPurchaseInvoices(apiInvoices)
                     } else {
-                        FacturaRepository.setFacturasVentas(facturasAPI)
+                        InvoiceRepository.setSalesInvoices(apiInvoices)
                     }
                 } else {
                     _errorMessage.value = "Error en la respuesta del servidor"
@@ -192,178 +184,175 @@ class PurchaseViewModel : ViewModel() {
         }
     }
 
-    // Combina facturas de API con facturas locales SIN DUPLICADOS
-    private fun combinarFacturas(
-        facturasDeAPI: List<Invoice>,
-        facturasLocales: List<Invoice>
+    private fun combineInvoices(
+        apiInvoices: List<Invoice>,
+        localInvoices: List<Invoice>
     ): List<Invoice> {
-        val resultado = mutableMapOf<String, Invoice>()
+        val result = mutableMapOf<String, Invoice>()
 
         println("🔄 Combinando facturas:")
-        println("   - API: ${facturasDeAPI.size}")
-        println("   - Locales: ${facturasLocales.size}")
+        println("   - API: ${apiInvoices.size}")
+        println("   - Locales: ${localInvoices.size}")
 
-        // 1. Primero agregar TODAS las facturas locales (prioridad máxima)
-        facturasLocales.forEach { facturaLocal ->
-            val clave = "${facturaLocal.serie}-${facturaLocal.numero}"
-            resultado[clave] = facturaLocal
-            println("   ✅ Local: ${clave} (ID: ${facturaLocal.id}, Estado: ${facturaLocal.estado})")
+        localInvoices.forEach { localInvoice ->
+            val key = "${localInvoice.series}-${localInvoice.number}"
+            result[key] = localInvoice
+            println("   ✅ Local: ${key} (ID: ${localInvoice.id}, Estado: ${localInvoice.status})")
         }
 
-        // 2. Agregar facturas de API que NO existen localmente
-        var agregadas = 0
-        facturasDeAPI.forEach { facturaAPI ->
-            val clave = "${facturaAPI.serie}-${facturaAPI.numero}"
-            if (!resultado.containsKey(clave)) {
-                resultado[clave] = facturaAPI
-                agregadas++
-                println("   ➕ API nueva: ${clave}")
+        var added = 0
+        apiInvoices.forEach { apiInvoice ->
+            val key = "${apiInvoice.series}-${apiInvoice.number}"
+            if (!result.containsKey(key)) {
+                result[key] = apiInvoice
+                added++
+                println("   ➕ API nueva: ${key}")
             } else {
-                println("   🔄 API duplicada: ${clave} (preservando local)")
+                println("   🔄 API duplicada: ${key} (preservando local)")
             }
         }
 
-        println("📊 Resultado final: ${resultado.size} facturas (${facturasLocales.size} locales + ${agregadas} nuevas de API)")
+        println("📊 Resultado final: ${result.size} facturas (${localInvoices.size} locales + ${added} nuevas de API)")
 
-        return resultado.values.sortedBy { factura ->
+        return result.values.sortedBy { invoice ->
             try {
-                SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(factura.fechaEmision)?.time ?: 0L
+                SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(invoice.issueDate)?.time ?: 0L
             } catch (e: Exception) {
                 0L
             }
         }
     }
 
-    private suspend fun parsearContenidoSunat(
-        resultados: List<SunatResultado>,
-        esCompra: Boolean
+    private suspend fun parseSunatContent(
+        results: List<SunatResult>,
+        isPurchase: Boolean
     ): List<Invoice> {
-        val facturas = mutableListOf<Invoice>()
+        val invoices = mutableListOf<Invoice>()
         var idCounter = 1
 
-        val facturasExistentesCompras = FacturaRepository.getFacturasCompras()
-        val facturasExistentesVentas = FacturaRepository.getFacturasVentas()
-        val todasFacturasExistentes = facturasExistentesCompras + facturasExistentesVentas
+        val existingPurchaseInvoices = InvoiceRepository.getPurchaseInvoices()
+        val existingSalesInvoices = InvoiceRepository.getSalesInvoices()
+        val allExistingInvoices = existingPurchaseInvoices + existingSalesInvoices
 
-        val maxIdActual = todasFacturasExistentes.maxOfOrNull { it.id } ?: 0
-        idCounter = maxIdActual + 1
+        val maxCurrentId = allExistingInvoices.maxOfOrNull { it.id } ?: 0
+        idCounter = maxCurrentId + 1
 
-        val facturasParaRegistrarEnBD = mutableListOf<RegistrarFacturaDesdeSunatRequest>()
+        val invoicesToRegisterInDB = mutableListOf<RegisterInvoiceFromSunatRequest>()
 
-        resultados.forEach { resultado ->
-            resultado.contenido.forEach { item ->
-                val numeroComprobante = "${item.serie}-${item.numero}"
-                var estadoDesdeBD = "CONSULTADO"
-                var productosDesdeBD: List<ProductItem> = emptyList()
-                var idExistente: Int? = null
+        results.forEach { result ->
+            result.content.forEach { item ->
+                val documentNumber = "${item.series}-${item.number}"
+                var statusFromDB = "CONSULTADO"
+                var productsFromDB: List<ProductItem> = emptyList()
+                var existingId: Int? = null
 
                 try {
-                    val facturaUI = apiService.obtenerFacturaParaUI(numeroComprobante)
-                    estadoDesdeBD = facturaUI.factura.estado
-                    idExistente = facturaUI.factura.idFactura
+                    val invoiceUI = apiService.getInvoiceForUI(documentNumber)
+                    statusFromDB = invoiceUI.invoice.status
+                    existingId = invoiceUI.invoice.invoiceId
 
-                    if (facturaUI.factura.detalles != null) {
-                        productosDesdeBD = facturaUI.factura.detalles.map { detalle ->
+                    if (invoiceUI.invoice.details != null) {
+                        productsFromDB = invoiceUI.invoice.details.map { detail ->
                             ProductItem(
-                                descripcion = detalle.descripcion,
-                                cantidad = detalle.cantidad,
-                                costoUnitario = detalle.costoUnitario,
-                                unidadMedida = detalle.unidadMedida
+                                description = detail.description,
+                                quantity = detail.quantity,
+                                unitCost = detail.unitCost,
+                                unitOfMeasure = detail.unitOfMeasure
                             )
                         }
                     }
                 } catch (e: Exception) {
-                    estadoDesdeBD = "CONSULTADO"
+                    statusFromDB = "CONSULTADO"
 
-                    val razonSocialRespectiva = if (esCompra) {
-                        item.razonSocialEmisor
+                    val respectiveBusinessName = if (isPurchase) {
+                        item.issuerBusinessName
                     } else {
-                        item.nombreReceptor
+                        item.receiverName
                     }
 
-                    val facturaRequest = RegistrarFacturaDesdeSunatRequest(
-                        rucEmisor = item.rucEmisor,
-                        serie = item.serie,
-                        numero = item.numero,
-                        fechaEmision = item.fechaEmision,
-                        razonSocial = razonSocialRespectiva,
-                        tipoDocumento = when (item.tipoCP) {
+                    val invoiceRequest = RegisterInvoiceFromSunatRequest(
+                        issuerRuc = item.issuerRuc,
+                        series = item.series,
+                        number = item.number,
+                        issueDate = item.issueDate,
+                        businessName = respectiveBusinessName,
+                        documentType = when (item.documentType) {
                             "01" -> "FACTURA"
                             "03" -> "BOLETA"
                             else -> "DOCUMENTO"
                         },
-                        moneda = when (item.moneda) {
+                        currency = when (item.currency) {
                             "PEN" -> "Soles (PEN)"
                             "USD" -> "Dólares (USD)"
-                            else -> item.moneda
+                            else -> item.currency
                         },
-                        costoTotal = String.format("%.2f", item.baseGravada),
+                        totalCost = String.format("%.2f", item.taxableBase),
                         igv = String.format("%.2f", item.igv),
-                        importeTotal = String.format("%.2f", item.total),
-                        usuarioId = 1
+                        totalAmount = String.format("%.2f", item.total),
+                        userId = 1
                     )
-                    facturasParaRegistrarEnBD.add(facturaRequest)
+                    invoicesToRegisterInDB.add(invoiceRequest)
                 }
 
-                val facturaExistente = todasFacturasExistentes.firstOrNull { factura ->
-                    factura.ruc == item.nroDocReceptor &&
-                            factura.serie == item.serie &&
-                            factura.numero == item.numero
+                val existingInvoice = allExistingInvoices.firstOrNull { invoice ->
+                    invoice.ruc == item.receiverDocNumber &&
+                            invoice.series == item.series &&
+                            invoice.number == item.number
                 }
 
-                val id = idExistente ?: (facturaExistente?.id ?: idCounter++)
+                val id = existingId ?: (existingInvoice?.id ?: idCounter++)
 
-                val tipoCambio = when {
-                    item.tipodecambio != null -> {
-                        if (item.moneda == "PEN" && item.tipodecambio == 1.0) {
+                val exchangeRate = when {
+                    item.exchangeRate != null -> {
+                        if (item.currency == "PEN" && item.exchangeRate == 1.0) {
                             ""
                         } else {
-                            String.format("%.2f", item.tipodecambio)
+                            String.format("%.2f", item.exchangeRate)
                         }
                     }
-                    else -> facturaExistente?.tipoCambio ?: ""
+                    else -> existingInvoice?.exchangeRate ?: ""
                 }
 
-                FacturaRepository.setRucEmisor(id, item.nroDocReceptor)
+                InvoiceRepository.setIssuerRuc(id, item.receiverDocNumber)
 
-                val razonSocialCompra = item.nombreReceptor
+                val purchaseBusinessName = item.receiverName
 
-                val factura = Invoice(
+                val invoice = Invoice(
                     id = id,
-                    ruc = item.nroDocReceptor,
-                    serie = item.serie,
-                    numero = item.numero,
-                    fechaEmision = item.fechaEmision,
-                    razonSocial = razonSocialCompra,
-                    tipoDocumento = when (item.tipoCP) {
+                    ruc = item.receiverDocNumber,
+                    series = item.series,
+                    number = item.number,
+                    issueDate = item.issueDate,
+                    businessName = purchaseBusinessName,
+                    documentType = when (item.documentType) {
                         "01" -> "FACTURA"
                         "03" -> "BOLETA"
                         else -> "DOCUMENTO"
                     },
-                    moneda = when (item.moneda) {
+                    currency = when (item.currency) {
                         "PEN" -> "Soles (PEN)"
                         "USD" -> "Dólares (USD)"
-                        else -> item.moneda
+                        else -> item.currency
                     },
-                    costoTotal = String.format("%.2f", item.baseGravada),
+                    totalCost = String.format("%.2f", item.taxableBase),
                     igv = String.format("%.2f", item.igv),
-                    importeTotal = String.format("%.2f", item.total),
-                    estado = facturaExistente?.estado ?: estadoDesdeBD,
-                    isSelected = facturaExistente?.isSelected ?: false,
-                    productos = facturaExistente?.productos ?: productosDesdeBD,
-                    anio = facturaExistente?.anio ?: item.periodo.take(4),
-                    tipoCambio = tipoCambio
+                    totalAmount = String.format("%.2f", item.total),
+                    status = existingInvoice?.status ?: statusFromDB,
+                    isSelected = existingInvoice?.isSelected ?: false,
+                    products = existingInvoice?.products ?: productsFromDB,
+                    year = existingInvoice?.year ?: item.period.take(4),
+                    exchangeRate = exchangeRate
                 )
-                facturas.add(factura)
+                invoices.add(invoice)
             }
         }
 
-        if (facturasParaRegistrarEnBD.isNotEmpty()) {
+        if (invoicesToRegisterInDB.isNotEmpty()) {
             viewModelScope.launch {
                 try {
-                    facturasParaRegistrarEnBD.forEach { request ->
+                    invoicesToRegisterInDB.forEach { request ->
                         try {
-                            apiService.registrarFacturaDesdeSunat(request)
+                            apiService.registerInvoiceFromSunat(request)
                         } catch (e: Exception) {
                             _errorMessage.value = "Error al registrar algunas facturas: ${e.message}"
                         }
@@ -374,48 +363,48 @@ class PurchaseViewModel : ViewModel() {
             }
         }
 
-        return facturas.sortedBy { factura ->
+        return invoices.sortedBy { invoice ->
             try {
-                SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(factura.fechaEmision)?.time ?: 0L
+                SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(invoice.issueDate)?.time ?: 0L
             } catch (e: Exception) {
                 0L
             }
         }
     }
 
-    fun getRucEmisor(facturaId: Int): String? = FacturaRepository.getRucEmisor(facturaId)
+    fun getIssuerRuc(invoiceId: Int): String? = InvoiceRepository.getIssuerRuc(invoiceId)
 
-    fun cargarDetalleFacturaXmlConUsuario(
-        facturaId: Int,
-        esCompra: Boolean,
-        rucEmisor: String,
+    fun loadInvoiceDetailXmlWithUser(
+        invoiceId: Int,
+        isPurchase: Boolean,
+        issuerRuc: String,
         context: Context,
         onLoadingComplete: (success: Boolean, message: String?) -> Unit = { _, _ -> }
     ) {
-        val miRuc = SunatPrefs.getRuc(context)
-        val usuario = SunatPrefs.getUser(context)
-        val claveSol = SunatPrefs.getClaveSol(context)
+        val myRuc = SunatPrefs.getRuc(context)
+        val user = SunatPrefs.getUser(context)
+        val solPassword = SunatPrefs.getSolPassword(context)
 
-        if (miRuc == null || usuario == null || claveSol == null) {
+        if (myRuc == null || user == null || solPassword == null) {
             _errorMessage.value = "Complete sus credenciales SUNAT primero"
             onLoadingComplete(false, "Complete sus credenciales SUNAT primero")
             return
         }
 
-        val factura = if (esCompra) {
-            FacturaRepository.getFacturasCompras().firstOrNull { it.id == facturaId }
+        val invoice = if (isPurchase) {
+            InvoiceRepository.getPurchaseInvoices().firstOrNull { it.id == invoiceId }
         } else {
-            FacturaRepository.getFacturasVentas().firstOrNull { it.id == facturaId }
+            InvoiceRepository.getSalesInvoices().firstOrNull { it.id == invoiceId }
         }
 
-        if (factura == null) {
+        if (invoice == null) {
             _errorMessage.value = "Factura no encontrada"
             onLoadingComplete(false, "Factura no encontrada")
             return
         }
 
-        if (factura.estado == "CON DETALLE" || factura.estado == "REGISTRADO") {
-            if (factura.productos.isNotEmpty()) {
+        if (invoice.status == "CON DETALLE" || invoice.status == "REGISTRADO") {
+            if (invoice.products.isNotEmpty()) {
                 onLoadingComplete(true, "Detalles ya cargados")
             } else {
                 onLoadingComplete(false, "No hay detalles disponibles")
@@ -423,57 +412,57 @@ class PurchaseViewModel : ViewModel() {
             return
         }
 
-        if (factura.estado == "EN PROCESO") {
+        if (invoice.status == "EN PROCESO") {
             onLoadingComplete(false, "Ya se está procesando esta factura")
             return
         }
 
-        actualizarEstadoFactura(facturaId, "EN PROCESO", esCompra)
+        updateInvoiceStatus(invoiceId, "EN PROCESO", isPurchase)
 
-        ScrapingManager.iniciarScrapingConCola(
+        ScrapingManager.startScrapingWithQueue(
             viewModelScope = viewModelScope,
-            facturaId = facturaId,
-            esCompra = esCompra,
-            rucEmisor = rucEmisor,
-            factura = factura,
+            invoiceId = invoiceId,
+            isPurchase = isPurchase,
+            issuerRuc = issuerRuc,
+            invoice = invoice,
             context = context,
-            onEstadoActualizado = { id, estado ->
-                actualizarEstadoFactura(id, estado, esCompra)
+            onStatusUpdated = { id, status ->
+                updateInvoiceStatus(id, status, isPurchase)
             },
-            onProductosActualizados = { id, productos, esCompra ->
-                actualizarProductosFactura(id, productos, esCompra)
+            onProductsUpdated = { id, products, isPurchase ->
+                updateInvoiceProducts(id, products, isPurchase)
             },
             onError = { error ->
                 _errorMessage.value = error
                 onLoadingComplete(false, error)
             },
-            onJobEncolado = { jobId ->
+            onJobQueued = { jobId ->
                 onLoadingComplete(true, "Scraping encolado. Job ID: $jobId")
             }
         )
     }
 
-    fun actualizarEstadoFactura(facturaId: Int, nuevoEstado: String, esCompra: Boolean) {
+    fun updateInvoiceStatus(invoiceId: Int, newStatus: String, isPurchase: Boolean) {
         viewModelScope.launch {
-            if (esCompra) {
-                FacturaRepository.updateFacturasCompras { lista ->
-                    lista.map { factura ->
-                        if (factura.id == facturaId) {
-                            FacturaRepository.updateFacturaInAllCaches(factura, nuevoEstado)
-                            factura.copy(estado = nuevoEstado)
+            if (isPurchase) {
+                InvoiceRepository.updatePurchaseInvoices { list ->
+                    list.map { invoice ->
+                        if (invoice.id == invoiceId) {
+                            InvoiceRepository.updateInvoiceInAllCaches(invoice, newStatus)
+                            invoice.copy(status = newStatus)
                         } else {
-                            factura
+                            invoice
                         }
                     }
                 }
             } else {
-                FacturaRepository.updateFacturasVentas { lista ->
-                    lista.map { factura ->
-                        if (factura.id == facturaId) {
-                            FacturaRepository.updateFacturaInAllCaches(factura, nuevoEstado)
-                            factura.copy(estado = nuevoEstado)
+                InvoiceRepository.updateSalesInvoices { list ->
+                    list.map { invoice ->
+                        if (invoice.id == invoiceId) {
+                            InvoiceRepository.updateInvoiceInAllCaches(invoice, newStatus)
+                            invoice.copy(status = newStatus)
                         } else {
-                            factura
+                            invoice
                         }
                     }
                 }
@@ -481,29 +470,29 @@ class PurchaseViewModel : ViewModel() {
         }
     }
 
-    private fun actualizarProductosFactura(
-        facturaId: Int,
-        productos: List<ProductItem>,
-        esCompra: Boolean
+    private fun updateInvoiceProducts(
+        invoiceId: Int,
+        products: List<ProductItem>,
+        isPurchase: Boolean
     ) {
         viewModelScope.launch {
-            if (esCompra) {
-                FacturaRepository.updateFacturasCompras { lista ->
-                    lista.map { factura ->
-                        if (factura.id == facturaId) {
-                            factura.copy(productos = productos)
+            if (isPurchase) {
+                InvoiceRepository.updatePurchaseInvoices { list ->
+                    list.map { invoice ->
+                        if (invoice.id == invoiceId) {
+                            invoice.copy(products = products)
                         } else {
-                            factura
+                            invoice
                         }
                     }
                 }
             } else {
-                FacturaRepository.updateFacturasVentas { lista ->
-                    lista.map { factura ->
-                        if (factura.id == facturaId) {
-                            factura.copy(productos = productos)
+                InvoiceRepository.updateSalesInvoices { list ->
+                    list.map { invoice ->
+                        if (invoice.id == invoiceId) {
+                            invoice.copy(products = products)
                         } else {
-                            factura
+                            invoice
                         }
                     }
                 }
@@ -511,39 +500,39 @@ class PurchaseViewModel : ViewModel() {
         }
     }
 
-    fun limpiarError() {
+    fun clearError() {
         _errorMessage.value = null
     }
 
-    fun limpiarFacturas() {
+    fun clearInvoices() {
         viewModelScope.launch {
-            FacturaRepository.clearAll()
+            InvoiceRepository.clearAll()
         }
     }
 
-    suspend fun validarCredencialesSUNAT(
+    suspend fun validateSunatCredentials(
         ruc: String,
-        usuario: String,
-        claveSol: String
+        user: String,
+        solPassword: String
     ): Boolean {
         return try {
             println("🌐 [VALIDACIÓN] Enviando petición a /sunat/validar-credenciales")
-            println("📦 [VALIDACIÓN] Datos: ruc=$ruc, usuario=$usuario, claveSol=****")
+            println("📦 [VALIDACIÓN] Datos: ruc=$ruc, usuario=$user, claveSol=****")
 
-            val response = apiService.validarCredenciales(
-                ValidarCredencialesRequest(
+            val response = apiService.validateCredentials(
+                ValidateCredentialsRequest(
                     ruc = ruc,
-                    usuario = usuario,
-                    claveSol = claveSol
+                    user = user,
+                    solPassword = solPassword
                 )
             )
 
             println("✅ [VALIDACIÓN] Respuesta recibida:")
-            println("   - valido: ${response.valido}")
-            println("   - mensaje: ${response.mensaje}")
+            println("   - valid: ${response.valid}")
+            println("   - message: ${response.message}")
             println("   - token: ${response.token}")
 
-            response.valido
+            response.valid
         } catch (e: Exception) {
             println("❌ [VALIDACIÓN] Error: ${e.message}")
             e.printStackTrace()

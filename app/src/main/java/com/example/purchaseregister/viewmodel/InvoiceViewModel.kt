@@ -3,7 +3,7 @@ package com.example.purchaseregister.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.purchaseregister.model.Invoice
-import com.example.purchaseregister.viewmodel.shared.FacturaRepository
+import com.example.purchaseregister.viewmodel.shared.InvoiceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -14,100 +14,100 @@ import com.example.purchaseregister.api.requests.*
 class InvoiceViewModel : ViewModel() {
     private val apiService = RetrofitClient.sunatApiService
 
-    val facturasCompras: StateFlow<List<Invoice>> = FacturaRepository.facturasCompras
-    val facturasVentas: StateFlow<List<Invoice>> = FacturaRepository.facturasVentas
+    val purchaseInvoices: StateFlow<List<Invoice>> = InvoiceRepository.purchaseInvoices
+    val salesInvoices: StateFlow<List<Invoice>> = InvoiceRepository.salesInvoices
 
     private val _isLoading = MutableStateFlow(false)
 
     private val _errorMessage = MutableStateFlow<String?>(null)
 
-    private val _registroCompletado = MutableStateFlow(false)
+    private val _registrationCompleted = MutableStateFlow(false)
 
-    fun registrarFacturasEnBaseDeDatos(
-        facturas: List<Invoice>,
-        esCompra: Boolean,
+    fun registerInvoicesInDatabase(
+        invoices: List<Invoice>,
+        isPurchase: Boolean,
         context: Context,
-        mostrarLoading: Boolean = true
+        showLoading: Boolean = true
     ) {
         viewModelScope.launch {
-            if (mostrarLoading) {
+            if (showLoading) {
                 _isLoading.value = true
             }
             _errorMessage.value = null
-            _registroCompletado.value = false
+            _registrationCompleted.value = false
 
             try {
-                val facturasParaRegistrar = facturas.map { factura ->
-                    FacturaParaRegistrar(
-                        id = factura.id,
-                        rucEmisor = factura.ruc,
-                        serie = factura.serie,
-                        numero = factura.numero,
-                        fechaEmision = factura.fechaEmision,
-                        razonSocial = factura.razonSocial,
-                        tipoDocumento = factura.tipoDocumento,
-                        moneda = factura.moneda,
-                        costoTotal = factura.costoTotal,
-                        igv = factura.igv,
-                        importeTotal = factura.importeTotal,
-                        productos = factura.productos.map { producto ->
-                            ProductoParaRegistrar(
-                                descripcion = producto.descripcion,
-                                cantidad = producto.cantidad,
-                                costoUnitario = producto.costoUnitario,
-                                unidadMedida = producto.unidadMedida
+                val invoicesToRegister = invoices.map { invoice ->
+                    InvoiceToRegister(
+                        id = invoice.id,
+                        issuerRuc = invoice.ruc,
+                        series = invoice.series,
+                        number = invoice.number,
+                        issueDate = invoice.issueDate,
+                        businessName = invoice.businessName,
+                        documentType = invoice.documentType,
+                        currency = invoice.currency,
+                        totalCost = invoice.totalCost,
+                        igv = invoice.igv,
+                        totalAmount = invoice.totalAmount,
+                        products = invoice.products.map { product ->
+                            ProductToRegister(
+                                description = product.description,
+                                quantity = product.quantity,
+                                unitCost = product.unitCost,
+                                unitOfMeasure = product.unitOfMeasure
                             )
                         }
                     )
                 }
 
-                val request = RegistroFacturasRequest(facturas = facturasParaRegistrar)
-                val response = apiService.registrarFacturasEnBD(request)
+                val request = RegisterInvoicesRequest(invoices = invoicesToRegister)
+                val response = apiService.registerInvoicesInDB(request)
 
-                val todosExitosos = response.resultados.all { it.success }
+                val allSuccessful = response.results.all { it.success }
 
-                if (todosExitosos) {
-                    facturas.forEach { factura ->
-                        actualizarEstadoFactura(factura.id, "REGISTRADO", esCompra)
+                if (allSuccessful) {
+                    invoices.forEach { invoice ->
+                        updateInvoiceStatus(invoice.id, "REGISTRADO", isPurchase)
                     }
-                    _registroCompletado.value = true
+                    _registrationCompleted.value = true
                 } else {
-                    val errores = response.resultados.filter { !it.success }
-                    val errorMsg = "Algunas facturas no se pudieron registrar: ${errores.map { it.numeroComprobante }}"
+                    val errors = response.results.filter { !it.success }
+                    val errorMsg = "Algunas facturas no se pudieron registrar: ${errors.map { it.documentNumber }}"
                     _errorMessage.value = errorMsg
                 }
             } catch (e: Exception) {
                 val errorMsg = "Error de conexión al registrar en BD: ${e.message}"
                 _errorMessage.value = errorMsg
             } finally {
-                if (mostrarLoading) {
+                if (showLoading) {
                     _isLoading.value = false
                 }
             }
         }
     }
 
-    fun actualizarEstadoFactura(facturaId: Int, nuevoEstado: String, esCompra: Boolean) {
+    fun updateInvoiceStatus(invoiceId: Int, newStatus: String, isPurchase: Boolean) {
         viewModelScope.launch {
-            if (esCompra) {
-                FacturaRepository.updateFacturasCompras { lista ->
-                    lista.map { factura ->
-                        if (factura.id == facturaId) {
-                            FacturaRepository.updateFacturaInAllCaches(factura, nuevoEstado)
-                            factura.copy(estado = nuevoEstado)
+            if (isPurchase) {
+                InvoiceRepository.updatePurchaseInvoices { list ->
+                    list.map { invoice ->
+                        if (invoice.id == invoiceId) {
+                            InvoiceRepository.updateInvoiceInAllCaches(invoice, newStatus)
+                            invoice.copy(status = newStatus)
                         } else {
-                            factura
+                            invoice
                         }
                     }
                 }
             } else {
-                FacturaRepository.updateFacturasVentas { lista ->
-                    lista.map { factura ->
-                        if (factura.id == facturaId) {
-                            FacturaRepository.updateFacturaInAllCaches(factura, nuevoEstado)
-                            factura.copy(estado = nuevoEstado)
+                InvoiceRepository.updateSalesInvoices { list ->
+                    list.map { invoice ->
+                        if (invoice.id == invoiceId) {
+                            InvoiceRepository.updateInvoiceInAllCaches(invoice, newStatus)
+                            invoice.copy(status = newStatus)
                         } else {
-                            factura
+                            invoice
                         }
                     }
                 }

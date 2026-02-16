@@ -1,71 +1,71 @@
 package com.example.purchaseregister.api.requests
 
-data class ProductoRequest(
-    val descripcion: String,
-    val cantidad: Double,
-    val costoUnitario: Double,
-    val unidadMedida: String
+data class ProductRequest(
+    val description: String,
+    val quantity: Double,
+    val unitCost: Double,
+    val unitOfMeasure: String
 )
 
-data class GuardarProductosRequest(
-    val productos: List<ProductoRequest>
+data class SaveProductsRequest(
+    val products: List<ProductRequest>
 )
 
-data class ScrapingCompletadoRequest(
-    val productos: List<ProductoRequest>? = null
+data class ScrapingCompletedRequest(
+    val products: List<ProductRequest>? = null
 )
 
-data class DetalleFacturaRequest(
-    val rucEmisor: String,
-    val serie: String,
-    val numero: String,
+data class InvoiceDetailRequest(
+    val issuerRuc: String,
+    val series: String,
+    val number: String,
     val ruc: String,
-    val usuario_sol: String,
-    val clave_sol: String
+    val solUser: String,
+    val solPassword: String
 )
 
-data class ProductoParaRegistrar(
-    val descripcion: String,
-    val cantidad: String,
-    val costoUnitario: String,
-    val unidadMedida: String
+data class ProductToRegister(
+    val description: String,
+    val quantity: String,
+    val unitCost: String,
+    val unitOfMeasure: String
 )
 
-data class FacturaParaRegistrar(
+data class InvoiceToRegister(
     val id: Int,
-    val rucEmisor: String,
-    val serie: String,
-    val numero: String,
-    val fechaEmision: String,
-    val razonSocial: String,
-    val tipoDocumento: String,
-    val moneda: String,
-    val costoTotal: String,
+    val issuerRuc: String,
+    val series: String,
+    val number: String,
+    val issueDate: String,
+    val businessName: String,
+    val documentType: String,
+    val currency: String,
+    val totalCost: String,
     val igv: String,
-    val importeTotal: String,
-    val productos: List<ProductoParaRegistrar>
+    val totalAmount: String,
+    val products: List<ProductToRegister>
 )
 
-data class RegistroFacturasRequest(
-    val facturas: List<FacturaParaRegistrar>
+data class RegisterInvoicesRequest(
+    val invoices: List<InvoiceToRegister>
 )
 
-data class RegistrarFacturaDesdeSunatRequest(
-    val rucEmisor: String,
-    val serie: String,
-    val numero: String,
-    val fechaEmision: String,
-    val razonSocial: String,
-    val tipoDocumento: String,
-    val moneda: String,
-    val costoTotal: String,
+data class RegisterInvoiceFromSunatRequest(
+    val issuerRuc: String,
+    val series: String,
+    val number: String,
+    val issueDate: String,
+    val businessName: String,
+    val documentType: String,
+    val currency: String,
+    val totalCost: String,
     val igv: String,
-    val importeTotal: String,
-    val usuarioId: Int = 1
+    val totalAmount: String,
+    val userId: Int = 1
 )
 
-data class ValidarCredencialesRequest(
+data class ValidateCredentialsRequest(
     val ruc: String,
-    val usuario: String,
-    val claveSol: String
+    val user: String,
+    val solPassword: String
 )

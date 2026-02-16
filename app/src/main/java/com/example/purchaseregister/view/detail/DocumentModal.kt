@@ -24,72 +24,68 @@ import android.widget.Toast
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 
-// Modelo para los documentos
 data class DocumentItem(
-    val nombre: String,
-    val fecha: String,
-    val hora: String? = null,
-    val estado: String? = null,
+    val name: String,
+    val date: String,
+    val time: String? = null,
+    val status: String? = null,
     val url: String? = null,
-    val tipo: String,
-    val numeroComprobante: String
+    val type: String,
+    val documentNumber: String
 )
 
-// Función helper para crear documentos según el tipo de factura
-fun crearDocumentosParaFactura(
-    serie: String,
-    numeroComprobante: String,
-    fecha: String
+fun createDocumentsForInvoice(
+    series: String,
+    documentNumber: String,
+    date: String
 ): List<DocumentItem> {
-    val documentos = mutableListOf<DocumentItem>()
+    val documents = mutableListOf<DocumentItem>()
 
-    documentos.add(
+    documents.add(
         DocumentItem(
-            nombre = "Documento PDF",
-            fecha = fecha,
-            estado = "DISPONIBLE",
-            tipo = "pdf",
-            numeroComprobante = numeroComprobante
+            name = "Documento PDF",
+            date = date,
+            status = "DISPONIBLE",
+            type = "pdf",
+            documentNumber = documentNumber
         )
     )
 
-    documentos.add(
+    documents.add(
         DocumentItem(
-            nombre = "Archivo XML",
-            fecha = fecha,
-            estado = "DISPONIBLE",
-            tipo = "xml",
-            numeroComprobante = numeroComprobante
+            name = "Archivo XML",
+            date = date,
+            status = "DISPONIBLE",
+            type = "xml",
+            documentNumber = documentNumber
         )
     )
 
-    // Agregar CDR solo si la serie empieza con 'F'
-    if (serie.startsWith("F", ignoreCase = true)) {
-        documentos.add(
+    if (series.startsWith("F", ignoreCase = true)) {
+        documents.add(
             DocumentItem(
-                nombre = "Constancia CDR",
-                fecha = fecha,
-                estado = "DISPONIBLE",
-                tipo = "cdr",
-                numeroComprobante = numeroComprobante
+                name = "Constancia CDR",
+                date = date,
+                status = "DISPONIBLE",
+                type = "cdr",
+                documentNumber = documentNumber
             )
         )
     }
 
-    return documentos
+    return documents
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentModal(
-    documentos: List<DocumentItem>,
+    documents: List<DocumentItem>,
     onDismiss: () -> Unit,
     viewModel: DetailViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // ✅ Estados del ViewModel
     val downloadingDocument by viewModel.downloadingDocument.collectAsStateWithLifecycle()
     val isDownloading by viewModel.isDownloading.collectAsStateWithLifecycle()
 
@@ -103,7 +99,6 @@ fun DocumentModal(
             Column(
                 modifier = Modifier.padding(16.dp)
             ) {
-                // Encabezado del modal
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -127,13 +122,11 @@ fun DocumentModal(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Lista de documentos
-                if (documentos.isNotEmpty()) {
+                if (documents.isNotEmpty()) {
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Títulos de columnas
                         item {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -162,8 +155,7 @@ fun DocumentModal(
                             Divider(modifier = Modifier.padding(top = 6.dp))
                         }
 
-                        // Items de documentos
-                        items(documentos) { documento ->
+                        items(documents) { document ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -171,18 +163,17 @@ fun DocumentModal(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Nombre del documento
                                 Column(
                                     modifier = Modifier.weight(1.8f)
                                 ) {
                                     Text(
-                                        text = documento.nombre,
+                                        text = document.name,
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Medium
                                     )
-                                    if (documento.fecha.isNotBlank()) {
+                                    if (document.date.isNotBlank()) {
                                         Text(
-                                            text = "Fecha: ${documento.fecha}",
+                                            text = "Fecha: ${document.date}",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = Color.Gray,
                                             modifier = Modifier.padding(top = 2.dp)
@@ -190,7 +181,6 @@ fun DocumentModal(
                                     }
                                 }
 
-                                // Tipo de documento con badge
                                 Box(
                                     modifier = Modifier
                                         .weight(0.9f)
@@ -199,7 +189,7 @@ fun DocumentModal(
                                 ) {
                                     Surface(
                                         shape = MaterialTheme.shapes.small,
-                                        color = when (documento.tipo.uppercase()) {
+                                        color = when (document.type.uppercase()) {
                                             "PDF" -> Color(0xFFF44336)
                                             "XML" -> Color(0xFF2196F3)
                                             "CDR" -> Color(0xFF4CAF50)
@@ -209,7 +199,7 @@ fun DocumentModal(
                                             .padding(horizontal = 10.dp, vertical = 5.dp)
                                     ) {
                                         Text(
-                                            text = documento.tipo.uppercase(),
+                                            text = document.type.uppercase(),
                                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                             color = Color.White,
                                             fontWeight = FontWeight.Bold,
@@ -219,14 +209,13 @@ fun DocumentModal(
                                     }
                                 }
 
-                                // Botón de descarga o loading
                                 Box(
                                     modifier = Modifier
                                         .weight(0.6f)
                                         .padding(start = 2.dp),
                                     contentAlignment = Alignment.CenterEnd
                                 ) {
-                                    if (downloadingDocument == "${documento.numeroComprobante}-${documento.tipo}") {
+                                    if (downloadingDocument == "${document.documentNumber}-${document.type}") {
                                         CircularProgressIndicator(
                                             modifier = Modifier.size(18.dp),
                                             strokeWidth = 2.dp,
@@ -236,19 +225,19 @@ fun DocumentModal(
                                         IconButton(
                                             onClick = {
                                                 scope.launch {
-                                                    viewModel.descargarDocumento(
+                                                    viewModel.downloadDocument(
                                                         context = context,
-                                                        numeroComprobante = documento.numeroComprobante,
-                                                        tipo = documento.tipo,
+                                                        documentNumber = document.documentNumber,
+                                                        type = document.type,
                                                         baseUrl = "http://192.168.1.85:3043",
                                                         onStart = {
-                                                            println("📥 [DocumentModal] Iniciando descarga: ${documento.numeroComprobante}-${documento.tipo}")
+                                                            println("📥 [DocumentModal] Iniciando descarga: ${document.documentNumber}-${document.type}")
                                                         },
                                                         onSuccess = {
                                                             println("✅ [DocumentModal] Descarga encolada exitosamente")
                                                             Toast.makeText(
                                                                 context,
-                                                                "Descargando ${documento.tipo.uppercase()}...",
+                                                                "Descargando ${document.type.uppercase()}...",
                                                                 Toast.LENGTH_SHORT
                                                             ).show()
                                                         },
@@ -275,13 +264,12 @@ fun DocumentModal(
                                 }
                             }
 
-                            if (documentos.indexOf(documento) < documentos.size - 1) {
+                            if (documents.indexOf(document) < documents.size - 1) {
                                 Divider(modifier = Modifier.padding(top = 2.dp))
                             }
                         }
                     }
                 } else {
-                    // Mensaje cuando no hay documentos
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -305,7 +293,6 @@ fun DocumentModal(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Botón para cerrar
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier

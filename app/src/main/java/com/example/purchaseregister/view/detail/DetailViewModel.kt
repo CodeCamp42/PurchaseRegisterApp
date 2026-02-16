@@ -18,10 +18,10 @@ class DetailViewModel : ViewModel() {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
 
-    fun descargarDocumento(
+    fun downloadDocument(
         context: Context,
-        numeroComprobante: String,
-        tipo: String,
+        documentNumber: String,
+        type: String,
         baseUrl: String = "http://192.168.1.85:3043",
         onStart: () -> Unit = {},
         onSuccess: () -> Unit = {},
@@ -29,13 +29,13 @@ class DetailViewModel : ViewModel() {
     ) {
         viewModelScope.launch {
             _isDownloading.value = true
-            _downloadingDocument.value = "${numeroComprobante}-${tipo}"
+            _downloadingDocument.value = "${documentNumber}-${type}"
             onStart()
 
-            DownloadManagerHelper.descargarDocumento(
+            DownloadManagerHelper.downloadDocument(
                 context = context,
-                numeroComprobante = numeroComprobante,
-                tipo = tipo,
+                documentNumber = documentNumber,
+                type = type,
                 baseUrl = baseUrl,
                 onEnqueued = { downloadId ->
                     _isDownloading.value = false
