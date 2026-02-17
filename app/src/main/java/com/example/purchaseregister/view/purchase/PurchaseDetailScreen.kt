@@ -186,7 +186,7 @@ fun PurchaseDetailScreen(
         }
     }
 
-    // Diálogo de credenciales
+    // Diálogo de credenciales de acceso
     if (showCredentialsDialog) {
         var isValidating by remember { mutableStateOf(false) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
