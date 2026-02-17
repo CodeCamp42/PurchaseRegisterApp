@@ -96,6 +96,12 @@ fun PurchaseDetailScreen(
     val facturasCompras by purchaseViewModel.facturasCompras.collectAsStateWithLifecycle()
     val facturasVentas by purchaseViewModel.facturasVentas.collectAsStateWithLifecycle()
 
+    val hasActiveSession = remember {
+        SunatPrefs.getRuc(context) != null &&
+                SunatPrefs.getUser(context) != null &&
+                SunatPrefs.getClaveSol(context) != null
+    }
+
     // Usar funciones extraídas
     handleAutoRegistroFacturas(
         facturasCompras = facturasCompras,
@@ -148,8 +154,9 @@ fun PurchaseDetailScreen(
                 println("   - ${it.serie}-${it.numero} (Origen: ${if (it.id != null) "BD" else "API"})")
             }
 
-            // Luego si hay credenciales, cargar API
+            // ✅ NUEVA LÓGICA: SIEMPRE "PRESIONAR" EL BOTÓN CONSULTAR AUTOMÁTICAMENTE
             if (ruc != null && usuario != null && claveSol != null) {
+                // Si hay credenciales, cargar API directamente
                 val periodoInicio = convertirFechaAPeriodo(selectedStartMillis ?: hoyMillis)
                 val periodoFin = convertirFechaAPeriodo(selectedEndMillis ?: hoyMillis)
 
@@ -162,6 +169,11 @@ fun PurchaseDetailScreen(
                     usuario = usuario,
                     claveSol = claveSol
                 )
+            } else {
+                // Si NO hay credenciales, "simular" el clic en el botón Consultar
+                println("🟡 No hay credenciales - mostrando diálogo de login")
+                consultarDespuesDeLogin = true
+                showCredencialesDialog = true
             }
 
             isListVisible = true
@@ -390,7 +402,6 @@ fun PurchaseDetailScreen(
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = {
-                showLogoutDialog = false
             },
             title = { Text("Cerrar Sesión") },
             text = { Text("¿Estás seguro de que deseas cerrar sesión?") },
@@ -418,7 +429,7 @@ fun PurchaseDetailScreen(
                         ).show()
                     },
                     colors = ButtonDefaults.textButtonColors(
-                        contentColor = Color.Red
+                        contentColor = Color(0xFF1FB8B9)
                     )
                 ) {
                     Text("Aceptar")
@@ -489,6 +500,7 @@ fun PurchaseDetailScreen(
 
             IconButton(
                 onClick = { showLogoutDialog = true },
+                enabled = hasActiveSession,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .size(40.dp)
@@ -496,7 +508,7 @@ fun PurchaseDetailScreen(
                 Icon(
                     imageVector = Icons.Outlined.PowerSettingsNew,
                     contentDescription = "Cerrar sesión",
-                    tint = Color(0xFF1FB8B9),
+                    tint = if (hasActiveSession) Color(0xFF1FB8B9) else Color.Gray,
                     modifier = Modifier.size(24.dp)
                 )
             }
