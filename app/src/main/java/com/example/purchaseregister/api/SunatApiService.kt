@@ -12,7 +12,9 @@ interface SunatApiService {
         @Query("periodoFin") periodEnd: String,
         @Query("ruc") ruc: String,
         @Query("usuario") user: String,
-        @Query("claveSol") solPassword: String
+        @Query("claveSol") solPassword: String,
+        @Query("clientId") clientId: String,
+        @Query("clientSecret") clientSecret: String
     ): SunatResponse
 
     @PUT("factura/scraping-completado/{numeroComprobante}")

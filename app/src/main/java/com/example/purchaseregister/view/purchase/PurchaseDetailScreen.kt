@@ -38,8 +38,10 @@ import kotlinx.coroutines.delay
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.ui.text.input.VisualTransformation
 
 enum class Section { PURCHASES, SALES }
 
@@ -82,12 +84,15 @@ fun PurchaseDetailScreen(
     var rucInput by remember { mutableStateOf("") }
     var userInput by remember { mutableStateOf("") }
     var solPasswordInput by remember { mutableStateOf("") }
+    var clientIdInput by remember { mutableStateOf("") }
+    var clientSecretInput by remember { mutableStateOf("") }
     var showCredentialsDialog by remember { mutableStateOf(false) }
     var consultAfterLogin by remember { mutableStateOf(false) }
 
     // Variables para el diálogo de logout
     var showLogoutDialog by remember { mutableStateOf(false) }
     var isInitialLoadDone by rememberSaveable { mutableStateOf(false) }
+    var showTutorial by remember { mutableStateOf(false) }
 
     // ViewModel states
     val isLoadingViewModel by purchaseViewModel.isLoading.collectAsStateWithLifecycle()
@@ -138,6 +143,8 @@ fun PurchaseDetailScreen(
             val ruc = SunatPrefs.getRuc(context)
             val user = SunatPrefs.getUser(context)
             val solPassword = SunatPrefs.getSolPassword(context)
+            val clientId = SunatPrefs.getClientId(context)
+            val clientSecret = SunatPrefs.getClientSecret(context)
 
             // 🔴 FUERZA CARGA DE BD PRIMERO PARA VER SI FUNCIONA
             println("🔴🔴🔴 MODO DEBUG: CARGANDO SOLO BD PRIMERO")
@@ -154,7 +161,8 @@ fun PurchaseDetailScreen(
             }
 
             // ✅ NUEVA LÓGICA: SIEMPRE "PRESIONAR" EL BOTÓN CONSULTAR AUTOMÁTICAMENTE
-            if (ruc != null && user != null && solPassword != null) {
+            if (ruc != null && user != null && solPassword != null &&
+                clientId != null && clientSecret != null) {
                 // Si hay credenciales, cargar API directamente
                 val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
                 val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
@@ -166,7 +174,9 @@ fun PurchaseDetailScreen(
                     isPurchase = (sectionActive == Section.PURCHASES),
                     ruc = ruc,
                     user = user,
-                    solPassword = solPassword
+                    solPassword = solPassword,
+                    clientId = clientId,
+                    clientSecret = clientSecret
                 )
             } else {
                 // Si NO hay credenciales, "simular" el clic en el botón Consultar
@@ -203,6 +213,7 @@ fun PurchaseDetailScreen(
         var isValidating by remember { mutableStateOf(false) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
         var passwordVisible by remember { mutableStateOf(false) }
+        var clientSecretVisible by remember { mutableStateOf(false) }
 
         AlertDialog(
             onDismissRequest = {
@@ -282,6 +293,53 @@ fun PurchaseDetailScreen(
                         }
                     )
 
+                    // Campo Client ID
+                    OutlinedTextField(
+                        value = clientIdInput,
+                        onValueChange = { clientIdInput = it },
+                        label = { Text("Client ID") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = errorMessage != null,
+                    )
+
+                    // Campo Client Secret
+                    OutlinedTextField(
+                        value = clientSecretInput,
+                        onValueChange = { clientSecretInput = it },
+                        label = { Text("Client Secret") },
+                        visualTransformation = if (clientSecretVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = errorMessage != null,
+                        trailingIcon = {
+                            IconButton(onClick = { clientSecretVisible = !clientSecretVisible }) {
+                                Icon(
+                                    imageVector = if (clientSecretVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                    contentDescription = if (clientSecretVisible) "Hide" else "Show"
+                                )
+                            }
+                        }
+                    )
+
+                    TextButton(
+                        onClick = { showTutorial = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Help",
+                            tint = Color(0xFF1FB8B9),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "¿Cómo obtener Client ID y Client Secret?",
+                            color = Color(0xFF1FB8B9),
+                            fontSize = 13.sp
+                        )
+                    }
+
                     if (isValidating) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -316,6 +374,15 @@ fun PurchaseDetailScreen(
                                 return@launch
                             }
 
+                            if (clientIdInput.isEmpty()) {
+                                errorMessage = "El Client ID no puede estar vacío"
+                                return@launch
+                            }
+                            if (clientSecretInput.isEmpty()) {
+                                errorMessage = "El Client Secret no puede estar vacío"
+                                return@launch
+                            }
+
                             isValidating = true
                             errorMessage = null
 
@@ -323,6 +390,8 @@ fun PurchaseDetailScreen(
                                 ruc = rucInput,
                                 user = userInput,
                                 solPassword = solPasswordInput,
+                                clientId = clientIdInput,
+                                clientSecret = clientSecretInput
                             )
 
                             isValidating = false
@@ -331,6 +400,8 @@ fun PurchaseDetailScreen(
                                 SunatPrefs.saveRuc(context, rucInput)
                                 SunatPrefs.saveUser(context, userInput)
                                 SunatPrefs.saveSolPassword(context, solPasswordInput)
+                                SunatPrefs.saveClientId(context, clientIdInput)
+                                SunatPrefs.saveClientSecret(context, clientSecretInput)
 
                                 if (consultAfterLogin) {
                                     val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
@@ -342,7 +413,9 @@ fun PurchaseDetailScreen(
                                         isPurchase = (sectionActive == Section.PURCHASES),
                                         ruc = rucInput,
                                         user = userInput,
-                                        solPassword = solPasswordInput
+                                        solPassword = solPasswordInput,
+                                        clientId = clientIdInput,
+                                        clientSecret = clientSecretInput
                                     )
 
                                     isListVisible = true
@@ -353,6 +426,8 @@ fun PurchaseDetailScreen(
                                 rucInput = ""
                                 userInput = ""
                                 solPasswordInput = ""
+                                clientIdInput = ""
+                                clientSecretInput = ""
 
                                 Toast.makeText(
                                     context,
@@ -368,7 +443,9 @@ fun PurchaseDetailScreen(
                             rucInput.length == 11 &&
                             userInput.isNotEmpty() &&
                             solPasswordInput.isNotEmpty() &&
-                            solPasswordInput.length <= 12
+                            solPasswordInput.length <= 12 &&
+                            clientIdInput.isNotEmpty() &&
+                            clientSecretInput.isNotEmpty()
                 ) {
                     if (isValidating) {
                         Text("Validando...")
@@ -385,6 +462,8 @@ fun PurchaseDetailScreen(
                             rucInput = ""
                             userInput = ""
                             solPasswordInput = ""
+                            clientIdInput = ""
+                            clientSecretInput = ""
                             consultAfterLogin = false
                             errorMessage = null
                         }
@@ -916,8 +995,11 @@ fun PurchaseDetailScreen(
                     val ruc = SunatPrefs.getRuc(context)
                     val user = SunatPrefs.getUser(context)
                     val solPassword = SunatPrefs.getSolPassword(context)
+                    val clientId = SunatPrefs.getClientId(context)
+                    val clientSecret = SunatPrefs.getClientSecret(context)
 
-                    if (ruc == null || user == null || solPassword == null) {
+                    if (ruc == null || user == null || solPassword == null ||
+                        clientId == null || clientSecret == null) {
                         consultAfterLogin = true
                         showCredentialsDialog = true
                         return@Button
@@ -932,7 +1014,9 @@ fun PurchaseDetailScreen(
                         isPurchase = (sectionActive == Section.PURCHASES),
                         ruc = ruc,
                         user = user,
-                        solPassword = solPassword
+                        solPassword = solPassword,
+                        clientId = clientId,
+                        clientSecret = clientSecret
                     )
                     isListVisible = true
                 },
@@ -958,6 +1042,17 @@ fun PurchaseDetailScreen(
                 }
             }
         }
+    }
+    if (showTutorial) {
+        TutorialSunatDialog(
+            onDismiss = { showTutorial = false },
+            onCompleted = { clientId, clientSecret ->
+                clientIdInput = clientId
+                clientSecretInput = clientSecret
+                showTutorial = false
+                Toast.makeText(context, "✅ Credenciales copiadas", Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 }
 
