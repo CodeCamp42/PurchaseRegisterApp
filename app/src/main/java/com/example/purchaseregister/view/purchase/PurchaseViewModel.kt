@@ -134,7 +134,9 @@ class PurchaseViewModel : ViewModel() {
         esCompra: Boolean = true,
         ruc: String,
         usuario: String,
-        claveSol: String
+        claveSol: String,
+        clientId: String,
+        clientSecret: String
     ) {
         viewModelScope.launch {
             val cacheKey = FacturaRepository.getCacheKey(esCompra, periodoInicio)
@@ -163,7 +165,9 @@ class PurchaseViewModel : ViewModel() {
                     periodoFin,
                     ruc,
                     usuario,
-                    claveSol
+                    claveSol,
+                    clientId,
+                    clientSecret
                 )
 
                 if (response.success) {
@@ -524,7 +528,9 @@ class PurchaseViewModel : ViewModel() {
     suspend fun validarCredencialesSUNAT(
         ruc: String,
         usuario: String,
-        claveSol: String
+        claveSol: String,
+        clientId: String,
+        clientSecret: String
     ): Boolean {
         return try {
             println("🌐 [VALIDACIÓN] Enviando petición a /sunat/validar-credenciales")
@@ -534,7 +540,9 @@ class PurchaseViewModel : ViewModel() {
                 ValidarCredencialesRequest(
                     ruc = ruc,
                     usuario = usuario,
-                    claveSol = claveSol
+                    claveSol = claveSol,
+                    clientId = clientId,
+                    clientSecret = clientSecret
                 )
             )
 
