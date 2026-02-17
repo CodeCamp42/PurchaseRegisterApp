@@ -38,7 +38,9 @@ import kotlinx.coroutines.delay
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.ui.text.input.VisualTransformation
 
 enum class Section { COMPRAS, VENTAS }
 
@@ -189,16 +191,11 @@ fun PurchaseDetailScreen(
     if (showCredencialesDialog) {
         var isValidando by remember { mutableStateOf(false) }
         var errorMensaje by remember { mutableStateOf<String?>(null) }
+        var passwordVisible by remember { mutableStateOf(false) }
 
         AlertDialog(
             onDismissRequest = {
                 if (!isValidando) {
-                    showCredencialesDialog = false
-                    rucInput = ""
-                    usuarioInput = ""
-                    claveSolInput = ""
-                    consultarDespuesDeLogin = false
-                    errorMensaje = null
                 }
             },
             title = { Text("Credenciales SUNAT") },
@@ -233,13 +230,18 @@ fun PurchaseDetailScreen(
                     OutlinedTextField(
                         value = usuarioInput,
                         onValueChange = {
-                            usuarioInput = it.uppercase()
-                            errorMensaje = null
+                            if (it.length <= 8) {
+                                usuarioInput = it.uppercase()
+                                errorMensaje = null
+                            }
                         },
                         label = { Text("Usuario SOL") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        isError = errorMensaje != null
+                        isError = errorMensaje != null,
+                        supportingText = {
+                            Text("${usuarioInput.length}/8 caracteres")
+                        }
                     )
 
                     // Clave SOL
@@ -252,12 +254,20 @@ fun PurchaseDetailScreen(
                             }
                         },
                         label = { Text("Clave SOL") },
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         isError = errorMensaje != null,
                         supportingText = {
                             Text("${claveSolInput.length}/12 caracteres")
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                    contentDescription = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña"
+                                )
+                            }
                         }
                     )
 
