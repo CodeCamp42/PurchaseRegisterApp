@@ -38,6 +38,7 @@ import kotlinx.coroutines.delay
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 
 enum class Section { PURCHASES, SALES }
@@ -189,16 +190,11 @@ fun PurchaseDetailScreen(
     if (showCredentialsDialog) {
         var isValidating by remember { mutableStateOf(false) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
+        var passwordVisible by remember { mutableStateOf(false) }
 
         AlertDialog(
             onDismissRequest = {
                 if (!isValidating) {
-                    showCredentialsDialog = false
-                    rucInput = ""
-                    userInput = ""
-                    solPasswordInput = ""
-                    consultAfterLogin = false
-                    errorMessage = null
                 }
             },
             title = { Text("Credenciales SUNAT") },
@@ -233,13 +229,18 @@ fun PurchaseDetailScreen(
                     OutlinedTextField(
                         value = userInput,
                         onValueChange = {
-                            userInput = it.uppercase()
-                            errorMessage = null
+                            if (it.length <= 8) {
+                                userInput = it.uppercase()
+                                errorMessage = null
+                            }
                         },
                         label = { Text("Usuario SOL") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        isError = errorMessage != null
+                        isError = errorMessage != null,
+                        supportingText = {
+                            Text("${userInput.length}/8 caracteres")
+                        }
                     )
 
                     // Clave SOL
@@ -258,6 +259,14 @@ fun PurchaseDetailScreen(
                         isError = errorMessage != null,
                         supportingText = {
                             Text("${solPasswordInput.length}/12 caracteres")
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                    contentDescription = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña"
+                                )
+                            }
                         }
                     )
 
