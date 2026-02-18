@@ -16,69 +16,102 @@ import androidx.compose.ui.unit.sp
 fun status(
     modifier: Modifier = Modifier
 ) {
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .background(Color(0xFFF8F9FA))
-            .padding(vertical = 8.dp, horizontal = 12.dp),
-        horizontalArrangement = Arrangement.Start,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 8.dp, horizontal = 12.dp)
     ) {
-        // Estado CONSULTADO
+        // Primera fila de estados
         Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(end = 12.dp)
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF2196F3))
-            )
-            Text(
-                text = "CONSULTADO",
-                fontSize = 9.sp,
-                color = Color.Black
-            )
+            // Estado CONSULTADO
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(end = 12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF2196F3))
+                )
+                Text(
+                    text = "CONSULTADO",
+                    fontSize = 9.sp,
+                    color = Color.Black
+                )
+            }
+
+            // Estado CON DETALLE
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(end = 12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFF5A00))
+                )
+                Text(
+                    text = "CON DETALLE",
+                    fontSize = 9.sp,
+                    color = Color.Black
+                )
+            }
+
+            // Estado REGISTRADO
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(end = 12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF4CAF50))
+                )
+                Text(
+                    text = "REGISTRADO",
+                    fontSize = 9.sp,
+                    color = Color.Black
+                )
+            }
         }
 
-        // Estado CON DETALLE
+        // Segunda fila de estados
         Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(end = 12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFFF5A00))
-            )
-            Text(
-                text = "CON DETALLE",
-                fontSize = 9.sp,
-                color = Color.Black
-            )
-        }
-
-        // Estado REGISTRADO
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(end = 12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF4CAF50))
-            )
-            Text(
-                text = "REGISTRADO",
-                fontSize = 9.sp,
-                color = Color.Black
-            )
+            // Estado PROCESANDO
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(end = 12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF808080))
+                )
+                Text(
+                    text = "PROCESANDO",
+                    fontSize = 9.sp,
+                    color = Color.Black
+                )
+            }
         }
     }
 }
