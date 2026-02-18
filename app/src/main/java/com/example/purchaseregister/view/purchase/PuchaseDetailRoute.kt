@@ -3,27 +3,20 @@ package com.example.purchaseregister.navigation
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import com.example.purchaseregister.view.purchase.PurchaseDetailScreen
-import com.example.purchaseregister.view.purchase.PurchaseViewModel
-import com.example.purchaseregister.viewmodel.InvoiceViewModel
+import com.example.purchaseregister.viewmodel.InvoiceListViewModel
 import kotlinx.serialization.Serializable
 
 @Serializable
 object PurchaseDetailRoute
 
 fun NavGraphBuilder.purchaseDetailRoute(
-    purchaseViewModel: PurchaseViewModel,
-    invoiceViewModel: InvoiceViewModel,
+    viewModel: InvoiceListViewModel,
     onNavigateToRegister: () -> Unit,
-    onNavigateToDetail: (DetailRoute) -> Unit,
-    onPurchasesClick: () -> Unit = {},
-    onSalesClick: () -> Unit = {}
+    onNavigateToDetail: (DetailRoute) -> Unit
 ) {
     composable<PurchaseDetailRoute> {
         PurchaseDetailScreen(
-            purchaseViewModel = purchaseViewModel,
-            invoiceViewModel = invoiceViewModel,
-            onPurchasesClick = onPurchasesClick,
-            onSalesClick = onSalesClick,
+            viewModel = viewModel,
             onNavigateToRegister = onNavigateToRegister,
             onNavigateToDetail = onNavigateToDetail
         )

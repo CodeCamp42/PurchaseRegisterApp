@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,15 +16,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.purchaseregister.model.ProductItem
-import com.example.purchaseregister.view.components.ReadOnlyField
-import com.example.purchaseregister.utils.SunatPrefs
-import androidx.activity.compose.BackHandler
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.ui.unit.sp
-import com.example.purchaseregister.view.detail.DocumentItem
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.purchaseregister.model.ProductItem
+import com.example.purchaseregister.utils.SunatPrefs
+import com.example.purchaseregister.view.components.ReadOnlyField
+import com.example.purchaseregister.view.detail.DetailViewModel
 import com.example.purchaseregister.view.detail.DocumentModal
 import com.example.purchaseregister.view.detail.createDocumentsForInvoice
+import androidx.activity.compose.BackHandler
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,8 +45,7 @@ fun DetailScreen(
     totalAmount: String?,
     isPurchase: Boolean = true,
     products: List<ProductItem> = emptyList(),
-    onAccept: () -> Unit = {},
-    documents: List<DocumentItem> = emptyList()
+    viewModel: DetailViewModel = viewModel() // Recibir el ViewModel
 ) {
     var showDocumentsDialog by remember { mutableStateOf(false) }
 
@@ -61,7 +61,8 @@ fun DetailScreen(
         }
     }
 
-    val documentsToShow = if (documents.isNotEmpty()) documents else autoDocuments
+    // Ya no necesitamos pasar documents como parámetro, usamos autoDocuments
+    val documentsToShow = autoDocuments
 
     fun formatUnitOfMeasure(quantity: String, unit: String): String {
         val formattedUnit = when (unit.uppercase()) {
@@ -78,12 +79,7 @@ fun DetailScreen(
             "CASE", "CS" -> "Cs"
             else -> if (unit.isNotBlank()) unit else ""
         }
-
-        return if (formattedUnit.isNotBlank()) {
-            "$quantity $formattedUnit"
-        } else {
-            quantity
-        }
+        return if (formattedUnit.isNotBlank()) "$quantity $formattedUnit" else quantity
     }
 
     val context = LocalContext.current
@@ -98,7 +94,8 @@ fun DetailScreen(
     if (showDocumentsDialog) {
         DocumentModal(
             documents = documentsToShow,
-            onDismiss = { showDocumentsDialog = false }
+            onDismiss = { showDocumentsDialog = false },
+            viewModel = viewModel // Pasar el ViewModel al modal
         )
     }
 
@@ -106,15 +103,7 @@ fun DetailScreen(
         onBack()
     }
 
-    println("🎯 [DetailScreen] ID recibido: $id")
-    println("🎯 [DetailScreen] isPurchase: $isPurchase")
-    println("🎯 [DetailScreen] Número de productos recibidos: ${products.size}")
-    println("🎯 [DetailScreen] Documentos automáticos creados: ${autoDocuments.size}")
-
-    products.forEachIndexed { index, product ->
-        println("🎯 [DetailScreen] Producto $index: ${product.description}, ${product.unitCost}, ${product.quantity}")
-    }
-
+    // Scaffold ahora está aquí, en la pantalla
     Scaffold(
         topBar = {
             Row(
@@ -123,19 +112,13 @@ fun DetailScreen(
                     .padding(top = 16.dp, start = 8.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = {
-                        println("◀️ [DetailScreen] Icono flecha presionado")
-                        onBack()
-                    }
-                ) {
+                IconButton(onClick = onBack) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = "Volver",
                         tint = Color.Black
                     )
                 }
-
                 Text(
                     text = "Detalle de factura",
                     style = MaterialTheme.typography.headlineSmall,
@@ -143,7 +126,6 @@ fun DetailScreen(
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center
                 )
-
                 Spacer(modifier = Modifier.width(48.dp))
             }
         }
@@ -156,6 +138,7 @@ fun DetailScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // ... (resto del contenido de la pantalla, igual que antes) ...
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
@@ -392,43 +375,23 @@ fun DetailScreen(
                 horizontalArrangement = Arrangement.Center
             ) {
                 Button(
-                    onClick = {
-                        println("📄 [DetailScreen] Presionando DOCUMENTACIÓN")
-                        println("📄 [DetailScreen] Documentos a mostrar: ${documentsToShow.size}")
-                        documentsToShow.forEachIndexed { index, doc ->
-                            println("📄 [DetailScreen] Documento $index: ${doc.name} - ${doc.type}")
-                        }
-                        showDocumentsDialog = true
-                    },
+                    onClick = { showDocumentsDialog = true },
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp)
                         .padding(end = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFF5A00)
-                    ),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5A00)),
                     shape = MaterialTheme.shapes.medium,
                     contentPadding = PaddingValues(horizontal = 4.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Description,
-                            contentDescription = "Documentos",
-                            modifier = Modifier.size(20.dp),
-                            tint = Color.White
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.White)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Documentos", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 Button(
-                    onClick = {
-                        println("🎯 [DetailScreen] Presionando REGRESAR")
-                        onBack()
-                    },
+                    onClick = onBack,
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp)
@@ -440,12 +403,12 @@ fun DetailScreen(
                     Text("Regresar", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
-
             Spacer(modifier = Modifier.height(5.dp))
         }
     }
 }
 
+// Preview sin ViewModel, usando datos de ejemplo
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun DetailScreenPreview() {

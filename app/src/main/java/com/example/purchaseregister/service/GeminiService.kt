@@ -2,7 +2,6 @@ package com.example.purchaseregister.service
 
 import android.graphics.Bitmap
 import android.util.Base64
-import android.util.Log
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody

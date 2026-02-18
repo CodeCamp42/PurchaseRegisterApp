@@ -2,17 +2,15 @@ package com.example.purchaseregister.view.register
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.purchaseregister.api.RetrofitClient
-import com.example.purchaseregister.api.requests.RegisterInvoiceFromSunatRequest
-import com.example.purchaseregister.model.Invoice
+import com.example.purchaseregister.data.repository.InvoiceRepository
+import com.example.purchaseregister.data.repository.InvoiceRepositoryImpl
 import com.example.purchaseregister.model.ProductItem
-import com.example.purchaseregister.viewmodel.shared.InvoiceRepository
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 class PurchaseRegistrationViewModel : ViewModel() {
-    private val apiService = RetrofitClient.sunatApiService
+
+    // Usar la interfaz, no la implementación concreta directamente (ideal para testeo)
+    private val repository: InvoiceRepository = InvoiceRepositoryImpl()
 
     fun addNewPurchaseInvoice(
         ruc: String,
@@ -30,60 +28,28 @@ class PurchaseRegistrationViewModel : ViewModel() {
         products: List<ProductItem> = emptyList()
     ) {
         viewModelScope.launch {
-            try {
-                val request = RegisterInvoiceFromSunatRequest(
-                    issuerRuc = ruc,
-                    series = series,
-                    number = number,
-                    issueDate = issueDate,
-                    businessName = businessName,
-                    documentType = documentType,
-                    currency = currency,
-                    totalCost = totalCost,
-                    igv = igv,
-                    totalAmount = totalAmount,
-                    userId = 1
-                )
+            val invoiceData = mapOf(
+                "ruc" to ruc,
+                "businessName" to businessName,
+                "series" to series,
+                "number" to number,
+                "issueDate" to issueDate,
+                "documentType" to documentType,
+                "currency" to currency,
+                "totalCost" to totalCost,
+                "igv" to igv,
+                "totalAmount" to totalAmount,
+                "year" to year,
+                "exchangeRate" to exchangeRate,
+                "products" to products
+            )
 
-                val response = apiService.registerInvoiceFromSunat(request)
+            val newInvoice = repository.registerNewPurchaseInvoice(invoiceData)
 
-                if (response.success && response.invoiceId != null) {
-                    val initialStatus = if (products.isNotEmpty()) "CON DETALLE" else "CONSULTADO"
-
-                    InvoiceRepository.updatePurchaseInvoices { list ->
-                        val newInvoice = Invoice(
-                            id = response.invoiceId!!,
-                            ruc = ruc,
-                            businessName = businessName,
-                            series = series,
-                            number = number,
-                            issueDate = issueDate,
-                            documentType = documentType,
-                            year = year,
-                            currency = currency,
-                            totalCost = totalCost,
-                            igv = igv,
-                            exchangeRate = exchangeRate,
-                            totalAmount = totalAmount,
-                            status = initialStatus,
-                            isSelected = false,
-                            products = products
-                        )
-
-                        (list + newInvoice).sortedBy { invoice ->
-                            try {
-                                SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(invoice.issueDate)?.time ?: 0L
-                            } catch (e: Exception) {
-                                0L
-                            }
-                        }
-                    }
-                } else {
-                    println("❌ Error registrando factura en BD: ${response.message}")
-                }
-            } catch (e: Exception) {
-                println("❌ Excepción al registrar factura: ${e.message}")
-                e.printStackTrace()
+            newInvoice?.let {
+                println("✅ Factura registrada con ID: ${it.id}")
+            } ?: run {
+                println("❌ Error al registrar factura")
             }
         }
     }

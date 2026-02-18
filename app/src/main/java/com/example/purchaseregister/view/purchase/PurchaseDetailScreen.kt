@@ -1,12 +1,12 @@
 package com.example.purchaseregister.view.purchase
 
 import android.widget.Toast
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,54 +14,38 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.purchaseregister.navigation.DetailRoute
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.viewmodel.compose.viewModel  // ← AGREGAR ESTE IMPORT PARA EL PREVIEW
+import com.example.purchaseregister.components.CustomDatePickerDialog
+import com.example.purchaseregister.components.InvoiceLoadingDialog
+import com.example.purchaseregister.components.StatusLegend
+import com.example.purchaseregister.components.TutorialSunatDialog
+import com.example.purchaseregister.navigation.DetailRoute
 import com.example.purchaseregister.utils.*
-import com.example.purchaseregister.components.*
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import com.example.purchaseregister.viewmodel.InvoiceViewModel
+import com.example.purchaseregister.viewmodel.InvoiceListViewModel
+import com.example.purchaseregister.viewmodel.Section
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import java.util.Calendar
 import kotlinx.coroutines.delay
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.outlined.PowerSettingsNew
-import androidx.compose.ui.text.input.VisualTransformation
-
-enum class Section { PURCHASES, SALES }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PurchaseDetailScreen(
-    purchaseViewModel: PurchaseViewModel,
-    invoiceViewModel: InvoiceViewModel,
-    onPurchasesClick: () -> Unit,
-    onSalesClick: () -> Unit,
+    viewModel: InvoiceListViewModel,
     onNavigateToRegister: () -> Unit,
     onNavigateToDetail: (DetailRoute) -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    // Estados
+    // Estados de UI locales
     var sectionActive by remember { mutableStateOf(Section.PURCHASES) }
-    var isListVisible by rememberSaveable { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(false) }
+    var isListVisible by remember { mutableStateOf(false) }
     var showCustomDatePicker by remember { mutableStateOf(false) }
 
     // Fechas
@@ -69,36 +53,33 @@ fun PurchaseDetailScreen(
     val firstDayOfMonth = remember { getFirstDayOfMonthPeru(todayMillis) }
     val lastDayOfMonth = remember { getLastDayOfMonthPeru(todayMillis) }
 
-    var selectedStartMillis by rememberSaveable { mutableStateOf<Long?>(firstDayOfMonth) }
-    var selectedEndMillis by rememberSaveable { mutableStateOf<Long?>(lastDayOfMonth) }
+    var selectedStartMillis by remember { mutableStateOf<Long?>(firstDayOfMonth) }
+    var selectedEndMillis by remember { mutableStateOf<Long?>(lastDayOfMonth) }
 
-    var showLoadingDialog by remember { mutableStateOf(false) }
-    var loadingStatus by remember { mutableStateOf("Obteniendo detalle de factura...") }
-    var loadingDebugInfo by remember { mutableStateOf<String?>(null) }
-    var loadingInvoiceId by remember { mutableStateOf<Int?>(null) }
-    var isLoadingPurchase by remember { mutableStateOf(false) }
-    var invoicesWithActiveTimer by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var isDetailingAll by remember { mutableStateOf(false) }
+    // Estados para diálogos de credenciales
+    var showCredentialsDialog by remember { mutableStateOf(false) }
+    var consultAfterLogin by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
+    var showTutorial by remember { mutableStateOf(false) }
 
-    // Variables para el diálogo de credenciales
+    // Estados de entrada de credenciales
     var rucInput by remember { mutableStateOf("") }
     var userInput by remember { mutableStateOf("") }
     var solPasswordInput by remember { mutableStateOf("") }
     var clientIdInput by remember { mutableStateOf("") }
     var clientSecretInput by remember { mutableStateOf("") }
-    var showCredentialsDialog by remember { mutableStateOf(false) }
-    var consultAfterLogin by remember { mutableStateOf(false) }
 
-    // Variables para el diálogo de logout
-    var showLogoutDialog by remember { mutableStateOf(false) }
-    var isInitialLoadDone by rememberSaveable { mutableStateOf(false) }
-    var showTutorial by remember { mutableStateOf(false) }
-
-    // ViewModel states
-    val isLoadingViewModel by purchaseViewModel.isLoading.collectAsStateWithLifecycle()
-    val errorMessage by purchaseViewModel.errorMessage.collectAsStateWithLifecycle()
-    val purchaseInvoices by purchaseViewModel.purchaseInvoices.collectAsStateWithLifecycle()
-    val salesInvoices by purchaseViewModel.salesInvoices.collectAsStateWithLifecycle()
+    // Observar estados del ViewModel
+    val purchaseInvoices by viewModel.purchaseInvoices.collectAsStateWithLifecycle()
+    val salesInvoices by viewModel.salesInvoices.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val invoicesWithActiveTimer by viewModel.invoicesWithActiveTimer.collectAsStateWithLifecycle()
+    val isDetailingAll by viewModel.isDetailingAll.collectAsStateWithLifecycle()
+    val showLoadingDialog by viewModel.showLoadingDialog.collectAsStateWithLifecycle()
+    val loadingStatus by viewModel.loadingStatus.collectAsStateWithLifecycle()
+    val loadingDebugInfo by viewModel.loadingDebugInfo.collectAsStateWithLifecycle()
+    val loadingInvoiceId by viewModel.loadingInvoiceId.collectAsStateWithLifecycle()
 
     val hasActiveSession = remember {
         SunatPrefs.getRuc(context) != null &&
@@ -106,204 +87,139 @@ fun PurchaseDetailScreen(
                 SunatPrefs.getSolPassword(context) != null
     }
 
-    // Usar funciones extraídas
-    handleAutoRegisterInvoices(
-        purchaseInvoices = purchaseInvoices,
-        salesInvoices = salesInvoices,
-        invoicesWithActiveTimer = invoicesWithActiveTimer,
-        purchaseViewModel = purchaseViewModel,
-        invoiceViewModel = invoiceViewModel,
-        context = context,
-        onTimerUpdate = { newTimers ->
-            invoicesWithActiveTimer = newTimers
-        }
-    )
-
-    setupCommonEffects(
-        isLoadingViewModel = isLoadingViewModel,
-        errorMessage = errorMessage,
-        showLoadingDialog = showLoadingDialog,
-        loadingInvoiceId = loadingInvoiceId,
-        isLoadingPurchase = isLoadingPurchase,
-        viewModel = purchaseViewModel,
-        onIsLoadingChange = { isLoading = it },
-        onLoadingDialogChange = { showLoadingDialog = it },
-        onNavigateToDetail = { id, isPurchase ->
-            onNavigateToDetail(DetailRoute(id = id, isPurchase = isPurchase))
-        },
-        onLoadingStatusChange = { loadingStatus = it },
-        onLoadingDebugInfoChange = { loadingDebugInfo = it },
-        onLoadingInvoiceIdChange = { loadingInvoiceId = it }
-    )
-
-    // Efecto inicial
+    // Carga inicial
     LaunchedEffect(Unit) {
-        if (!isInitialLoadDone) {
+        // Cargar facturas de BD al inicio
+        viewModel.loadInvoicesFromDB(sectionActive == Section.PURCHASES)
+        isListVisible = true
+
+        // Auto-consultar si hay credenciales guardadas
+        val ruc = SunatPrefs.getRuc(context)
+        val user = SunatPrefs.getUser(context)
+        val solPassword = SunatPrefs.getSolPassword(context)
+        val clientId = SunatPrefs.getClientId(context)
+        val clientSecret = SunatPrefs.getClientSecret(context)
+
+        if (ruc != null && user != null && solPassword != null &&
+            clientId != null && clientSecret != null
+        ) {
+            // Pequeña pausa para que se vea la carga inicial
             delay(500)
-            val ruc = SunatPrefs.getRuc(context)
-            val user = SunatPrefs.getUser(context)
-            val solPassword = SunatPrefs.getSolPassword(context)
-            val clientId = SunatPrefs.getClientId(context)
-            val clientSecret = SunatPrefs.getClientSecret(context)
 
-            // 🔴 FUERZA CARGA DE BD PRIMERO PARA VER SI FUNCIONA
-            println("🔴🔴🔴 MODO DEBUG: CARGANDO SOLO BD PRIMERO")
-            purchaseViewModel.loadInvoicesFromDB(
-                isPurchase = (sectionActive == Section.PURCHASES)
+            val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+            val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
+
+            viewModel.loadInvoicesFromAPI(
+                periodStart = periodStart,
+                periodEnd = periodEnd,
+                isPurchase = sectionActive == Section.PURCHASES,
+                context = context
             )
+        } else {
+            // Si no hay credenciales, mostrar diálogo de login
+            consultAfterLogin = true
+            showCredentialsDialog = true
+        }
+    }
 
-            delay(200) // Esperar 2 segundos
-
-            val invoicesAfterDB = purchaseInvoices
-            println("🔍 Facturas después de solo BD: ${invoicesAfterDB.size}")
-            invoicesAfterDB.forEach {
-                println("   - ${it.series}-${it.number} (Origen: ${if (it.id != null) "BD" else "API"})")
-            }
-
-            // ✅ NUEVA LÓGICA: SIEMPRE "PRESIONAR" EL BOTÓN CONSULTAR AUTOMÁTICAMENTE
-            if (ruc != null && user != null && solPassword != null &&
-                clientId != null && clientSecret != null) {
-                // Si hay credenciales, cargar API directamente
-                val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
-                val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-
-                println("🟢 Cargando desde API SUNAT/SIRE...")
-                purchaseViewModel.loadInvoicesFromAPI(
-                    periodStart = periodStart,
-                    periodEnd = periodEnd,
-                    isPurchase = (sectionActive == Section.PURCHASES),
-                    ruc = ruc,
-                    user = user,
-                    solPassword = solPassword,
-                    clientId = clientId,
-                    clientSecret = clientSecret
-                )
-            } else {
-                // Si NO hay credenciales, "simular" el clic en el botón Consultar
-                println("🟡 No hay credenciales - mostrando diálogo de login")
-                consultAfterLogin = true
-                showCredentialsDialog = true
-            }
-
-            isListVisible = true
-            isInitialLoadDone = true
+    // Efecto para mostrar errores
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.clearError()
         }
     }
 
     // Calcular lista filtrada
-    val filteredList = calculateFilteredList(
-        sectionActive = sectionActive,
-        isListVisible = isListVisible,
-        selectedStartMillis = selectedStartMillis,
-        selectedEndMillis = selectedEndMillis,
-        hasLoadedSunatData = true,
-        purchaseInvoices = purchaseInvoices,
-        salesInvoices = salesInvoices,
-        todayMillis = todayMillis
-    )
+    val filteredList = remember(
+        sectionActive,
+        isListVisible,
+        selectedStartMillis,
+        selectedEndMillis,
+        purchaseInvoices,
+        salesInvoices
+    ) {
+        val baseList = if (sectionActive == Section.PURCHASES) purchaseInvoices else salesInvoices
+        val start = selectedStartMillis ?: todayMillis
+        val end = selectedEndMillis ?: start
 
-    val hasInvoicesInProcess by remember {
-        derivedStateOf {
-            filteredList.any { it.status == "EN PROCESO" }
-        }
+        baseList.filter { invoice ->
+            try {
+                val dateParts = invoice.issueDate.split("/")
+                if (dateParts.size == 3) {
+                    val day = dateParts[0].toInt()
+                    val month = dateParts[1].toInt() - 1
+                    val year = dateParts[2].toInt()
+                    val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
+                        set(year, month, day, 0, 0, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+                    val invoiceMillis = calendar.timeInMillis
+                    invoiceMillis in start..end
+                } else false
+            } catch (e: Exception) {
+                false
+            }
+        }.sortedByDescending { it.issueDate }
     }
 
-    // Diálogo de credenciales de acceso
+    val hasInvoicesInProcess = filteredList.any { it.status == "EN PROCESO" }
+
+    // Diálogo de credenciales
     if (showCredentialsDialog) {
         var isValidating by remember { mutableStateOf(false) }
-        var errorMessage by remember { mutableStateOf<String?>(null) }
         var passwordVisible by remember { mutableStateOf(false) }
         var clientSecretVisible by remember { mutableStateOf(false) }
+        var localError by remember { mutableStateOf<String?>(null) }
 
         AlertDialog(
-            onDismissRequest = {
-                if (!isValidating) {
-                }
-            },
+            onDismissRequest = { if (!isValidating) showCredentialsDialog = false },
             title = { Text("Credenciales SUNAT") },
             text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Complete sus credenciales SUNAT para continuar:")
-
-                    // RUC
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Complete para continuar:")
                     OutlinedTextField(
                         value = rucInput,
                         onValueChange = {
-                            val newValue = it.filter { char -> char.isDigit() }
-                            if (newValue.length <= 11) {
-                                rucInput = newValue
-                                errorMessage = null
-                            }
+                            rucInput = it.filter { char -> char.isDigit() }.take(11)
                         },
                         label = { Text("RUC") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        isError = errorMessage != null,
-                        supportingText = if (errorMessage != null) {
-                            { Text(errorMessage!!, color = Color.Red) }
-                        } else {
-                            { Text("${rucInput.length}/11 dígitos") }
-                        }
+                        isError = localError != null,
+                        supportingText = { Text("${rucInput.length}/11 dígitos") }
                     )
-
-                    // Usuario (siempre mayúsculas)
                     OutlinedTextField(
                         value = userInput,
-                        onValueChange = {
-                            if (it.length <= 8) {
-                                userInput = it.uppercase()
-                                errorMessage = null
-                            }
-                        },
+                        onValueChange = { userInput = it.uppercase().take(8) },
                         label = { Text("Usuario SOL") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        isError = errorMessage != null,
-                        supportingText = {
-                            Text("${userInput.length}/8 caracteres")
-                        }
+                        supportingText = { Text("${userInput.length}/8 caracteres") }
                     )
-
-                    // Clave SOL
                     OutlinedTextField(
                         value = solPasswordInput,
-                        onValueChange = {
-                            if (it.length <= 12) {
-                                solPasswordInput = it
-                                errorMessage = null
-                            }
-                        },
+                        onValueChange = { solPasswordInput = it.take(12) },
                         label = { Text("Clave SOL") },
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        isError = errorMessage != null,
-                        supportingText = {
-                            Text("${solPasswordInput.length}/12 caracteres")
-                        },
                         trailingIcon = {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
                                 Icon(
-                                    imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                                    contentDescription = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña"
+                                    if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                    contentDescription = null
                                 )
                             }
                         }
                     )
-
-                    // Campo Client ID
                     OutlinedTextField(
                         value = clientIdInput,
                         onValueChange = { clientIdInput = it },
                         label = { Text("Client ID") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        isError = errorMessage != null,
+                        modifier = Modifier.fillMaxWidth()
                     )
-
-                    // Campo Client Secret
                     OutlinedTextField(
                         value = clientSecretInput,
                         onValueChange = { clientSecretInput = it },
@@ -311,52 +227,44 @@ fun PurchaseDetailScreen(
                         visualTransformation = if (clientSecretVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        isError = errorMessage != null,
                         trailingIcon = {
                             IconButton(onClick = { clientSecretVisible = !clientSecretVisible }) {
                                 Icon(
-                                    imageVector = if (clientSecretVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                                    contentDescription = if (clientSecretVisible) "Hide" else "Show"
+                                    if (clientSecretVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                    contentDescription = null
                                 )
                             }
                         }
                     )
-
                     TextButton(
                         onClick = { showTutorial = true },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = "Help",
+                            Icons.Default.Info,
+                            contentDescription = null,
                             tint = Color(0xFF1FB8B9),
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "¿Cómo obtener Client ID y Client Secret?",
+                            "¿Cómo obtener Client ID y Client Secret?",
                             color = Color(0xFF1FB8B9),
                             fontSize = 13.sp
                         )
                     }
-
                     if (isValidating) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
                                 color = Color(0xFF1FB8B9)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Validando credenciales con SUNAT...",
-                                fontSize = 12.sp,
-                                color = Color.Gray
-                            )
+                            Text("Validando credenciales...", fontSize = 12.sp, color = Color.Gray)
                         }
+                    }
+                    localError?.let {
+                        Text(it, color = Color.Red, fontSize = 12.sp)
                     }
                 }
             },
@@ -365,77 +273,63 @@ fun PurchaseDetailScreen(
                     onClick = {
                         coroutineScope.launch {
                             if (rucInput.length != 11) {
-                                errorMessage = "El RUC debe tener 11 dígitos"
+                                localError = "El RUC debe tener 11 dígitos"
                                 return@launch
                             }
-
                             if (solPasswordInput.isEmpty()) {
-                                errorMessage = "La clave SOL no puede estar vacía"
+                                localError = "La clave SOL no puede estar vacía"
                                 return@launch
                             }
-
                             if (clientIdInput.isEmpty()) {
-                                errorMessage = "El Client ID no puede estar vacío"
+                                localError = "El Client ID no puede estar vacío"
                                 return@launch
                             }
                             if (clientSecretInput.isEmpty()) {
-                                errorMessage = "El Client Secret no puede estar vacío"
+                                localError = "El Client Secret no puede estar vacío"
                                 return@launch
                             }
 
                             isValidating = true
-                            errorMessage = null
+                            localError = null
 
-                            val isValid = purchaseViewModel.validateSunatCredentials(
+                            viewModel.validateSunatCredentials(
                                 ruc = rucInput,
                                 user = userInput,
                                 solPassword = solPasswordInput,
                                 clientId = clientIdInput,
                                 clientSecret = clientSecretInput
-                            )
+                            ) { isValid ->
+                                isValidating = false
+                                if (isValid) {
+                                    SunatPrefs.saveRuc(context, rucInput)
+                                    SunatPrefs.saveUser(context, userInput)
+                                    SunatPrefs.saveSolPassword(context, solPasswordInput)
+                                    SunatPrefs.saveClientId(context, clientIdInput)
+                                    SunatPrefs.saveClientSecret(context, clientSecretInput)
 
-                            isValidating = false
+                                    if (consultAfterLogin) {
+                                        val periodStart =
+                                            convertDateToPeriod(selectedStartMillis ?: todayMillis)
+                                        val periodEnd =
+                                            convertDateToPeriod(selectedEndMillis ?: todayMillis)
+                                        viewModel.loadInvoicesFromAPI(
+                                            periodStart, periodEnd,
+                                            sectionActive == Section.PURCHASES,
+                                            context
+                                        )
+                                        isListVisible = true
+                                        consultAfterLogin = false
+                                    }
 
-                            if (isValid) {
-                                SunatPrefs.saveRuc(context, rucInput)
-                                SunatPrefs.saveUser(context, userInput)
-                                SunatPrefs.saveSolPassword(context, solPasswordInput)
-                                SunatPrefs.saveClientId(context, clientIdInput)
-                                SunatPrefs.saveClientSecret(context, clientSecretInput)
-
-                                if (consultAfterLogin) {
-                                    val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
-                                    val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-
-                                    purchaseViewModel.loadInvoicesFromAPI(
-                                        periodStart = periodStart,
-                                        periodEnd = periodEnd,
-                                        isPurchase = (sectionActive == Section.PURCHASES),
-                                        ruc = rucInput,
-                                        user = userInput,
-                                        solPassword = solPasswordInput,
-                                        clientId = clientIdInput,
-                                        clientSecret = clientSecretInput
-                                    )
-
-                                    isListVisible = true
-                                    consultAfterLogin = false
+                                    showCredentialsDialog = false
+                                    Toast.makeText(
+                                        context,
+                                        "✅ Credenciales guardadas",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    localError = "Credenciales incorrectas"
                                 }
-
-                                showCredentialsDialog = false
-                                rucInput = ""
-                                userInput = ""
-                                solPasswordInput = ""
-                                clientIdInput = ""
-                                clientSecretInput = ""
-
-                                Toast.makeText(
-                                    context,
-                                    "✅ Credenciales válidas. Guardadas correctamente.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            } else {
-                                errorMessage = "Credenciales incorrectas. Verifique RUC, Usuario y Clave SOL."
                             }
                         }
                     },
@@ -443,31 +337,15 @@ fun PurchaseDetailScreen(
                             rucInput.length == 11 &&
                             userInput.isNotEmpty() &&
                             solPasswordInput.isNotEmpty() &&
-                            solPasswordInput.length <= 12 &&
                             clientIdInput.isNotEmpty() &&
                             clientSecretInput.isNotEmpty()
                 ) {
-                    if (isValidating) {
-                        Text("Validando...")
-                    } else {
-                        Text("Validar y Guardar")
-                    }
+                    Text(if (isValidating) "Validando..." else "Validar y Guardar")
                 }
             },
             dismissButton = {
                 TextButton(
-                    onClick = {
-                        if (!isValidating) {
-                            showCredentialsDialog = false
-                            rucInput = ""
-                            userInput = ""
-                            solPasswordInput = ""
-                            clientIdInput = ""
-                            clientSecretInput = ""
-                            consultAfterLogin = false
-                            errorMessage = null
-                        }
-                    },
+                    onClick = { if (!isValidating) showCredentialsDialog = false },
                     enabled = !isValidating
                 ) {
                     Text("Cancelar")
@@ -479,52 +357,33 @@ fun PurchaseDetailScreen(
     // Diálogo de logout
     if (showLogoutDialog) {
         AlertDialog(
-            onDismissRequest = {
-            },
+            onDismissRequest = { showLogoutDialog = false },
             title = { Text("Cerrar Sesión") },
             text = { Text("¿Estás seguro de que deseas cerrar sesión?") },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        // Limpiar credenciales guardadas
                         SunatPrefs.clearCredentials(context)
-
-                        // Limpiar lista de facturas
-                        purchaseViewModel.clearInvoices()
-
-                        // Resetear estados
+                        viewModel.clearInvoices()
                         isListVisible = false
                         showLogoutDialog = false
-
-                        // Volver a mostrar el diálogo de credenciales
                         consultAfterLogin = true
                         showCredentialsDialog = true
-
-                        Toast.makeText(
-                            context,
-                            "Sesión cerrada. Ingrese nuevas credenciales.",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = Color(0xFF1FB8B9)
-                    )
+                        Toast.makeText(context, "Sesión cerrada", Toast.LENGTH_SHORT).show()
+                    }
                 ) {
                     Text("Aceptar")
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = {
-                        showLogoutDialog = false
-                    }
-                ) {
+                TextButton(onClick = { showLogoutDialog = false }) {
                     Text("Cancelar")
                 }
             }
         )
     }
 
+    // Selector de fechas
     if (showCustomDatePicker) {
         CustomDatePickerDialog(
             onDismiss = { showCustomDatePicker = false },
@@ -543,506 +402,7 @@ fun PurchaseDetailScreen(
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(1.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
-    ) {
-        InvoiceLoadingDialog(
-            isLoading = showLoadingDialog,
-            statusMessage = loadingStatus,
-            debugInfo = loadingDebugInfo,
-            onDismiss = {
-                showLoadingDialog = false
-                loadingDebugInfo = null
-                loadingInvoiceId = null
-            }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // TÍTULO CON ICONO DE LOGOUT A LA DERECHA
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-        ) {
-            Text(
-                text = "Registro Contable",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.Center)
-            )
-
-            IconButton(
-                onClick = { showLogoutDialog = true },
-                enabled = hasActiveSession,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .size(40.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.PowerSettingsNew,
-                    contentDescription = "Cerrar sesión",
-                    tint = if (hasActiveSession) Color(0xFF1FB8B9) else Color.Gray,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(15.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Button(
-                onClick = {
-                    sectionActive = Section.PURCHASES
-                    onPurchasesClick()
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(45.dp),
-                shape = MaterialTheme.shapes.medium,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (sectionActive == Section.PURCHASES) Color(0xFFFF5A00) else Color.Gray
-                )
-            ) {
-                Text(text = "Compras", style = MaterialTheme.typography.titleMedium)
-            }
-
-            Button(
-                onClick = {
-                    sectionActive = Section.SALES
-                    onSalesClick()
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(45.dp),
-                shape = MaterialTheme.shapes.medium,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (sectionActive == Section.SALES) Color(0xFFFF5A00) else Color.Gray
-                )
-            ) {
-                Text(text = "Ventas", style = MaterialTheme.typography.titleMedium)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(15.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                IconButton(
-                    onClick = {
-                        if (filteredList.isEmpty()) {
-                            Toast.makeText(
-                                context,
-                                "No hay facturas en lista para detallar",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            return@IconButton
-                        }
-
-                        val processableInvoices = filteredList.filter { invoice ->
-                            invoice.status != "CON DETALLE" &&
-                                    invoice.status != "REGISTRADO" &&
-                                    invoice.status != "EN PROCESO"
-                        }
-
-                        if (processableInvoices.isEmpty()) {
-                            Toast.makeText(
-                                context,
-                                "Todas las facturas ya tienen detalle o están en proceso",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            return@IconButton
-                        }
-
-                        val ruc = SunatPrefs.getRuc(context)
-                        val user = SunatPrefs.getUser(context)
-                        val solPassword = SunatPrefs.getSolPassword(context)
-
-                        if (ruc == null || user == null || solPassword == null) {
-                            Toast.makeText(
-                                context,
-                                "⚠️ Primero configure sus credenciales SUNAT en el botón CONSULTAR",
-                                Toast.LENGTH_LONG
-                            ).show()
-                            return@IconButton
-                        }
-
-                        coroutineScope.launch {
-                            var successful = 0
-                            var failed = 0
-                            val total = processableInvoices.size
-
-                            isDetailingAll = true
-                            loadingStatus = "Procesando 0/$total facturas..."
-
-                            processableInvoices.forEach { invoice ->
-                                val currentIsPurchase = (sectionActive == Section.PURCHASES)
-                                val issuerRuc = purchaseViewModel.getIssuerRuc(invoice.id) ?: invoice.ruc
-
-                                val result = suspendCoroutine { continuation ->
-                                    purchaseViewModel.loadInvoiceDetailXmlWithUser(
-                                        invoiceId = invoice.id,
-                                        isPurchase = currentIsPurchase,
-                                        issuerRuc = issuerRuc,
-                                        context = context
-                                    ) { success, _ ->
-                                        continuation.resume(success)
-                                    }
-                                }
-
-                                if (result) successful++ else failed++
-
-                                withContext(Dispatchers.Main) {
-                                    loadingStatus = "Procesando ${successful + failed}/$total facturas...\n✅ Exitosas: $successful\n❌ Fallidas: $failed"
-                                }
-
-                                delay(300)
-                            }
-
-                            withContext(Dispatchers.Main) {
-                                isDetailingAll = false
-                                Toast.makeText(
-                                    context,
-                                    "✅ Proceso completado: $successful exitosas, $failed fallidas",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        }
-                    },
-                    modifier = Modifier.size(40.dp),
-                    enabled = !hasInvoicesInProcess && !isDetailingAll
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Visibility,
-                        contentDescription = "Detallar todas las facturas",
-                        tint = if (hasInvoicesInProcess || isDetailingAll)
-                            Color.Gray
-                        else
-                            Color(0xFF1FB8B9),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Column(
-                    horizontalAlignment = Alignment.Start,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "Detallar",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF1FB8B9),
-                        lineHeight = 16.sp
-                    )
-                    Text(
-                        text = "todas",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF1FB8B9),
-                        lineHeight = 16.sp
-                    )
-                }
-            }
-
-            DateRangeSelector(
-                selectedStartMillis = selectedStartMillis,
-                selectedEndMillis = selectedEndMillis,
-                onDateRangeClick = { showCustomDatePicker = true },
-                modifier = Modifier
-            )
-        }
-
-        Spacer(modifier = Modifier.height(15.dp))
-
-        StatusLegend(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 16.dp)
-                .border(1.dp, Color.LightGray),
-            contentAlignment = Alignment.Center
-        ) {
-            if (isLoading) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    CircularProgressIndicator(color = Color(0xFF1FB8B9))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Cargando facturas desde SUNAT...",
-                        fontSize = 14.sp,
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                val horizontalScrollState = rememberScrollState()
-                val totalWidth = 470.dp
-
-                Column(modifier = Modifier.horizontalScroll(horizontalScrollState)) {
-                    Row(
-                        modifier = Modifier
-                            .width(totalWidth)
-                            .background(Color.LightGray)
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        HeaderCell("Estado", 100.dp)
-                        HeaderCell("RUC", 110.dp)
-                        HeaderCell("Serie - Número", 160.dp)
-                        HeaderCell("Fecha", 100.dp)
-                    }
-
-                    Column(
-                        modifier = Modifier
-                            .width(totalWidth)
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        if (!isListVisible) {
-                            Text(
-                                "Presione CONSULTAR para iniciar sesion",
-                                modifier = Modifier
-                                    .width(totalWidth)
-                                    .padding(20.dp),
-                                textAlign = TextAlign.Center,
-                                color = Color.Gray
-                            )
-                        } else if (filteredList.isEmpty()) {
-                            Text(
-                                "No hay facturas para mostrar",
-                                modifier = Modifier
-                                    .width(totalWidth)
-                                    .padding(20.dp),
-                                textAlign = TextAlign.Center,
-                                color = Color.Gray
-                            )
-                        } else {
-                            filteredList.forEachIndexed { index, invoice ->
-                                Column(
-                                    modifier = Modifier.width(totalWidth)
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .width(totalWidth)
-                                            .background(Color(0xFFB0C4DE))
-                                            .padding(vertical = 8.dp, horizontal = 8.dp)
-                                    ) {
-                                        Text(
-                                            text = invoice.businessName ?: "",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Color.Black
-                                        )
-                                    }
-                                    Row(
-                                        modifier = Modifier
-                                            .width(totalWidth)
-                                            .padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.width(100.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                IconButton(
-                                                    onClick = {
-                                                        if (invoice.status == "EN PROCESO") {
-                                                            return@IconButton
-                                                        }
-
-                                                        val currentIsPurchase = (sectionActive == Section.PURCHASES)
-
-                                                        val ruc = SunatPrefs.getRuc(context)
-                                                        val user = SunatPrefs.getUser(context)
-                                                        val solPassword = SunatPrefs.getSolPassword(context)
-
-                                                        if (ruc == null || user == null || solPassword == null) {
-                                                            Toast.makeText(
-                                                                context,
-                                                                "⚠️ Primero configure sus credenciales SUNAT en el botón CONSULTAR",
-                                                                Toast.LENGTH_SHORT
-                                                            ).show()
-                                                            return@IconButton
-                                                        }
-
-                                                        if (invoice.status == "CON DETALLE" || invoice.status == "REGISTRADO") {
-                                                            onNavigateToDetail(
-                                                                DetailRoute(
-                                                                    id = invoice.id,
-                                                                    isPurchase = currentIsPurchase
-                                                                )
-                                                            )
-                                                            return@IconButton
-                                                        }
-
-                                                        val issuerRuc = purchaseViewModel.getIssuerRuc(invoice.id) ?: invoice.ruc
-
-                                                        purchaseViewModel.loadInvoiceDetailXmlWithUser(
-                                                            invoiceId = invoice.id,
-                                                            isPurchase = currentIsPurchase,
-                                                            issuerRuc = issuerRuc,
-                                                            context = context
-                                                        ) { success, message ->
-                                                            if (success) {
-                                                                Toast.makeText(context, "✅ $message", Toast.LENGTH_SHORT).show()
-                                                            } else {
-                                                                Toast.makeText(context, "❌ $message", Toast.LENGTH_SHORT).show()
-                                                            }
-                                                        }
-                                                    },
-                                                    modifier = Modifier.size(24.dp),
-                                                    enabled = invoice.status != "EN PROCESO"
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Filled.Visibility,
-                                                        contentDescription = "Ver detalle",
-                                                        modifier = Modifier.size(20.dp),
-                                                        tint = if (invoice.status == "EN PROCESO")
-                                                            Color.Gray
-                                                        else
-                                                            Color.Black
-                                                    )
-                                                }
-                                                InvoiceStatusCircle(invoice.status, size = 14.dp)
-                                            }
-                                        }
-                                        SimpleTableCell(invoice.ruc, 110.dp)
-                                        Box(
-                                            modifier = Modifier.width(160.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "${invoice.series} - ${invoice.number}",
-                                                fontSize = 13.sp,
-                                                color = Color.Black
-                                            )
-                                        }
-                                        SimpleTableCell(invoice.issueDate, 100.dp)
-                                    }
-                                    if (index < filteredList.size - 1) {
-                                        Divider(
-                                            modifier = Modifier.width(totalWidth),
-                                            thickness = 0.5.dp,
-                                            color = Color.LightGray
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (isListVisible) {
-                        Row(
-                            modifier = Modifier
-                                .width(totalWidth)
-                                .background(Color.LightGray)
-                                .padding(vertical = 10.dp, horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.Start
-                        ) {
-                            Text(
-                                text = "Facturas registradas: ${filteredList.size}",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = {
-                    val ruc = SunatPrefs.getRuc(context)
-                    val user = SunatPrefs.getUser(context)
-                    val solPassword = SunatPrefs.getSolPassword(context)
-                    val clientId = SunatPrefs.getClientId(context)
-                    val clientSecret = SunatPrefs.getClientSecret(context)
-
-                    if (ruc == null || user == null || solPassword == null ||
-                        clientId == null || clientSecret == null) {
-                        consultAfterLogin = true
-                        showCredentialsDialog = true
-                        return@Button
-                    }
-
-                    val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
-                    val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-
-                    purchaseViewModel.loadInvoicesFromAPI(
-                        periodStart = periodStart,
-                        periodEnd = periodEnd,
-                        isPurchase = (sectionActive == Section.PURCHASES),
-                        ruc = ruc,
-                        user = user,
-                        solPassword = solPassword,
-                        clientId = clientId,
-                        clientSecret = clientSecret
-                    )
-                    isListVisible = true
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(45.dp),
-                shape = MaterialTheme.shapes.medium,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9))
-            ) {
-                Text("Consultar", style = MaterialTheme.typography.titleMedium)
-            }
-
-            if (sectionActive == Section.PURCHASES) {
-                Button(
-                    onClick = onNavigateToRegister,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(45.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9))
-                ) {
-                    Text("Subir Factura", style = MaterialTheme.typography.titleMedium)
-                }
-            }
-        }
-    }
+    // Tutorial
     if (showTutorial) {
         TutorialSunatDialog(
             onDismiss = { showTutorial = false },
@@ -1054,18 +414,221 @@ fun PurchaseDetailScreen(
             }
         )
     }
+
+    // Loading Dialog
+    if (showLoadingDialog) {
+        InvoiceLoadingDialog(
+            isLoading = true,
+            statusMessage = loadingStatus,
+            debugInfo = loadingDebugInfo,
+            onDismiss = {
+                viewModel.clearLoadingDialog()
+            }
+        )
+    }
+
+    // Scaffold ahora está aquí
+    Scaffold(
+        topBar = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = "Registro Contable",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+                IconButton(
+                    onClick = { showLogoutDialog = true },
+                    enabled = hasActiveSession,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.PowerSettingsNew,
+                        contentDescription = "Cerrar sesión",
+                        tint = if (hasActiveSession) Color(0xFF1FB8B9) else Color.Gray
+                    )
+                }
+            }
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Botones de sección (Compras/Ventas)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { sectionActive = Section.PURCHASES },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(45.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (sectionActive == Section.PURCHASES) Color(0xFFFF5A00) else Color.Gray
+                    )
+                ) {
+                    Text("Compras", style = MaterialTheme.typography.titleMedium)
+                }
+                Button(
+                    onClick = { sectionActive = Section.SALES },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(45.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (sectionActive == Section.SALES) Color(0xFFFF5A00) else Color.Gray
+                    )
+                ) {
+                    Text("Ventas", style = MaterialTheme.typography.titleMedium)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(15.dp))
+
+            // Selector de fechas y botón "Detallar todo"
+            DateFilterSection(
+                selectedStartMillis = selectedStartMillis,
+                selectedEndMillis = selectedEndMillis,
+                onDateRangeClick = { showCustomDatePicker = true },
+                onDetailAllClick = {
+                    val processable = filteredList.filter {
+                        it.status !in setOf(
+                            "CON DETALLE",
+                            "REGISTRADO",
+                            "EN PROCESO"
+                        )
+                    }
+                    viewModel.detailAllInvoices(context, processable, sectionActive)
+                },
+                isDetailAllEnabled = filteredList.isNotEmpty() && !hasInvoicesInProcess,
+                isDetailingAll = isDetailingAll
+            )
+
+            Spacer(modifier = Modifier.height(15.dp))
+
+            StatusLegend()
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Tabla de facturas (nuevo componente)
+            InvoiceTable(
+                invoices = filteredList,
+                sectionActive = sectionActive,
+                isListVisible = isListVisible,
+                onInvoiceClick = { invoice, isPurchase ->
+                    if (invoice.status == "CON DETALLE" || invoice.status == "REGISTRADO") {
+                        onNavigateToDetail(DetailRoute(invoice.id, isPurchase))
+                    } else {
+                        val issuerRuc = viewModel.getIssuerRuc(invoice.id) ?: invoice.ruc
+                        viewModel.loadInvoiceDetailXmlWithUser(
+                            invoiceId = invoice.id,
+                            isPurchase = isPurchase,
+                            issuerRuc = issuerRuc,
+                            context = context
+                        ) { success, message ->
+                            if (success) {
+                                onNavigateToDetail(DetailRoute(invoice.id, isPurchase))
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    message ?: "Error al cargar detalle",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    }
+                },
+                isLoading = isLoading,
+                modifier = Modifier.weight(1f)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Botones inferiores
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        val ruc = SunatPrefs.getRuc(context)
+                        val user = SunatPrefs.getUser(context)
+                        val solPassword = SunatPrefs.getSolPassword(context)
+                        val clientId = SunatPrefs.getClientId(context)
+                        val clientSecret = SunatPrefs.getClientSecret(context)
+
+                        if (ruc == null || user == null || solPassword == null ||
+                            clientId == null || clientSecret == null
+                        ) {
+                            consultAfterLogin = true
+                            showCredentialsDialog = true
+                            return@Button
+                        }
+
+                        val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+                        val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
+
+                        viewModel.loadInvoicesFromAPI(
+                            periodStart, periodEnd,
+                            sectionActive == Section.PURCHASES,
+                            context
+                        )
+                        isListVisible = true
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(45.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9))
+                ) {
+                    Text("Consultar")
+                }
+
+                if (sectionActive == Section.PURCHASES) {
+                    Button(
+                        onClick = onNavigateToRegister,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(45.dp),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9))
+                    ) {
+                        Text("Subir Factura")
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun convertDateToPeriod(millis: Long): String {
+    val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
+        timeInMillis = millis
+    }
+    val year = calendar.get(Calendar.YEAR)
+    val month = calendar.get(Calendar.MONTH) + 1
+    return "${year}${String.format("%02d", month)}"
 }
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
-fun PurchaseScreenPreview() {
-    val purchaseViewModel: PurchaseViewModel = viewModel()
-    val invoiceViewModel: InvoiceViewModel = viewModel()
+fun PurchaseDetailScreenPreview() {
     PurchaseDetailScreen(
-        purchaseViewModel = purchaseViewModel,
-        invoiceViewModel = invoiceViewModel,
-        onPurchasesClick = { },
-        onSalesClick = { },
+        viewModel = viewModel(),
         onNavigateToRegister = { },
         onNavigateToDetail = { }
     )
