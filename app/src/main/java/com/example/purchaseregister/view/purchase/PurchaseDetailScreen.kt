@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.PowerSettingsNew
@@ -20,9 +21,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel  // ← AGREGAR ESTE IMPORT PARA EL PREVIEW
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.purchaseregister.components.CustomDatePickerDialog
 import com.example.purchaseregister.components.InvoiceLoadingDialog
+import com.example.purchaseregister.components.ProfileDialog
 import com.example.purchaseregister.components.StatusLegend
 import com.example.purchaseregister.components.TutorialSunatDialog
 import com.example.purchaseregister.navigation.DetailRoute
@@ -56,11 +58,12 @@ fun PurchaseDetailScreen(
     var selectedStartMillis by remember { mutableStateOf<Long?>(firstDayOfMonth) }
     var selectedEndMillis by remember { mutableStateOf<Long?>(lastDayOfMonth) }
 
-    // Estados para diálogos de credenciales
+    // Estados para diálogos
     var showCredentialsDialog by remember { mutableStateOf(false) }
     var consultAfterLogin by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showTutorial by remember { mutableStateOf(false) }
+    var showProfileDialog by remember { mutableStateOf(false) } // NUEVO: Estado para perfil
 
     // Estados de entrada de credenciales
     var rucInput by remember { mutableStateOf("") }
@@ -89,11 +92,9 @@ fun PurchaseDetailScreen(
 
     // Carga inicial
     LaunchedEffect(Unit) {
-        // Cargar facturas de BD al inicio
         viewModel.loadInvoicesFromDB(sectionActive == Section.PURCHASES)
         isListVisible = true
 
-        // Auto-consultar si hay credenciales guardadas
         val ruc = SunatPrefs.getRuc(context)
         val user = SunatPrefs.getUser(context)
         val solPassword = SunatPrefs.getSolPassword(context)
@@ -103,7 +104,6 @@ fun PurchaseDetailScreen(
         if (ruc != null && user != null && solPassword != null &&
             clientId != null && clientSecret != null
         ) {
-            // Pequeña pausa para que se vea la carga inicial
             delay(500)
 
             val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
@@ -116,7 +116,6 @@ fun PurchaseDetailScreen(
                 context = context
             )
         } else {
-            // Si no hay credenciales, mostrar diálogo de login
             consultAfterLogin = true
             showCredentialsDialog = true
         }
@@ -165,7 +164,215 @@ fun PurchaseDetailScreen(
 
     val hasInvoicesInProcess = filteredList.any { it.status == "EN PROCESO" }
 
-    // Diálogo de credenciales
+    // SCAFFOLD PRINCIPAL
+    Scaffold(
+        topBar = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                // Ícono de persona (PERFIL) a la izquierda
+                IconButton(
+                    onClick = {
+                        showProfileDialog = true // Abre el diálogo de perfil
+                    },
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Perfil",
+                        tint = Color(0xFF1FB8B9),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                // Título centrado
+                Text(
+                    text = "Registro Contable",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+
+                // Ícono de logout a la derecha
+                IconButton(
+                    onClick = { showLogoutDialog = true },
+                    enabled = hasActiveSession,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.PowerSettingsNew,
+                        contentDescription = "Cerrar sesión",
+                        tint = if (hasActiveSession) Color(0xFF1FB8B9) else Color.Gray
+                    )
+                }
+            }
+        }
+    ) { paddingValues ->
+        // CONTENIDO PRINCIPAL DE LA PANTALLA
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Botones de sección (Compras/Ventas)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { sectionActive = Section.PURCHASES },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(45.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (sectionActive == Section.PURCHASES) Color(0xFFFF5A00) else Color.Gray
+                    )
+                ) {
+                    Text("Compras", style = MaterialTheme.typography.titleMedium)
+                }
+                Button(
+                    onClick = { sectionActive = Section.SALES },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(45.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (sectionActive == Section.SALES) Color(0xFFFF5A00) else Color.Gray
+                    )
+                ) {
+                    Text("Ventas", style = MaterialTheme.typography.titleMedium)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(15.dp))
+
+            // Selector de fechas y botón "Detallar todo"
+            DateFilterSection(
+                selectedStartMillis = selectedStartMillis,
+                selectedEndMillis = selectedEndMillis,
+                onDateRangeClick = { showCustomDatePicker = true },
+                onDetailAllClick = {
+                    val processable = filteredList.filter {
+                        it.status !in setOf(
+                            "CON DETALLE",
+                            "REGISTRADO",
+                            "EN PROCESO"
+                        )
+                    }
+                    viewModel.detailAllInvoices(context, processable, sectionActive)
+                },
+                isDetailAllEnabled = filteredList.isNotEmpty() && !hasInvoicesInProcess,
+                isDetailingAll = isDetailingAll
+            )
+
+            Spacer(modifier = Modifier.height(15.dp))
+
+            StatusLegend()
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Tabla de facturas
+            InvoiceTable(
+                invoices = filteredList,
+                sectionActive = sectionActive,
+                isListVisible = isListVisible,
+                onInvoiceClick = { invoice, isPurchase ->
+                    if (invoice.status == "CON DETALLE" || invoice.status == "REGISTRADO") {
+                        onNavigateToDetail(DetailRoute(invoice.id, isPurchase))
+                    } else {
+                        val issuerRuc = viewModel.getIssuerRuc(invoice.id) ?: invoice.ruc
+                        viewModel.loadInvoiceDetailXmlWithUser(
+                            invoiceId = invoice.id,
+                            isPurchase = isPurchase,
+                            issuerRuc = issuerRuc,
+                            context = context
+                        ) { success, message ->
+                            if (success) {
+                                onNavigateToDetail(DetailRoute(invoice.id, isPurchase))
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    message ?: "Error al cargar detalle",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    }
+                },
+                isLoading = isLoading,
+                modifier = Modifier.weight(1f)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Botones inferiores
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        val ruc = SunatPrefs.getRuc(context)
+                        val user = SunatPrefs.getUser(context)
+                        val solPassword = SunatPrefs.getSolPassword(context)
+                        val clientId = SunatPrefs.getClientId(context)
+                        val clientSecret = SunatPrefs.getClientSecret(context)
+
+                        if (ruc == null || user == null || solPassword == null ||
+                            clientId == null || clientSecret == null
+                        ) {
+                            consultAfterLogin = true
+                            showCredentialsDialog = true
+                            return@Button
+                        }
+
+                        val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+                        val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
+
+                        viewModel.loadInvoicesFromAPI(
+                            periodStart, periodEnd,
+                            sectionActive == Section.PURCHASES,
+                            context
+                        )
+                        isListVisible = true
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(45.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9))
+                ) {
+                    Text("Consultar")
+                }
+
+                if (sectionActive == Section.PURCHASES) {
+                    Button(
+                        onClick = onNavigateToRegister,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(45.dp),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9))
+                    ) {
+                        Text("Subir Factura")
+                    }
+                }
+            }
+        }
+    }
+
+    // Diálogo de credenciales SUNAT
     if (showCredentialsDialog) {
         var isValidating by remember { mutableStateOf(false) }
         var passwordVisible by remember { mutableStateOf(false) }
@@ -427,191 +634,17 @@ fun PurchaseDetailScreen(
         )
     }
 
-    // Scaffold ahora está aquí
-    Scaffold(
-        topBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = "Registro Contable",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-                IconButton(
-                    onClick = { showLogoutDialog = true },
-                    enabled = hasActiveSession,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.PowerSettingsNew,
-                        contentDescription = "Cerrar sesión",
-                        tint = if (hasActiveSession) Color(0xFF1FB8B9) else Color.Gray
-                    )
-                }
+    // Diálogo de perfil (Login/Register)
+    if (showProfileDialog) {
+        ProfileDialog(
+            onDismiss = { showProfileDialog = false },
+            onLoginSuccess = {
+                Toast.makeText(context, "✅ Sesión iniciada", Toast.LENGTH_SHORT).show()
+            },
+            onRegisterSuccess = {
+                Toast.makeText(context, "✅ Registro exitoso", Toast.LENGTH_SHORT).show()
             }
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Botones de sección (Compras/Ventas)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = { sectionActive = Section.PURCHASES },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(45.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (sectionActive == Section.PURCHASES) Color(0xFFFF5A00) else Color.Gray
-                    )
-                ) {
-                    Text("Compras", style = MaterialTheme.typography.titleMedium)
-                }
-                Button(
-                    onClick = { sectionActive = Section.SALES },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(45.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (sectionActive == Section.SALES) Color(0xFFFF5A00) else Color.Gray
-                    )
-                ) {
-                    Text("Ventas", style = MaterialTheme.typography.titleMedium)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(15.dp))
-
-            // Selector de fechas y botón "Detallar todo"
-            DateFilterSection(
-                selectedStartMillis = selectedStartMillis,
-                selectedEndMillis = selectedEndMillis,
-                onDateRangeClick = { showCustomDatePicker = true },
-                onDetailAllClick = {
-                    val processable = filteredList.filter {
-                        it.status !in setOf(
-                            "CON DETALLE",
-                            "REGISTRADO",
-                            "EN PROCESO"
-                        )
-                    }
-                    viewModel.detailAllInvoices(context, processable, sectionActive)
-                },
-                isDetailAllEnabled = filteredList.isNotEmpty() && !hasInvoicesInProcess,
-                isDetailingAll = isDetailingAll
-            )
-
-            Spacer(modifier = Modifier.height(15.dp))
-
-            StatusLegend()
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Tabla de facturas (nuevo componente)
-            InvoiceTable(
-                invoices = filteredList,
-                sectionActive = sectionActive,
-                isListVisible = isListVisible,
-                onInvoiceClick = { invoice, isPurchase ->
-                    if (invoice.status == "CON DETALLE" || invoice.status == "REGISTRADO") {
-                        onNavigateToDetail(DetailRoute(invoice.id, isPurchase))
-                    } else {
-                        val issuerRuc = viewModel.getIssuerRuc(invoice.id) ?: invoice.ruc
-                        viewModel.loadInvoiceDetailXmlWithUser(
-                            invoiceId = invoice.id,
-                            isPurchase = isPurchase,
-                            issuerRuc = issuerRuc,
-                            context = context
-                        ) { success, message ->
-                            if (success) {
-                                onNavigateToDetail(DetailRoute(invoice.id, isPurchase))
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    message ?: "Error al cargar detalle",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
-                    }
-                },
-                isLoading = isLoading,
-                modifier = Modifier.weight(1f)
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Botones inferiores
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        val ruc = SunatPrefs.getRuc(context)
-                        val user = SunatPrefs.getUser(context)
-                        val solPassword = SunatPrefs.getSolPassword(context)
-                        val clientId = SunatPrefs.getClientId(context)
-                        val clientSecret = SunatPrefs.getClientSecret(context)
-
-                        if (ruc == null || user == null || solPassword == null ||
-                            clientId == null || clientSecret == null
-                        ) {
-                            consultAfterLogin = true
-                            showCredentialsDialog = true
-                            return@Button
-                        }
-
-                        val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
-                        val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-
-                        viewModel.loadInvoicesFromAPI(
-                            periodStart, periodEnd,
-                            sectionActive == Section.PURCHASES,
-                            context
-                        )
-                        isListVisible = true
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(45.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9))
-                ) {
-                    Text("Consultar")
-                }
-
-                if (sectionActive == Section.PURCHASES) {
-                    Button(
-                        onClick = onNavigateToRegister,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(45.dp),
-                        shape = MaterialTheme.shapes.medium,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9))
-                    ) {
-                        Text("Subir Factura")
-                    }
-                }
-            }
-        }
+        )
     }
 }
 
