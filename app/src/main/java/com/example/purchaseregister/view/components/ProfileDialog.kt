@@ -18,6 +18,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.example.purchaseregister.utils.SessionPrefs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,11 +38,18 @@ fun ProfileDialog(
 
     val context = LocalContext.current
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = true,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false
+        )
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 500.dp),
+                .heightIn(max = 600.dp), // Aumentamos un poco el max height
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
@@ -48,7 +57,7 @@ fun ProfileDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
+                    .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Icono y título
@@ -68,9 +77,9 @@ fun ProfileDialog(
                     color = Color(0xFF1FB8B9)
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Tabs de Login/Register - CORREGIDO: weight dentro de Modifier
+                // Tabs de Login/Register
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -78,7 +87,7 @@ fun ProfileDialog(
                     Button(
                         onClick = { selectedTab = 0 },
                         modifier = Modifier
-                            .weight(1f)  // ← CORREGIDO: así se usa weight
+                            .weight(1f)
                             .height(40.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (selectedTab == 0) Color(0xFF1FB8B9) else Color.LightGray,
@@ -86,13 +95,13 @@ fun ProfileDialog(
                         ),
                         shape = MaterialTheme.shapes.medium
                     ) {
-                        Text("Iniciar Sesión", fontSize = 14.sp)
+                        Text("Iniciar Sesión", fontSize = 12.sp)
                     }
 
                     Button(
                         onClick = { selectedTab = 1 },
                         modifier = Modifier
-                            .weight(1f)  // ← CORREGIDO: así se usa weight
+                            .weight(1f)
                             .height(40.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (selectedTab == 1) Color(0xFF1FB8B9) else Color.LightGray,
@@ -100,11 +109,11 @@ fun ProfileDialog(
                         ),
                         shape = MaterialTheme.shapes.medium
                     ) {
-                        Text("Registrarse", fontSize = 14.sp)
+                        Text("Registrarse", fontSize = 12.sp)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Campos según la pestaña seleccionada
                 if (selectedTab == 0) {
@@ -112,7 +121,7 @@ fun ProfileDialog(
                     OutlinedTextField(
                         value = email,
                         onValueChange = { email = it },
-                        label = { Text("Correo electrónico") },
+                        label = { Text("Correo electrónico", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         leadingIcon = {
@@ -125,7 +134,8 @@ fun ProfileDialog(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color(0xFF1FB8B9),
                             focusedLabelColor = Color(0xFF1FB8B9)
-                        )
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -133,7 +143,7 @@ fun ProfileDialog(
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
-                        label = { Text("Contraseña") },
+                        label = { Text("Contraseña", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -156,14 +166,15 @@ fun ProfileDialog(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color(0xFF1FB8B9),
                             focusedLabelColor = Color(0xFF1FB8B9)
-                        )
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
                     )
                 } else {
                     // REGISTER - Todos los campos
                     OutlinedTextField(
                         value = username,
                         onValueChange = { username = it },
-                        label = { Text("Nombre de usuario") },
+                        label = { Text("Nombre de usuario", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         leadingIcon = {
@@ -176,7 +187,8 @@ fun ProfileDialog(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color(0xFF1FB8B9),
                             focusedLabelColor = Color(0xFF1FB8B9)
-                        )
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -184,7 +196,7 @@ fun ProfileDialog(
                     OutlinedTextField(
                         value = email,
                         onValueChange = { email = it },
-                        label = { Text("Correo electrónico") },
+                        label = { Text("Correo electrónico", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         leadingIcon = {
@@ -197,7 +209,8 @@ fun ProfileDialog(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color(0xFF1FB8B9),
                             focusedLabelColor = Color(0xFF1FB8B9)
-                        )
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -205,7 +218,7 @@ fun ProfileDialog(
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
-                        label = { Text("Contraseña") },
+                        label = { Text("Contraseña", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -228,7 +241,8 @@ fun ProfileDialog(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color(0xFF1FB8B9),
                             focusedLabelColor = Color(0xFF1FB8B9)
-                        )
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -236,7 +250,7 @@ fun ProfileDialog(
                     OutlinedTextField(
                         value = confirmPassword,
                         onValueChange = { confirmPassword = it },
-                        label = { Text("Confirmar contraseña") },
+                        label = { Text("Confirmar contraseña", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -265,57 +279,74 @@ fun ProfileDialog(
                             focusedLabelColor = Color(0xFF1FB8B9),
                             errorBorderColor = Color.Red,
                             errorLabelColor = Color.Red
-                        )
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
                     )
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Botón principal según la pestaña
-                Button(
-                    onClick = {
-                        if (selectedTab == 0) {
-                            // Validar login
-                            if (email.isNotEmpty() && password.isNotEmpty()) {
-                                // Aquí iría la lógica de login
-                                Toast.makeText(context, "Iniciando sesión...", Toast.LENGTH_SHORT).show()
-                                onLoginSuccess()
-                                onDismiss()
-                            } else {
-                                Toast.makeText(context, "Completa todos los campos", Toast.LENGTH_SHORT).show()
-                            }
-                        } else {
-                            // Validar registro
-                            if (username.isNotEmpty() && email.isNotEmpty() &&
-                                password.isNotEmpty() && confirmPassword.isNotEmpty()) {
-                                if (password == confirmPassword) {
-                                    // Aquí iría la lógica de registro
-                                    Toast.makeText(context, "Registrando usuario...", Toast.LENGTH_SHORT).show()
-                                    onRegisterSuccess()
+                // BOTONES EN LA MISMA FILA - INICIAR SESIÓN/REGISTRARSE Y CANCELAR
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Botón principal según la pestaña (Iniciar Sesión o Registrarse)
+                    Button(
+                        onClick = {
+                            if (selectedTab == 0) {
+                                // Validar login
+                                if (email.isNotEmpty() && password.isNotEmpty()) {
+                                    SessionPrefs.saveSession(context, email)
+                                    Toast.makeText(context, "✅ Inicio de sesión exitoso", Toast.LENGTH_SHORT).show()
+                                    onLoginSuccess()
                                     onDismiss()
                                 } else {
-                                    Toast.makeText(context, "Las contraseñas no coinciden", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Completa todos los campos", Toast.LENGTH_SHORT).show()
                                 }
                             } else {
-                                Toast.makeText(context, "Completa todos los campos", Toast.LENGTH_SHORT).show()
+                                // Validar registro
+                                if (username.isNotEmpty() && email.isNotEmpty() &&
+                                    password.isNotEmpty() && confirmPassword.isNotEmpty()) {
+                                    if (password == confirmPassword) {
+                                        SessionPrefs.saveSession(context, email, username)
+                                        Toast.makeText(context, "✅ Registro exitoso", Toast.LENGTH_SHORT).show()
+                                        onRegisterSuccess()
+                                        onDismiss()
+                                    } else {
+                                        Toast.makeText(context, "Las contraseñas no coinciden", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    Toast.makeText(context, "Completa todos los campos", Toast.LENGTH_SHORT).show()
+                                }
                             }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1FB8B9)
-                    )
-                ) {
-                    Text(if (selectedTab == 0) "Iniciar Sesión" else "Registrarse")
-                }
+                        },
+                        modifier = Modifier
+                            .weight(1f)  // Le damos más peso al botón principal
+                            .height(45.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF1FB8B9)
+                        )
+                    ) {
+                        Text(
+                            if (selectedTab == 0) "Iniciar Sesión" else "Registrarse",
+                            fontSize = 12.sp
+                        )
+                    }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Cancelar", color = Color.Gray)
+                    // Botón Cancelar
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .weight(1f)  // Menos peso para cancelar
+                            .height(45.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.LightGray,
+                            contentColor = Color.Black
+                        )
+                    ) {
+                        Text("Cancelar", fontSize = 12.sp)
+                    }
                 }
             }
         }

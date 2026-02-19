@@ -63,9 +63,9 @@ fun PurchaseDetailScreen(
     var consultAfterLogin by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showTutorial by remember { mutableStateOf(false) }
-    var showProfileDialog by remember { mutableStateOf(false) } // NUEVO: Estado para perfil
+    var showProfileDialog by remember { mutableStateOf(false) }
 
-    // Estados de entrada de credenciales
+    // Estados de entrada de credenciales SUNAT
     var rucInput by remember { mutableStateOf("") }
     var userInput by remember { mutableStateOf("") }
     var solPasswordInput by remember { mutableStateOf("") }
@@ -84,40 +84,51 @@ fun PurchaseDetailScreen(
     val loadingDebugInfo by viewModel.loadingDebugInfo.collectAsStateWithLifecycle()
     val loadingInvoiceId by viewModel.loadingInvoiceId.collectAsStateWithLifecycle()
 
-    val hasActiveSession = remember {
-        SunatPrefs.getRuc(context) != null &&
-                SunatPrefs.getUser(context) != null &&
-                SunatPrefs.getSolPassword(context) != null
+    var isAppLoggedIn by remember { mutableStateOf(SessionPrefs.isLoggedIn(context)) }
+
+    var hasSunatCredentials by remember {
+        mutableStateOf(
+            SunatPrefs.getRuc(context) != null &&
+                    SunatPrefs.getUser(context) != null &&
+                    SunatPrefs.getSolPassword(context) != null &&
+                    SunatPrefs.getClientId(context) != null &&
+                    SunatPrefs.getClientSecret(context) != null
+        )
     }
 
-    // Carga inicial
+    // LÓGICA DE CARGA INICIAL
     LaunchedEffect(Unit) {
+        // Siempre cargamos facturas de la BD primero
         viewModel.loadInvoicesFromDB(sectionActive == Section.PURCHASES)
         isListVisible = true
 
-        val ruc = SunatPrefs.getRuc(context)
-        val user = SunatPrefs.getUser(context)
-        val solPassword = SunatPrefs.getSolPassword(context)
-        val clientId = SunatPrefs.getClientId(context)
-        val clientSecret = SunatPrefs.getClientSecret(context)
+        // Pequeño delay para asegurar que la UI esté lista
+        delay(500)
 
-        if (ruc != null && user != null && solPassword != null &&
-            clientId != null && clientSecret != null
-        ) {
-            delay(500)
+        // CASO 1: Usuario NO tiene sesión en la app
+        if (!isAppLoggedIn) {
+            showProfileDialog = true
+            return@LaunchedEffect
+        }
 
-            val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
-            val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-
-            viewModel.loadInvoicesFromAPI(
-                periodStart = periodStart,
-                periodEnd = periodEnd,
-                isPurchase = sectionActive == Section.PURCHASES,
-                context = context
-            )
-        } else {
+        // CASO 2: Usuario tiene sesión en la app pero NO credenciales SUNAT
+        if (isAppLoggedIn && !hasSunatCredentials) {
+            // Auto-presionamos consultar para que muestre el diálogo de credenciales SUNAT
             consultAfterLogin = true
             showCredentialsDialog = true
+            return@LaunchedEffect
+        }
+
+        // CASO 3: Usuario tiene sesión en la app Y tiene credenciales SUNAT
+        if (isAppLoggedIn && hasSunatCredentials) {
+            // Auto-ejecutamos la consulta a la API de SUNAT
+            val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+            val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
+            viewModel.loadInvoicesFromAPI(
+                periodStart, periodEnd,
+                sectionActive == Section.PURCHASES,
+                context
+            )
         }
     }
 
@@ -172,10 +183,10 @@ fun PurchaseDetailScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                // Ícono de persona (PERFIL) a la izquierda
+                // Ícono de persona (PERFIL) a la izquierda - SIEMPRE VISIBLE
                 IconButton(
                     onClick = {
-                        showProfileDialog = true // Abre el diálogo de perfil
+                        showProfileDialog = true
                     },
                     modifier = Modifier
                         .align(Alignment.CenterStart)
@@ -197,18 +208,32 @@ fun PurchaseDetailScreen(
                     modifier = Modifier.align(Alignment.Center)
                 )
 
+                val isLogoutEnabled = isAppLoggedIn && hasSunatCredentials
+
                 // Ícono de logout a la derecha
                 IconButton(
-                    onClick = { showLogoutDialog = true },
-                    enabled = hasActiveSession,
+                    onClick = {
+                        if (isLogoutEnabled) {
+                            showLogoutDialog = true
+                        } else {
+                            // Mostrar mensaje apropiado según el caso
+                            val message = when {
+                                !isAppLoggedIn -> "Debes iniciar sesión primero"
+                                else -> "Debes configurar tus credenciales SUNAT primero"
+                            }
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        }
+                    },
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .size(40.dp)
+                        .size(40.dp),
+                    enabled = isLogoutEnabled  // Solo habilitado cuando ambas condiciones se cumplen
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.PowerSettingsNew,
                         contentDescription = "Cerrar sesión",
-                        tint = if (hasActiveSession) Color(0xFF1FB8B9) else Color.Gray
+                        tint = if (isLogoutEnabled) Color(0xFF1FB8B9) else Color.Gray,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
@@ -323,23 +348,22 @@ fun PurchaseDetailScreen(
             ) {
                 Button(
                     onClick = {
-                        val ruc = SunatPrefs.getRuc(context)
-                        val user = SunatPrefs.getUser(context)
-                        val solPassword = SunatPrefs.getSolPassword(context)
-                        val clientId = SunatPrefs.getClientId(context)
-                        val clientSecret = SunatPrefs.getClientSecret(context)
+                        // Verificamos si hay sesión en la app
+                        if (!isAppLoggedIn) {
+                            Toast.makeText(context, "Debes iniciar sesión primero", Toast.LENGTH_SHORT).show()
+                            showProfileDialog = true
+                            return@Button
+                        }
 
-                        if (ruc == null || user == null || solPassword == null ||
-                            clientId == null || clientSecret == null
-                        ) {
-                            consultAfterLogin = true
+                        // Verificamos si hay credenciales SUNAT
+                        if (!hasSunatCredentials) {
                             showCredentialsDialog = true
                             return@Button
                         }
 
+                        // Si hay todo, ejecutamos consulta
                         val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
                         val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-
                         viewModel.loadInvoicesFromAPI(
                             periodStart, periodEnd,
                             sectionActive == Section.PURCHASES,
@@ -358,7 +382,24 @@ fun PurchaseDetailScreen(
 
                 if (sectionActive == Section.PURCHASES) {
                     Button(
-                        onClick = onNavigateToRegister,
+                        onClick = {
+                            // Verificamos si hay sesión en la app
+                            if (!isAppLoggedIn) {
+                                Toast.makeText(context, "Debes iniciar sesión primero", Toast.LENGTH_SHORT).show()
+                                showProfileDialog = true
+                                return@Button
+                            }
+
+                            // Verificamos si hay credenciales SUNAT
+                            if (!hasSunatCredentials) {
+                                Toast.makeText(context, "Debes configurar tus credenciales SUNAT", Toast.LENGTH_SHORT).show()
+                                showCredentialsDialog = true
+                                return@Button
+                            }
+
+                            // Si hay todo, ejecutamos la navegación a registro de factura
+                            onNavigateToRegister()
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(45.dp),
@@ -379,12 +420,23 @@ fun PurchaseDetailScreen(
         var clientSecretVisible by remember { mutableStateOf(false) }
         var localError by remember { mutableStateOf<String?>(null) }
 
+        // Precargamos los valores si existen
+        LaunchedEffect(showCredentialsDialog) {
+            if (showCredentialsDialog) {
+                rucInput = SunatPrefs.getRuc(context) ?: ""
+                userInput = SunatPrefs.getUser(context) ?: ""
+                solPasswordInput = SunatPrefs.getSolPassword(context) ?: ""
+                clientIdInput = SunatPrefs.getClientId(context) ?: ""
+                clientSecretInput = SunatPrefs.getClientSecret(context) ?: ""
+            }
+        }
+
         AlertDialog(
             onDismissRequest = { if (!isValidating) showCredentialsDialog = false },
             title = { Text("Credenciales SUNAT") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Complete para continuar:")
+                    Text("Complete sus credenciales SUNAT:")
                     OutlinedTextField(
                         value = rucInput,
                         onValueChange = {
@@ -479,8 +531,13 @@ fun PurchaseDetailScreen(
                 TextButton(
                     onClick = {
                         coroutineScope.launch {
+                            // Validaciones
                             if (rucInput.length != 11) {
                                 localError = "El RUC debe tener 11 dígitos"
+                                return@launch
+                            }
+                            if (userInput.isEmpty()) {
+                                localError = "El usuario SOL no puede estar vacío"
                                 return@launch
                             }
                             if (solPasswordInput.isEmpty()) {
@@ -508,17 +565,26 @@ fun PurchaseDetailScreen(
                             ) { isValid ->
                                 isValidating = false
                                 if (isValid) {
+                                    // Guardamos credenciales SUNAT
                                     SunatPrefs.saveRuc(context, rucInput)
                                     SunatPrefs.saveUser(context, userInput)
                                     SunatPrefs.saveSolPassword(context, solPasswordInput)
                                     SunatPrefs.saveClientId(context, clientIdInput)
                                     SunatPrefs.saveClientSecret(context, clientSecretInput)
 
+                                    hasSunatCredentials = true
+                                    showCredentialsDialog = false
+
+                                    Toast.makeText(
+                                        context,
+                                        "✅ Credenciales SUNAT guardadas",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+
+                                    // Si hay una consulta pendiente (por auto-ejecución), la ejecutamos
                                     if (consultAfterLogin) {
-                                        val periodStart =
-                                            convertDateToPeriod(selectedStartMillis ?: todayMillis)
-                                        val periodEnd =
-                                            convertDateToPeriod(selectedEndMillis ?: todayMillis)
+                                        val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+                                        val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
                                         viewModel.loadInvoicesFromAPI(
                                             periodStart, periodEnd,
                                             sectionActive == Section.PURCHASES,
@@ -527,15 +593,8 @@ fun PurchaseDetailScreen(
                                         isListVisible = true
                                         consultAfterLogin = false
                                     }
-
-                                    showCredentialsDialog = false
-                                    Toast.makeText(
-                                        context,
-                                        "✅ Credenciales guardadas",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
                                 } else {
-                                    localError = "Credenciales incorrectas"
+                                    localError = "Credenciales incorrectas. Verifica los datos."
                                 }
                             }
                         }
@@ -547,12 +606,17 @@ fun PurchaseDetailScreen(
                             clientIdInput.isNotEmpty() &&
                             clientSecretInput.isNotEmpty()
                 ) {
-                    Text(if (isValidating) "Validando..." else "Validar y Guardar")
+                    Text(if (isValidating) "Validando..." else "Guardar Credenciales")
                 }
             },
             dismissButton = {
                 TextButton(
-                    onClick = { if (!isValidating) showCredentialsDialog = false },
+                    onClick = {
+                        if (!isValidating) {
+                            showCredentialsDialog = false
+                            consultAfterLogin = false
+                        }
+                    },
                     enabled = !isValidating
                 ) {
                     Text("Cancelar")
@@ -570,12 +634,27 @@ fun PurchaseDetailScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        // CERRAR SESIÓN DE LA APP
+                        SessionPrefs.clearSession(context)
+
+                        // CERRAR CREDENCIALES SUNAT
                         SunatPrefs.clearCredentials(context)
+
+                        // ACTUALIZAR ESTADOS
+                        isAppLoggedIn = false
+                        hasSunatCredentials = false
+
+                        // Limpiar facturas
                         viewModel.clearInvoices()
+
+                        // Resetear estados
                         isListVisible = false
                         showLogoutDialog = false
-                        consultAfterLogin = true
-                        showCredentialsDialog = true
+                        consultAfterLogin = false
+
+                        // Mostramos diálogo de perfil para nuevo login
+                        showProfileDialog = true
+
                         Toast.makeText(context, "Sesión cerrada", Toast.LENGTH_SHORT).show()
                     }
                 ) {
@@ -637,12 +716,43 @@ fun PurchaseDetailScreen(
     // Diálogo de perfil (Login/Register)
     if (showProfileDialog) {
         ProfileDialog(
-            onDismiss = { showProfileDialog = false },
+            onDismiss = {
+                showProfileDialog = false
+            },
             onLoginSuccess = {
+                // El diálogo ya guardó la sesión con SessionPrefs
                 Toast.makeText(context, "✅ Sesión iniciada", Toast.LENGTH_SHORT).show()
+                showProfileDialog = false
+
+                // ACTUALIZAR ESTADO
+                isAppLoggedIn = true
+
+                // Después del login exitoso, verificamos credenciales SUNAT
+                if (!hasSunatCredentials) {
+                    // No tiene credenciales SUNAT, mostramos diálogo
+                    showCredentialsDialog = true
+                } else {
+                    // Tiene credenciales, ejecutamos consulta
+                    val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+                    val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
+                    viewModel.loadInvoicesFromAPI(
+                        periodStart, periodEnd,
+                        sectionActive == Section.PURCHASES,
+                        context
+                    )
+                    isListVisible = true
+                }
             },
             onRegisterSuccess = {
+                // El diálogo ya guardó la sesión con SessionPrefs
                 Toast.makeText(context, "✅ Registro exitoso", Toast.LENGTH_SHORT).show()
+                showProfileDialog = false
+
+                // ACTUALIZAR ESTADO
+                isAppLoggedIn = true
+
+                // Después del registro, mostramos diálogo de credenciales SUNAT
+                showCredentialsDialog = true
             }
         )
     }
