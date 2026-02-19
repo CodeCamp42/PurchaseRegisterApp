@@ -19,9 +19,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.purchaseregister.components.HeaderCell
-import com.example.purchaseregister.components.InvoiceStatusCircle
-import com.example.purchaseregister.components.SimpleTableCell
+import com.example.purchaseregister.view.components.HeaderCell
+import com.example.purchaseregister.view.components.InvoiceStatusCircle
+import com.example.purchaseregister.view.components.SimpleTableCell
 import com.example.purchaseregister.model.Invoice
 import com.example.purchaseregister.utils.SunatPrefs
 import com.example.purchaseregister.viewmodel.Section
@@ -194,7 +194,7 @@ fun InvoiceTable(
 
                                 // Divisor entre facturas
                                 if (index < invoices.size - 1) {
-                                    Divider(
+                                    HorizontalDivider(
                                         modifier = Modifier.width(totalWidth),
                                         thickness = 0.5.dp,
                                         color = Color.LightGray

@@ -1,6 +1,6 @@
 package com.example.purchaseregister.api
 
-import com.example.purchaseregister.api.requests.*
+import com.example.purchaseregister.api.request.*
 import com.example.purchaseregister.api.responses.*
 import retrofit2.http.*
 import okhttp3.ResponseBody

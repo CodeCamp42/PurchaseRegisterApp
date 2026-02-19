@@ -2,7 +2,7 @@ package com.example.purchaseregister.data.repository
 
 import android.content.Context
 import com.example.purchaseregister.api.RetrofitClient
-import com.example.purchaseregister.api.requests.*
+import com.example.purchaseregister.api.request.*
 import com.example.purchaseregister.api.responses.RegisteredInvoiceResponse
 import com.example.purchaseregister.api.responses.SunatResult
 import com.example.purchaseregister.model.Invoice

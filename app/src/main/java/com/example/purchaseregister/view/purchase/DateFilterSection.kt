@@ -20,7 +20,7 @@ fun DateFilterSection(
     selectedEndMillis: Long?,
     onDateRangeClick: () -> Unit,
     onDetailAllClick: () -> Unit,
-    isDetailAllEnabled: Boolean,
+    hasInvoicesInProcess: Boolean,
     isDetailingAll: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -36,12 +36,15 @@ fun DateFilterSection(
             IconButton(
                 onClick = onDetailAllClick,
                 modifier = Modifier.size(40.dp),
-                enabled = isDetailAllEnabled && !isDetailingAll
+                enabled = true
             ) {
                 Icon(
                     imageVector = Icons.Default.Visibility,
                     contentDescription = "Detallar todas las facturas",
-                    tint = if (isDetailAllEnabled && !isDetailingAll) Color(0xFF1FB8B9) else Color.Gray,
+                    tint = if (hasInvoicesInProcess || isDetailingAll)
+                        Color.Gray  // GRIS si hay procesos
+                    else
+                        Color(0xFF1FB8B9),
                     modifier = Modifier.size(20.dp)
                 )
             }

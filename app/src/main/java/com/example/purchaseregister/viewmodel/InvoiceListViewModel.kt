@@ -58,11 +58,8 @@ class InvoiceListViewModel : ViewModel() {
     private val _loadingDebugInfo = MutableStateFlow<String?>(null)
     val loadingDebugInfo: StateFlow<String?> = _loadingDebugInfo.asStateFlow()
 
-    // --- Funciones de carga de datos ---
-
     fun loadInvoicesFromDB(isPurchase: Boolean) {
         viewModelScope.launch {
-            _isLoading.value = true
             try {
                 val dbInvoices = repository.loadInvoicesFromDB(isPurchase)
                 // Combinar con las facturas actuales de la API (si las hay)
@@ -210,7 +207,6 @@ class InvoiceListViewModel : ViewModel() {
         salesInvoices: List<Invoice>,
         invoicesWithActiveTimer: Set<Int>,
         context: Context,
-        onTimerUpdate: (Set<Int>) -> Unit
     ) {
         viewModelScope.launch {
             val allInvoices = purchaseInvoices + salesInvoices
@@ -220,8 +216,7 @@ class InvoiceListViewModel : ViewModel() {
             }
 
             invoicesToAutoRegister.forEach { invoice ->
-                val newTimers = invoicesWithActiveTimer + invoice.id
-                onTimerUpdate(newTimers)
+                _invoicesWithActiveTimer.value = _invoicesWithActiveTimer.value + invoice.id
 
                 launch {
                     delay(10000L)
@@ -252,14 +247,16 @@ class InvoiceListViewModel : ViewModel() {
                         ).show()
                     }
 
-                    onTimerUpdate(invoicesWithActiveTimer - invoice.id)
+                    _invoicesWithActiveTimer.value = _invoicesWithActiveTimer.value - invoice.id
                 }
             }
 
             val invoicesWithDetail = allInvoices.filter { it.status == "CON DETALLE" }.map { it.id }.toSet()
             val timersToClean = invoicesWithActiveTimer.filter { !invoicesWithDetail.contains(it) }
             if (timersToClean.isNotEmpty()) {
-                onTimerUpdate(invoicesWithActiveTimer.filter { invoicesWithDetail.contains(it) }.toSet())
+                _invoicesWithActiveTimer.value = _invoicesWithActiveTimer.value.filter {
+                    invoicesWithDetail.contains(it)
+                }.toSet()
             }
         }
     }

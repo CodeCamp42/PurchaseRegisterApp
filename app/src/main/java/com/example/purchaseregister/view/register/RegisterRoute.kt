@@ -1,9 +1,7 @@
-package com.example.purchaseregister.navigation
+package com.example.purchaseregister.view.register
 
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
-import com.example.purchaseregister.view.register.RegisterPurchaseScreen
-import com.example.purchaseregister.view.register.PurchaseRegistrationViewModel
 import kotlinx.serialization.Serializable
 
 @Serializable

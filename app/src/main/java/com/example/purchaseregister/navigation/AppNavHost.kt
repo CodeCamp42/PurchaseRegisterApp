@@ -9,12 +9,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.example.purchaseregister.view.detail.DetailRoute
 import com.example.purchaseregister.view.detail.DetailViewModel
 import com.example.purchaseregister.view.purchase.PurchaseDetailScreen
 import com.example.purchaseregister.view.register.PurchaseRegistrationViewModel
 import com.example.purchaseregister.view.register.RegisterPurchaseScreen
 import com.example.purchaseregister.viewmodel.InvoiceListViewModel
-import com.example.purchaseregister.view.register.DetailScreen
+import com.example.purchaseregister.view.detail.DetailScreen
+import com.example.purchaseregister.view.purchase.PurchaseDetailRoute
+import com.example.purchaseregister.view.register.RegisterRoute
 
 @Composable
 fun AppNavHost() {

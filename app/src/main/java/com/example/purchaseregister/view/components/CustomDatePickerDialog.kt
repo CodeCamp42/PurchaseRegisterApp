@@ -1,4 +1,4 @@
-package com.example.purchaseregister.components
+package com.example.purchaseregister.view.components
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable

@@ -1,4 +1,4 @@
-package com.example.purchaseregister.api.requests
+package com.example.purchaseregister.api.request
 
 data class ProductRequest(
     val description: String? = null,

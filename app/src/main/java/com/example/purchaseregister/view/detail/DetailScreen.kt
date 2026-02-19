@@ -1,4 +1,4 @@
-package com.example.purchaseregister.view.register
+package com.example.purchaseregister.view.detail
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -21,9 +21,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.purchaseregister.model.ProductItem
 import com.example.purchaseregister.utils.SunatPrefs
 import com.example.purchaseregister.view.components.ReadOnlyField
-import com.example.purchaseregister.view.detail.DetailViewModel
-import com.example.purchaseregister.view.detail.DocumentModal
-import com.example.purchaseregister.view.detail.createDocumentsForInvoice
 import androidx.activity.compose.BackHandler
 
 @OptIn(ExperimentalMaterial3Api::class)

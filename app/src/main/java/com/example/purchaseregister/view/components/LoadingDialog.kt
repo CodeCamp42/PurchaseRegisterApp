@@ -1,4 +1,4 @@
-package com.example.purchaseregister.components
+package com.example.purchaseregister.view.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*

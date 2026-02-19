@@ -1,4 +1,4 @@
-package com.example.purchaseregister.components
+package com.example.purchaseregister.view.components
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.purchaseregister.utils.SessionPrefs
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,7 +38,15 @@ fun ProfileDialog(
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
 
+    var isValidating by remember { mutableStateOf(false) }
+    var localError by remember { mutableStateOf<String?>(null) }
+
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    // Credenciales mock (estas son las únicas que funcionarán)
+    val mockEmail = "test@test.com"
+    val mockPassword = "123456"
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -49,7 +59,7 @@ fun ProfileDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 600.dp), // Aumentamos un poco el max height
+                .heightIn(max = 600.dp),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
@@ -85,7 +95,10 @@ fun ProfileDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = { selectedTab = 0 },
+                        onClick = {
+                            selectedTab = 0
+                            localError = null
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(40.dp),
@@ -99,7 +112,10 @@ fun ProfileDialog(
                     }
 
                     Button(
-                        onClick = { selectedTab = 1 },
+                        onClick = {
+                            selectedTab = 1
+                            localError = null
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(40.dp),
@@ -120,7 +136,10 @@ fun ProfileDialog(
                     // LOGIN - Solo email y contraseña
                     OutlinedTextField(
                         value = email,
-                        onValueChange = { email = it },
+                        onValueChange = {
+                            email = it
+                            localError = null
+                        },
                         label = { Text("Correo electrónico", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -142,7 +161,10 @@ fun ProfileDialog(
 
                     OutlinedTextField(
                         value = password,
-                        onValueChange = { password = it },
+                        onValueChange = {
+                            password = it
+                            localError = null
+                        },
                         label = { Text("Contraseña", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -284,49 +306,99 @@ fun ProfileDialog(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                localError?.let {
+                    Text(
+                        text = it,
+                        color = Color.Red,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
 
-                // BOTONES EN LA MISMA FILA - INICIAR SESIÓN/REGISTRARSE Y CANCELAR
+                if (isValidating) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color(0xFF1FB8B9),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Validando credenciales...", fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // BOTONES
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Botón principal según la pestaña (Iniciar Sesión o Registrarse)
+                    // Botón principal según la pestaña (iniciar sesion / registrarse)
                     Button(
                         onClick = {
                             if (selectedTab == 0) {
                                 // Validar login
-                                if (email.isNotEmpty() && password.isNotEmpty()) {
-                                    SessionPrefs.saveSession(context, email)
-                                    Toast.makeText(context, "✅ Inicio de sesión exitoso", Toast.LENGTH_SHORT).show()
-                                    onLoginSuccess()
-                                    onDismiss()
-                                } else {
+                                if (email.isEmpty() || password.isEmpty()) {
                                     Toast.makeText(context, "Completa todos los campos", Toast.LENGTH_SHORT).show()
+                                    return@Button
                                 }
-                            } else {
-                                // Validar registro
-                                if (username.isNotEmpty() && email.isNotEmpty() &&
-                                    password.isNotEmpty() && confirmPassword.isNotEmpty()) {
-                                    if (password == confirmPassword) {
-                                        SessionPrefs.saveSession(context, email, username)
-                                        Toast.makeText(context, "✅ Registro exitoso", Toast.LENGTH_SHORT).show()
-                                        onRegisterSuccess()
+
+                                // Simular validación
+                                coroutineScope.launch {
+                                    isValidating = true
+                                    localError = null
+
+                                    // Simular delay de red
+                                    delay(1000)
+
+                                    if (email == mockEmail && password == mockPassword) {
+                                        // Credenciales correctas
+                                        SessionPrefs.saveSession(context, email)
+                                        isValidating = false
+                                        Toast.makeText(context, "✅ Inicio de sesión exitoso", Toast.LENGTH_SHORT).show()
+                                        onLoginSuccess()
                                         onDismiss()
                                     } else {
-                                        Toast.makeText(context, "Las contraseñas no coinciden", Toast.LENGTH_SHORT).show()
+                                        // Credenciales incorrectas
+                                        isValidating = false
+                                        localError = "Correo o contraseña incorrectos. Verifica tus datos."
                                     }
-                                } else {
+                                }
+                            } else {
+                                // Validar registro (por ahora siempre exitoso)
+                                if (username.isEmpty() || email.isEmpty() ||
+                                    password.isEmpty() || confirmPassword.isEmpty()) {
                                     Toast.makeText(context, "Completa todos los campos", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                if (password != confirmPassword) {
+                                    Toast.makeText(context, "Las contraseñas no coinciden", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+
+                                // Simular registro exitoso
+                                coroutineScope.launch {
+                                    isValidating = true
+                                    delay(1000)
+                                    isValidating = false
+                                    SessionPrefs.saveSession(context, email, username)
+                                    Toast.makeText(context, "✅ Registro exitoso", Toast.LENGTH_SHORT).show()
+                                    onRegisterSuccess()
+                                    onDismiss()
                                 }
                             }
                         },
                         modifier = Modifier
-                            .weight(1f)  // Le damos más peso al botón principal
+                            .weight(1f)
                             .height(45.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF1FB8B9)
-                        )
+                        ),
+                        enabled = !isValidating
                     ) {
                         Text(
                             if (selectedTab == 0) "Iniciar Sesión" else "Registrarse",
@@ -338,12 +410,13 @@ fun ProfileDialog(
                     Button(
                         onClick = onDismiss,
                         modifier = Modifier
-                            .weight(1f)  // Menos peso para cancelar
+                            .weight(1f)
                             .height(45.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.LightGray,
                             contentColor = Color.Black
-                        )
+                        ),
+                        enabled = !isValidating
                     ) {
                         Text("Cancelar", fontSize = 12.sp)
                     }
