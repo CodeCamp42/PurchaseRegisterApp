@@ -25,11 +25,13 @@ import androidx.compose.ui.window.Dialog
 @Composable
 fun TutorialSunatDialog(
     onDismiss: () -> Unit,
-    onCompleted: (clientId: String, clientSecret: String) -> Unit
+    onCredentialsObtained: (clientId: String, clientSecret: String) -> Unit,
+    prefillClientId: String = "",
+    prefillClientSecret: String = ""
 ) {
     var currentStep by remember { mutableStateOf(0) }
-    var clientId by remember { mutableStateOf("") }
-    var clientSecret by remember { mutableStateOf("") }
+    var clientId by remember { mutableStateOf(prefillClientId) }
+    var clientSecret by remember { mutableStateOf(prefillClientSecret) }
     var showCopiedMessage by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -125,7 +127,8 @@ fun TutorialSunatDialog(
                         TextButton(
                             onClick = {
                                 if (clientId.isNotEmpty() && clientSecret.isNotEmpty()) {
-                                    onCompleted(clientId, clientSecret)
+                                    onCredentialsObtained(clientId, clientSecret)
+                                    onDismiss()
                                 }
                             },
                             enabled = clientId.isNotEmpty() && clientSecret.isNotEmpty(),

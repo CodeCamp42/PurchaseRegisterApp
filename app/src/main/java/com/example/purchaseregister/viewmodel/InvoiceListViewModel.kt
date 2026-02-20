@@ -4,11 +4,13 @@ import android.content.Context
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.purchaseregister.api.responses.AuthResponse
 import com.example.purchaseregister.data.repository.InvoiceRepository
 import com.example.purchaseregister.data.repository.InvoiceRepositoryImpl
 import com.example.purchaseregister.model.Invoice
-import com.example.purchaseregister.model.ProductItem
 import com.example.purchaseregister.utils.SunatPrefs
+import com.example.purchaseregister.utils.SessionPrefs
+import com.example.purchaseregister.utils.TokenPrefs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -57,6 +59,15 @@ class InvoiceListViewModel : ViewModel() {
 
     private val _loadingDebugInfo = MutableStateFlow<String?>(null)
     val loadingDebugInfo: StateFlow<String?> = _loadingDebugInfo.asStateFlow()
+
+    private val _loginState = MutableStateFlow<AuthState>(AuthState.Idle)
+    val loginState: StateFlow<AuthState> = _loginState.asStateFlow()
+
+    private val _registerState = MutableStateFlow<AuthState>(AuthState.Idle)
+    val registerState: StateFlow<AuthState> = _registerState.asStateFlow()
+
+    private val _forgotPasswordState = MutableStateFlow<ForgotPasswordState>(ForgotPasswordState.Idle)
+    val forgotPasswordState: StateFlow<ForgotPasswordState> = _forgotPasswordState.asStateFlow()
 
     fun loadInvoicesFromDB(isPurchase: Boolean) {
         viewModelScope.launch {
@@ -436,6 +447,116 @@ class InvoiceListViewModel : ViewModel() {
             onResult(isValid)
         }
     }
+
+    fun login(email: String, password: String, context: Context) {
+        viewModelScope.launch {
+            _loginState.value = AuthState.Loading
+            val result = repository.login(email, password)
+
+            result.fold(
+                onSuccess = { response ->
+                    if (response.user != null && response.session != null) {
+                        SessionPrefs.saveSession(
+                            context,
+                            email,
+                            response.user.name ?: "Usuario"
+                        )
+                        response.session.token?.let { token ->
+                            TokenPrefs.saveToken(context, token)
+                        }
+                        _loginState.value = AuthState.Success(response)
+                    } else {
+                        _loginState.value = AuthState.Error(
+                            response.error ?: "Error en autenticación"
+                        )
+                    }
+                },
+                onFailure = { exception ->
+                    _loginState.value = AuthState.Error(exception.message ?: "Error de conexión")
+                }
+            )
+        }
+    }
+
+    fun register(name: String, email: String, password: String, context: Context) {
+        viewModelScope.launch {
+            _registerState.value = AuthState.Loading
+            val result = repository.register(name, email, password)
+
+            result.fold(
+                onSuccess = { response ->
+                    if (response.user != null && response.session != null) {
+                        SessionPrefs.saveSession(
+                            context,
+                            email,
+                            name
+                        )
+                        response.session.token?.let { token ->
+                            TokenPrefs.saveToken(context, token)
+                        }
+                        _registerState.value = AuthState.Success(response)
+                    } else {
+                        _registerState.value = AuthState.Error(
+                            response.error ?: "Error en registro"
+                        )
+                    }
+                },
+                onFailure = { exception ->
+                    _registerState.value = AuthState.Error(exception.message ?: "Error de conexión")
+                }
+            )
+        }
+    }
+
+    fun resetAuthStates() {
+        _loginState.value = AuthState.Idle
+        _registerState.value = AuthState.Idle
+    }
+
+    fun requestPasswordReset(email: String, context: Context) {
+        viewModelScope.launch {
+            _forgotPasswordState.value = ForgotPasswordState.Loading
+
+            try {
+                val result = repository.requestPasswordReset(email)
+
+                result.fold(
+                    onSuccess = { response ->
+                        _forgotPasswordState.value = ForgotPasswordState.Success(
+                            "Se ha enviado un enlace a tu correo electrónico"
+                        )
+                    },
+                    onFailure = { exception ->
+                        _forgotPasswordState.value = ForgotPasswordState.Error(
+                            exception.message ?: "Error al enviar el correo"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                _forgotPasswordState.value = ForgotPasswordState.Error(
+                    e.message ?: "Error de conexión"
+                )
+            }
+        }
+    }
+
+    fun resetForgotPasswordState() {
+        _forgotPasswordState.value = ForgotPasswordState.Idle
+    }
 }
 
 enum class Section { PURCHASES, SALES }
+
+sealed class AuthState {
+    object Idle : AuthState()
+    object Loading : AuthState()
+    data class Success(val response: AuthResponse) : AuthState()
+    data class Error(val message: String) : AuthState()
+}
+
+sealed class ForgotPasswordState {
+    object Idle : ForgotPasswordState()
+    object Loading : ForgotPasswordState()
+    data class Success(val message: String) : ForgotPasswordState()
+    data class Error(val message: String) : ForgotPasswordState()
+}

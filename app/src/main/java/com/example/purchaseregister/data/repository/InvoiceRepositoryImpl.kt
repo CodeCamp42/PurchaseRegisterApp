@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
+import com.example.purchaseregister.api.responses.AuthResponse
 
 class InvoiceRepositoryImpl : InvoiceRepository {
 
@@ -582,6 +583,48 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         return invoices.sortedBy { invoice ->
             try { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(invoice.issueDate)?.time ?: 0L }
             catch (e: Exception) { 0L }
+        }
+    }
+
+    override suspend fun login(email: String, password: String): Result<AuthResponse> {
+        return try {
+            val response = apiService.login(LoginRequest(email, password))
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception(response.message() ?: "Error en login"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun register(name: String, email: String, password: String): Result<AuthResponse> {
+        return try {
+            val response = apiService.register(RegisterRequest(name, email, password))
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception(response.message() ?: "Error en registro"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun requestPasswordReset(email: String): Result<Unit> {
+        return try {
+            val response = apiService.requestPasswordReset(
+                ForgotPasswordRequest(email)
+            )
+
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(response.errorBody()?.string() ?: "Error al enviar el correo"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 }

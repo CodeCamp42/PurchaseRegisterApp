@@ -24,6 +24,7 @@ import com.example.purchaseregister.view.components.SectionButtons
 import com.example.purchaseregister.view.components.BottomActionButtons
 import com.example.purchaseregister.view.detail.DetailRoute
 import com.example.purchaseregister.utils.*
+import com.example.purchaseregister.view.components.ForgotPasswordDialog
 import com.example.purchaseregister.viewmodel.InvoiceListViewModel
 import com.example.purchaseregister.viewmodel.Section
 import java.util.Calendar
@@ -57,6 +58,7 @@ fun PurchaseDetailScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showTutorial by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
+    var showForgotPasswordDialog by remember { mutableStateOf(false) }
     var isInitialLoadDone by rememberSaveable { mutableStateOf(false) }
 
     // Estados de entrada de credenciales SUNAT
@@ -75,6 +77,7 @@ fun PurchaseDetailScreen(
     val loadingDebugInfo by viewModel.loadingDebugInfo.collectAsStateWithLifecycle()
 
     var isAppLoggedIn by remember { mutableStateOf(SessionPrefs.isLoggedIn(context)) }
+    val forgotPasswordState by viewModel.forgotPasswordState.collectAsStateWithLifecycle()
 
     var hasSunatCredentials by remember {
         mutableStateOf(
@@ -284,8 +287,16 @@ fun PurchaseDetailScreen(
                 showCredentialsDialog = false
                 consultAfterLogin = false
             },
-            onCredentialsSaved = { hasSunatCredentials = true },
+            onCredentialsSaved = {
+                hasSunatCredentials = true
+                clientIdInput = ""
+                clientSecretInput = ""
+            },
             onShowTutorial = { showTutorial = true },
+            externalClientId = clientIdInput,
+            externalClientSecret = clientSecretInput,
+            onExternalCredentialsUpdated = {
+            },
             validateCredentials = { ruc, user, solPassword, clientId, clientSecret, onResult ->
                 viewModel.validateSunatCredentials(ruc, user, solPassword, clientId, clientSecret, onResult)
             },
@@ -306,7 +317,6 @@ fun PurchaseDetailScreen(
             onDismiss = { showLogoutDialog = false },
             onConfirm = {
                 SessionPrefs.clearSession(context)
-                SunatPrefs.clearCredentials(context)
                 isAppLoggedIn = false
                 hasSunatCredentials = false
                 viewModel.clearInvoices()
@@ -341,12 +351,15 @@ fun PurchaseDetailScreen(
     if (showTutorial) {
         TutorialSunatDialog(
             onDismiss = { showTutorial = false },
-            onCompleted = { clientId, clientSecret ->
+            onCredentialsObtained = { clientId, clientSecret ->
                 clientIdInput = clientId
                 clientSecretInput = clientSecret
                 showTutorial = false
+                showCredentialsDialog = true
                 Toast.makeText(context, "✅ Credenciales copiadas", Toast.LENGTH_SHORT).show()
-            }
+            },
+            prefillClientId = clientIdInput,
+            prefillClientSecret = clientSecretInput
         )
     }
 
@@ -381,6 +394,44 @@ fun PurchaseDetailScreen(
                 showProfileDialog = false
                 isAppLoggedIn = true
                 showCredentialsDialog = true
+            },
+            onForgotPasswordClick = {
+                showProfileDialog = false
+                showForgotPasswordDialog = true
+            },
+            isLoggedIn = isAppLoggedIn,
+            currentUsername = SessionPrefs.getCurrentUserName(context),
+            currentEmail = SessionPrefs.getCurrentUserEmail(context),
+            loginState = viewModel.loginState.collectAsStateWithLifecycle().value,
+            registerState = viewModel.registerState.collectAsStateWithLifecycle().value,
+            onLogin = { email, password ->
+                viewModel.login(email, password, context)
+            },
+            onRegister = { name, email, password ->
+                viewModel.register(name, email, password, context)
+            },
+            onResetStates = {
+                viewModel.resetAuthStates()
+            }
+        )
+    }
+
+    if (showForgotPasswordDialog) {
+        ForgotPasswordDialog(
+            onDismiss = {
+                showForgotPasswordDialog = false
+                viewModel.resetForgotPasswordState()
+            },
+            onBackToLogin = {
+                showForgotPasswordDialog = false
+                showProfileDialog = true
+            },
+            forgotPasswordState = forgotPasswordState,
+            onSendResetEmail = { email ->
+                viewModel.requestPasswordReset(email, context)
+            },
+            onResetState = {
+                viewModel.resetForgotPasswordState()
             }
         )
     }

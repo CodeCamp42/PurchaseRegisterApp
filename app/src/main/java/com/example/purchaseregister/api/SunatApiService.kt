@@ -2,6 +2,7 @@ package com.example.purchaseregister.api
 
 import com.example.purchaseregister.api.request.*
 import com.example.purchaseregister.api.responses.*
+import retrofit2.Response
 import retrofit2.http.*
 import okhttp3.ResponseBody
 
@@ -84,4 +85,19 @@ interface SunatApiService {
     suspend fun getCompleteUserInvoices(
         @Path("usuarioId") userId: String
     ): InvoicesUIResponse
+
+    @POST("api/auth/sign-in/email")
+    suspend fun login(
+        @Body request: LoginRequest
+    ): Response<AuthResponse>
+
+    @POST("api/auth/sign-up/email")
+    suspend fun register(
+        @Body request: RegisterRequest
+    ): Response<AuthResponse>
+
+    @POST("api/auth/forget-password")
+    suspend fun requestPasswordReset(
+        @Body request: ForgotPasswordRequest
+    ): Response<Unit>
 }

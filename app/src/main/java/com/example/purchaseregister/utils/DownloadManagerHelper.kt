@@ -10,7 +10,7 @@ object DownloadManagerHelper {
         context: Context,
         documentNumber: String,
         type: String,
-        baseUrl: String = "http://192.168.1.85:3043",
+        baseUrl: String = "http://192.168.1.91:3000",
         onEnqueued: (Long) -> Unit = {},
         onError: (String) -> Unit = {}
     ) {

@@ -25,6 +25,9 @@ fun SunatCredentialsDialog(
     onDismiss: () -> Unit,
     onCredentialsSaved: () -> Unit,
     onShowTutorial: () -> Unit,
+    externalClientId: String = "",
+    externalClientSecret: String = "",
+    onExternalCredentialsUpdated: () -> Unit = {},
     validateCredentials: (
         ruc: String,
         user: String,
@@ -50,11 +53,35 @@ fun SunatCredentialsDialog(
     var clientSecretVisible by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf<String?>(null) }
 
+    LaunchedEffect(externalClientId, externalClientSecret) {
+        if (externalClientId.isNotEmpty()) {
+            clientIdInput = externalClientId
+        }
+        if (externalClientSecret.isNotEmpty()) {
+            clientSecretInput = externalClientSecret
+        }
+        if (externalClientId.isNotEmpty() || externalClientSecret.isNotEmpty()) {
+            onExternalCredentialsUpdated()
+        }
+    }
+
     // Precargar valores si existen - AHORA SIN isVisible
     LaunchedEffect(Unit) {
-        rucInput = SunatPrefs.getRuc(context) ?: ""
-        userInput = SunatPrefs.getUser(context) ?: ""
-        solPasswordInput = SunatPrefs.getSolPassword(context) ?: ""
+        if (clientIdInput.isEmpty()) {
+            clientIdInput = SunatPrefs.getClientId(context) ?: ""
+        }
+        if (clientSecretInput.isEmpty()) {
+            clientSecretInput = SunatPrefs.getClientSecret(context) ?: ""
+        }
+        if (rucInput.isEmpty()) {
+            rucInput = SunatPrefs.getRuc(context) ?: ""
+        }
+        if (userInput.isEmpty()) {
+            userInput = SunatPrefs.getUser(context) ?: ""
+        }
+        if (solPasswordInput.isEmpty()) {
+            solPasswordInput = SunatPrefs.getSolPassword(context) ?: ""
+        }
         clientIdInput = SunatPrefs.getClientId(context) ?: ""
         clientSecretInput = SunatPrefs.getClientSecret(context) ?: ""
     }
@@ -78,7 +105,7 @@ fun SunatCredentialsDialog(
                     color = Color(0xFF1FB8B9)
                 )
 
-                Text("Complete sus credenciales SUNAT:")
+                Text("Complete para continuar:")
 
                 OutlinedTextField(
                     value = rucInput,

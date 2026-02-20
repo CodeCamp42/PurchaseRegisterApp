@@ -71,3 +71,7 @@ data class ValidateCredentialsRequest(
     val clientId: String? = null,
     val clientSecret: String? = null
 )
+
+data class ForgotPasswordRequest(
+    val email: String
+)
