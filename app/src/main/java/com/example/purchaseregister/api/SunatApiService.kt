@@ -100,4 +100,8 @@ interface SunatApiService {
     suspend fun requestPasswordReset(
         @Body request: ForgotPasswordRequest
     ): Response<Unit>
+
+    @GET("api/auth/session")
+    suspend fun getSession(
+    ): Response<SessionResponse>
 }

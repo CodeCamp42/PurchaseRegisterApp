@@ -1,9 +1,9 @@
 package com.example.purchaseregister.api.responses
 
 data class AuthResponse(
+    val token: String? = null,
     val user: UserData? = null,
-    val session: SessionData? = null,
-    val error: String? = null,
+    val message: String? = null,
     val code: String? = null
 )
 
@@ -13,6 +13,7 @@ data class UserData(
     val name: String? = null,
 )
 
-data class SessionData(
-    val token: String? = null,
+data class SessionResponse(
+    val user: UserData? = null,
+    val token: String? = null
 )

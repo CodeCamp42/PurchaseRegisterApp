@@ -5,6 +5,7 @@ import com.example.purchaseregister.model.Invoice
 import com.example.purchaseregister.model.ProductItem
 import kotlinx.coroutines.flow.StateFlow
 import com.example.purchaseregister.api.responses.AuthResponse
+import com.example.purchaseregister.api.responses.SessionResponse
 
 interface InvoiceRepository {
     // Flows para observar los datos
@@ -64,4 +65,6 @@ interface InvoiceRepository {
         clientId: String,
         clientSecret: String
     ): Boolean
+
+    suspend fun validateSession(): Result<SessionResponse>
 }

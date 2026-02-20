@@ -28,18 +28,9 @@ fun SunatCredentialsDialog(
     externalClientId: String = "",
     externalClientSecret: String = "",
     onExternalCredentialsUpdated: () -> Unit = {},
-    validateCredentials: (
-        ruc: String,
-        user: String,
-        solPassword: String,
-        clientId: String,
-        clientSecret: String,
-        onResult: (Boolean) -> Unit
-    ) -> Unit,
     consultAfterLogin: Boolean = false,
     onConsultAfterLogin: () -> Unit = {}
 ) {
-
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -48,7 +39,6 @@ fun SunatCredentialsDialog(
     var solPasswordInput by remember { mutableStateOf("") }
     var clientIdInput by remember { mutableStateOf("") }
     var clientSecretInput by remember { mutableStateOf("") }
-    var isValidating by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
     var clientSecretVisible by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf<String?>(null) }
@@ -86,7 +76,7 @@ fun SunatCredentialsDialog(
         clientSecretInput = SunatPrefs.getClientSecret(context) ?: ""
     }
 
-    Dialog(onDismissRequest = { if (!isValidating) onDismiss() }) {
+    Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -186,17 +176,6 @@ fun SunatCredentialsDialog(
                     )
                 }
 
-                if (isValidating) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = Color(0xFF1FB8B9)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("Validando credenciales...", fontSize = 12.sp, color = Color.Gray)
-                    }
-                }
-
                 localError?.let {
                     Text(it, color = Color.Red, fontSize = 12.sp)
                 }
@@ -207,7 +186,6 @@ fun SunatCredentialsDialog(
                 ) {
                     TextButton(
                         onClick = onDismiss,
-                        enabled = !isValidating,
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Cancelar")
@@ -238,51 +216,34 @@ fun SunatCredentialsDialog(
                                     return@launch
                                 }
 
-                                isValidating = true
-                                localError = null
+                                SunatPrefs.saveRuc(context, rucInput)
+                                SunatPrefs.saveUser(context, userInput)
+                                SunatPrefs.saveSolPassword(context, solPasswordInput)
+                                SunatPrefs.saveClientId(context, clientIdInput)
+                                SunatPrefs.saveClientSecret(context, clientSecretInput)
 
-                                validateCredentials(
-                                    rucInput,
-                                    userInput,
-                                    solPasswordInput,
-                                    clientIdInput,
-                                    clientSecretInput
-                                ) { isValid ->
-                                    isValidating = false
-                                    if (isValid) {
-                                        SunatPrefs.saveRuc(context, rucInput)
-                                        SunatPrefs.saveUser(context, userInput)
-                                        SunatPrefs.saveSolPassword(context, solPasswordInput)
-                                        SunatPrefs.saveClientId(context, clientIdInput)
-                                        SunatPrefs.saveClientSecret(context, clientSecretInput)
+                                onCredentialsSaved()
+                                onDismiss()
 
-                                        onCredentialsSaved()
-                                        onDismiss()
+                                Toast.makeText(
+                                    context,
+                                    "✅ Credenciales SUNAT guardadas",
+                                    Toast.LENGTH_SHORT
+                                ).show()
 
-                                        Toast.makeText(
-                                            context,
-                                            "✅ Credenciales SUNAT guardadas",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-
-                                        if (consultAfterLogin) {
-                                            onConsultAfterLogin()
-                                        }
-                                    } else {
-                                        localError = "Credenciales incorrectas. Verifica los datos."
-                                    }
+                                if (consultAfterLogin) {
+                                    onConsultAfterLogin()
                                 }
                             }
                         },
-                        enabled = !isValidating &&
-                                rucInput.length == 11 &&
+                        enabled = rucInput.length == 11 &&
                                 userInput.isNotEmpty() &&
                                 solPasswordInput.isNotEmpty() &&
                                 clientIdInput.isNotEmpty() &&
                                 clientSecretInput.isNotEmpty(),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(if (isValidating) "Validando..." else "Guardar")
+                        Text("Guardar")
                     }
                 }
             }

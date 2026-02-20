@@ -22,6 +22,7 @@ import kotlin.coroutines.suspendCoroutine
 import kotlin.coroutines.resume
 import java.text.SimpleDateFormat
 import java.util.Locale
+import com.example.purchaseregister.api.responses.SessionResponse
 
 class InvoiceListViewModel : ViewModel() {
 
@@ -68,6 +69,9 @@ class InvoiceListViewModel : ViewModel() {
 
     private val _forgotPasswordState = MutableStateFlow<ForgotPasswordState>(ForgotPasswordState.Idle)
     val forgotPasswordState: StateFlow<ForgotPasswordState> = _forgotPasswordState.asStateFlow()
+
+    private val _sessionState = MutableStateFlow<SessionState>(SessionState.Idle)
+    val sessionState: StateFlow<SessionState> = _sessionState.asStateFlow()
 
     fun loadInvoicesFromDB(isPurchase: Boolean) {
         viewModelScope.launch {
@@ -448,36 +452,6 @@ class InvoiceListViewModel : ViewModel() {
         }
     }
 
-    fun login(email: String, password: String, context: Context) {
-        viewModelScope.launch {
-            _loginState.value = AuthState.Loading
-            val result = repository.login(email, password)
-
-            result.fold(
-                onSuccess = { response ->
-                    if (response.user != null && response.session != null) {
-                        SessionPrefs.saveSession(
-                            context,
-                            email,
-                            response.user.name ?: "Usuario"
-                        )
-                        response.session.token?.let { token ->
-                            TokenPrefs.saveToken(context, token)
-                        }
-                        _loginState.value = AuthState.Success(response)
-                    } else {
-                        _loginState.value = AuthState.Error(
-                            response.error ?: "Error en autenticación"
-                        )
-                    }
-                },
-                onFailure = { exception ->
-                    _loginState.value = AuthState.Error(exception.message ?: "Error de conexión")
-                }
-            )
-        }
-    }
-
     fun register(name: String, email: String, password: String, context: Context) {
         viewModelScope.launch {
             _registerState.value = AuthState.Loading
@@ -485,24 +459,51 @@ class InvoiceListViewModel : ViewModel() {
 
             result.fold(
                 onSuccess = { response ->
-                    if (response.user != null && response.session != null) {
+                    if (response.user != null && response.token != null) {
                         SessionPrefs.saveSession(
                             context,
                             email,
                             name
                         )
-                        response.session.token?.let { token ->
-                            TokenPrefs.saveToken(context, token)
-                        }
+                        // Guardar el token
+                        TokenPrefs.saveToken(context, response.token)
                         _registerState.value = AuthState.Success(response)
                     } else {
                         _registerState.value = AuthState.Error(
-                            response.error ?: "Error en registro"
+                            response.message ?: "Error en registro"
                         )
                     }
                 },
                 onFailure = { exception ->
                     _registerState.value = AuthState.Error(exception.message ?: "Error de conexión")
+                }
+            )
+        }
+    }
+
+    fun login(email: String, password: String, context: Context) {
+        viewModelScope.launch {
+            _loginState.value = AuthState.Loading
+            val result = repository.login(email, password)
+
+            result.fold(
+                onSuccess = { response ->
+                    if (response.user != null && response.token != null) {
+                        SessionPrefs.saveSession(
+                            context,
+                            email,
+                            response.user.name ?: "Usuario"
+                        )
+                        TokenPrefs.saveToken(context, response.token)
+                        _loginState.value = AuthState.Success(response)
+                    } else {
+                        _loginState.value = AuthState.Error(
+                            response.message ?: "Error en autenticación"
+                        )
+                    }
+                },
+                onFailure = { exception ->
+                    _loginState.value = AuthState.Error(exception.message ?: "Error de conexión")
                 }
             )
         }
@@ -543,6 +544,44 @@ class InvoiceListViewModel : ViewModel() {
     fun resetForgotPasswordState() {
         _forgotPasswordState.value = ForgotPasswordState.Idle
     }
+
+    fun checkSession(context: Context) {
+        viewModelScope.launch {
+            _sessionState.value = SessionState.Loading
+
+            val token = TokenPrefs.getToken(context)
+            if (token == null) {
+                _sessionState.value = SessionState.Invalid
+                return@launch
+            }
+
+            val result = repository.validateSession()
+            result.fold(
+                onSuccess = { response ->
+                    if (response.user != null) {
+                        // Sesión válida, asegurar que SessionPrefs está actualizado
+                        SessionPrefs.saveSession(
+                            context,
+                            response.user.email ?: "",
+                            response.user.name ?: "Usuario"
+                        )
+                        _sessionState.value = SessionState.Valid(response)
+                    } else {
+                        // Sesión inválida, limpiar todo
+                        SessionPrefs.clearSession(context)
+                        TokenPrefs.clearToken(context)
+                        _sessionState.value = SessionState.Invalid
+                    }
+                },
+                onFailure = {
+                    // Error al validar, limpiar sesión
+                    SessionPrefs.clearSession(context)
+                    TokenPrefs.clearToken(context)
+                    _sessionState.value = SessionState.Invalid
+                }
+            )
+        }
+    }
 }
 
 enum class Section { PURCHASES, SALES }
@@ -559,4 +598,11 @@ sealed class ForgotPasswordState {
     object Loading : ForgotPasswordState()
     data class Success(val message: String) : ForgotPasswordState()
     data class Error(val message: String) : ForgotPasswordState()
+}
+
+sealed class SessionState {
+    object Idle : SessionState()
+    object Loading : SessionState()
+    data class Valid(val response: SessionResponse) : SessionState()
+    object Invalid : SessionState()
 }

@@ -46,10 +46,112 @@ fun ProfileDialog(
     var confirmPasswordVisible by remember { mutableStateOf(false) }
 
     var isValidating by remember { mutableStateOf(false) }
-    var localError by remember { mutableStateOf<String?>(null) }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var usernameError by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(registerState) {
+        when (registerState) {
+            is AuthState.Success -> {
+                isValidating = false
+                emailError = null
+                passwordError = null
+                usernameError = null
+                Toast.makeText(
+                    context,
+                    "✅ Registro exitoso",
+                    Toast.LENGTH_SHORT
+                ).show()
+                onRegisterSuccess()
+                onResetStates()
+            }
+            is AuthState.Error -> {
+                isValidating = false
+                // Distribuir el error según el campo
+                val errorMessage = registerState.message?.lowercase() ?: ""
+                when {
+                    "email" in errorMessage || "correo" in errorMessage -> {
+                        emailError = registerState.message
+                        passwordError = null
+                        usernameError = null
+                    }
+                    "password" in errorMessage || "contraseña" in errorMessage || "corta" in errorMessage -> {
+                        passwordError = registerState.message
+                        emailError = null
+                        usernameError = null
+                    }
+                    "name" in errorMessage || "usuario" in errorMessage || "username" in errorMessage -> {
+                        usernameError = registerState.message
+                        emailError = null
+                        passwordError = null
+                    }
+                    else -> {
+                        // Si no se puede identificar, mostrar en todos o en uno genérico
+                        emailError = registerState.message
+                        passwordError = registerState.message
+                        usernameError = registerState.message
+                    }
+                }
+                onResetStates()
+            }
+            is AuthState.Loading -> {
+                isValidating = true
+                emailError = null
+                passwordError = null
+                usernameError = null
+            }
+            else -> {}
+        }
+    }
+
+    LaunchedEffect(loginState) {
+        when (loginState) {
+            is AuthState.Success -> {
+                isValidating = false
+                emailError = null
+                passwordError = null
+                Toast.makeText(
+                    context,
+                    "✅ Sesión iniciada",
+                    Toast.LENGTH_SHORT
+                ).show()
+                onLoginSuccess()
+                onResetStates()
+            }
+            is AuthState.Error -> {
+                isValidating = false
+                val errorMessage = loginState.message?.lowercase() ?: ""
+                when {
+                    "email" in errorMessage || "correo" in errorMessage -> {
+                        emailError = loginState.message
+                        passwordError = null
+                    }
+                    "password" in errorMessage || "contraseña" in errorMessage -> {
+                        passwordError = loginState.message
+                        emailError = null
+                    }
+                    else -> {
+                        emailError = loginState.message
+                        passwordError = loginState.message
+                    }
+                }
+                onResetStates()
+            }
+            is AuthState.Loading -> {
+                isValidating = true
+                emailError = null
+                passwordError = null
+            }
+            else -> {}
+        }
+    }
+
+    fun isValidEmail(email: String): Boolean {
+        return android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    }
 
     // Configurar propiedades del diálogo según el estado
     val dialogProperties = if (isLoggedIn) {
@@ -172,7 +274,9 @@ fun ProfileDialog(
                         Button(
                             onClick = {
                                 selectedTab = 0
-                                localError = null
+                                emailError = null
+                                passwordError = null
+                                usernameError = null
                             },
                             modifier = Modifier
                                 .weight(1f)
@@ -189,7 +293,9 @@ fun ProfileDialog(
                         Button(
                             onClick = {
                                 selectedTab = 1
-                                localError = null
+                                emailError = null
+                                passwordError = null
+                                usernameError = null
                             },
                             modifier = Modifier
                                 .weight(1f)
@@ -212,7 +318,7 @@ fun ProfileDialog(
                             value = email,
                             onValueChange = {
                                 email = it
-                                localError = null
+                                emailError = null
                             },
                             label = { Text("Correo electrónico", fontSize = 12.sp) },
                             modifier = Modifier.fillMaxWidth(),
@@ -224,9 +330,21 @@ fun ProfileDialog(
                                     tint = Color(0xFF1FB8B9)
                                 )
                             },
+                            isError = emailError != null || (email.isNotEmpty() && !isValidEmail(email)),
+                            supportingText = when {
+                                emailError != null -> {
+                                    { Text(emailError!!, color = Color.Red, fontSize = 12.sp) }
+                                }
+                                email.isNotEmpty() && !isValidEmail(email) -> {
+                                    { Text("El formato del correo no es válido", color = Color.Red, fontSize = 12.sp) }
+                                }
+                                else -> null
+                            },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF1FB8B9),
-                                focusedLabelColor = Color(0xFF1FB8B9)
+                                focusedLabelColor = Color(0xFF1FB8B9),
+                                errorBorderColor = Color.Red,
+                                errorLabelColor = Color.Red
                             ),
                             textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
                         )
@@ -237,7 +355,7 @@ fun ProfileDialog(
                             value = password,
                             onValueChange = {
                                 password = it
-                                localError = null
+                                passwordError = null
                             },
                             label = { Text("Contraseña", fontSize = 12.sp) },
                             modifier = Modifier.fillMaxWidth(),
@@ -259,9 +377,15 @@ fun ProfileDialog(
                                     )
                                 }
                             },
+                            isError = passwordError != null,
+                            supportingText = passwordError?.let {
+                                { Text(it, color = Color.Red, fontSize = 12.sp) }
+                            },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF1FB8B9),
-                                focusedLabelColor = Color(0xFF1FB8B9)
+                                focusedLabelColor = Color(0xFF1FB8B9),
+                                errorBorderColor = Color.Red,
+                                errorLabelColor = Color.Red
                             ),
                             textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
                         )
@@ -284,7 +408,10 @@ fun ProfileDialog(
                         // REGISTER
                         OutlinedTextField(
                             value = username,
-                            onValueChange = { username = it },
+                            onValueChange = {
+                                username = it
+                                usernameError = null
+                            },
                             label = { Text("Nombre de usuario", fontSize = 12.sp) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
@@ -295,9 +422,15 @@ fun ProfileDialog(
                                     tint = Color(0xFF1FB8B9)
                                 )
                             },
+                            isError = usernameError != null,
+                            supportingText = usernameError?.let {
+                                { Text(it, color = Color.Red, fontSize = 12.sp) }
+                            },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF1FB8B9),
-                                focusedLabelColor = Color(0xFF1FB8B9)
+                                focusedLabelColor = Color(0xFF1FB8B9),
+                                errorBorderColor = Color.Red,
+                                errorLabelColor = Color.Red
                             ),
                             textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
                         )
@@ -306,7 +439,10 @@ fun ProfileDialog(
 
                         OutlinedTextField(
                             value = email,
-                            onValueChange = { email = it },
+                            onValueChange = {
+                                email = it
+                                emailError = null
+                            },
                             label = { Text("Correo electrónico", fontSize = 12.sp) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
@@ -317,9 +453,21 @@ fun ProfileDialog(
                                     tint = Color(0xFF1FB8B9)
                                 )
                             },
+                            isError = emailError != null || (email.isNotEmpty() && !isValidEmail(email)),
+                            supportingText = when {
+                                emailError != null -> {
+                                    { Text(emailError!!, color = Color.Red, fontSize = 12.sp) }
+                                }
+                                email.isNotEmpty() && !isValidEmail(email) -> {
+                                    { Text("El formato del correo no es válido", color = Color.Red, fontSize = 12.sp) }
+                                }
+                                else -> null
+                            },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF1FB8B9),
-                                focusedLabelColor = Color(0xFF1FB8B9)
+                                focusedLabelColor = Color(0xFF1FB8B9),
+                                errorBorderColor = Color.Red,
+                                errorLabelColor = Color.Red
                             ),
                             textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
                         )
@@ -328,7 +476,10 @@ fun ProfileDialog(
 
                         OutlinedTextField(
                             value = password,
-                            onValueChange = { password = it },
+                            onValueChange = {
+                                password = it
+                                passwordError = null
+                            },
                             label = { Text("Contraseña", fontSize = 12.sp) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
@@ -349,9 +500,15 @@ fun ProfileDialog(
                                     )
                                 }
                             },
+                            isError = passwordError != null,
+                            supportingText = passwordError?.let {
+                                { Text(it, color = Color.Red, fontSize = 12.sp) }
+                            },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF1FB8B9),
-                                focusedLabelColor = Color(0xFF1FB8B9)
+                                focusedLabelColor = Color(0xFF1FB8B9),
+                                errorBorderColor = Color.Red,
+                                errorLabelColor = Color.Red
                             ),
                             textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
                         )
@@ -395,15 +552,6 @@ fun ProfileDialog(
                         )
                     }
 
-                    localError?.let {
-                        Text(
-                            text = it,
-                            color = Color.Red,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
-
                     if (isValidating) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -434,6 +582,10 @@ fun ProfileDialog(
                                         Toast.makeText(context, "Completa todos los campos", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
+                                    if (!isValidEmail(email)) {
+                                        emailError = "El formato del correo no es válido"
+                                        return@Button
+                                    }
                                     // LLAMAR AL VIEWMODEL - NO al mock
                                     onLogin(email, password)
                                 } else {
@@ -441,6 +593,10 @@ fun ProfileDialog(
                                     if (username.isEmpty() || email.isEmpty() ||
                                         password.isEmpty() || confirmPassword.isEmpty()) {
                                         Toast.makeText(context, "Completa todos los campos", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    if (!isValidEmail(email)) {
+                                        emailError = "El formato del correo no es válido"
                                         return@Button
                                     }
                                     if (password != confirmPassword) {

@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 import com.example.purchaseregister.api.responses.AuthResponse
+import com.example.purchaseregister.api.responses.SessionResponse
 
 class InvoiceRepositoryImpl : InvoiceRepository {
 
@@ -592,7 +593,15 @@ class InvoiceRepositoryImpl : InvoiceRepository {
             if (response.isSuccessful && response.body() != null) {
                 Result.success(response.body()!!)
             } else {
-                Result.failure(Exception(response.message() ?: "Error en login"))
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = try {
+                    val gson = com.google.gson.Gson()
+                    gson.fromJson(errorBody, AuthResponse::class.java)
+                } catch (e: Exception) {
+                    null
+                }
+                val errorMessage = errorResponse?.message ?: "Error ${response.code()}"
+                Result.failure(Exception(errorMessage))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -602,10 +611,18 @@ class InvoiceRepositoryImpl : InvoiceRepository {
     override suspend fun register(name: String, email: String, password: String): Result<AuthResponse> {
         return try {
             val response = apiService.register(RegisterRequest(name, email, password))
-            if (response.isSuccessful && response.body() != null) {
+            if (response.isSuccessful) {
                 Result.success(response.body()!!)
             } else {
-                Result.failure(Exception(response.message() ?: "Error en registro"))
+                val errorBody = response.errorBody()?.string()
+                val errorResponse = try {
+                    val gson = com.google.gson.Gson()
+                    gson.fromJson(errorBody, AuthResponse::class.java)
+                } catch (e: Exception) {
+                    null
+                }
+                val errorMessage = errorResponse?.message ?: "Error ${response.code()}"
+                Result.failure(Exception(errorMessage))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -622,6 +639,19 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 Result.success(Unit)
             } else {
                 Result.failure(Exception(response.errorBody()?.string() ?: "Error al enviar el correo"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun validateSession(): Result<SessionResponse> {
+        return try {
+            val response = apiService.getSession()
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception("Sesión inválida"))
             }
         } catch (e: Exception) {
             Result.failure(e)
