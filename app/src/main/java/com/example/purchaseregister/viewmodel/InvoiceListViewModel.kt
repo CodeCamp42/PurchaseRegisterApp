@@ -22,7 +22,6 @@ import kotlin.coroutines.suspendCoroutine
 import kotlin.coroutines.resume
 import java.text.SimpleDateFormat
 import java.util.Locale
-import com.example.purchaseregister.api.responses.SessionResponse
 
 class InvoiceListViewModel : ViewModel() {
 
@@ -70,9 +69,6 @@ class InvoiceListViewModel : ViewModel() {
     private val _forgotPasswordState = MutableStateFlow<ForgotPasswordState>(ForgotPasswordState.Idle)
     val forgotPasswordState: StateFlow<ForgotPasswordState> = _forgotPasswordState.asStateFlow()
 
-    private val _sessionState = MutableStateFlow<SessionState>(SessionState.Idle)
-    val sessionState: StateFlow<SessionState> = _sessionState.asStateFlow()
-
     fun loadInvoicesFromDB(isPurchase: Boolean) {
         viewModelScope.launch {
             try {
@@ -96,12 +92,12 @@ class InvoiceListViewModel : ViewModel() {
     ) {
         viewModelScope.launch {
             val ruc = SunatPrefs.getRuc(context)
-            val user = SunatPrefs.getUser(context)
+            val solUsername = SunatPrefs.getSolUsername(context)
             val solPassword = SunatPrefs.getSolPassword(context)
             val clientId = SunatPrefs.getClientId(context)
             val clientSecret = SunatPrefs.getClientSecret(context)
 
-            if (ruc == null || user == null || solPassword == null ||
+            if (ruc == null || solUsername == null || solPassword == null ||
                 clientId == null || clientSecret == null) {
                 _errorMessage.value = "Credenciales no configuradas"
                 return@launch
@@ -111,7 +107,7 @@ class InvoiceListViewModel : ViewModel() {
             _errorMessage.value = null
             try {
                 val apiInvoices = repository.loadInvoicesFromAPI(
-                    periodStart, periodEnd, isPurchase, ruc, user, solPassword, clientId, clientSecret
+                    periodStart, periodEnd, isPurchase, ruc, solUsername, solPassword, clientId, clientSecret
                 )
                 // El repositorio ya actualiza su propio StateFlow internamente
             } catch (e: Exception) {
@@ -337,10 +333,10 @@ class InvoiceListViewModel : ViewModel() {
             }
 
             val ruc = SunatPrefs.getRuc(context)
-            val user = SunatPrefs.getUser(context)
+            val solUsername = SunatPrefs.getSolUsername(context)
             val solPassword = SunatPrefs.getSolPassword(context)
 
-            if (ruc == null || user == null || solPassword == null) {
+            if (ruc == null || solUsername == null || solPassword == null) {
                 Toast.makeText(
                     context,
                     "⚠️ Primero configure sus credenciales SUNAT en el botón CONSULTAR",
@@ -440,14 +436,14 @@ class InvoiceListViewModel : ViewModel() {
 
     fun validateSunatCredentials(
         ruc: String,
-        user: String,
+        solUsername: String,
         solPassword: String,
         clientId: String,
         clientSecret: String,
         onResult: (Boolean) -> Unit
     ) {
         viewModelScope.launch {
-            val isValid = repository.validateSunatCredentials(ruc, user, solPassword, clientId, clientSecret)
+            val isValid = repository.validateSunatCredentials(ruc, solUsername, solPassword, clientId, clientSecret)
             onResult(isValid)
         }
     }
@@ -544,44 +540,6 @@ class InvoiceListViewModel : ViewModel() {
     fun resetForgotPasswordState() {
         _forgotPasswordState.value = ForgotPasswordState.Idle
     }
-
-    fun checkSession(context: Context) {
-        viewModelScope.launch {
-            _sessionState.value = SessionState.Loading
-
-            val token = TokenPrefs.getToken(context)
-            if (token == null) {
-                _sessionState.value = SessionState.Invalid
-                return@launch
-            }
-
-            val result = repository.validateSession()
-            result.fold(
-                onSuccess = { response ->
-                    if (response.user != null) {
-                        // Sesión válida, asegurar que SessionPrefs está actualizado
-                        SessionPrefs.saveSession(
-                            context,
-                            response.user.email ?: "",
-                            response.user.name ?: "Usuario"
-                        )
-                        _sessionState.value = SessionState.Valid(response)
-                    } else {
-                        // Sesión inválida, limpiar todo
-                        SessionPrefs.clearSession(context)
-                        TokenPrefs.clearToken(context)
-                        _sessionState.value = SessionState.Invalid
-                    }
-                },
-                onFailure = {
-                    // Error al validar, limpiar sesión
-                    SessionPrefs.clearSession(context)
-                    TokenPrefs.clearToken(context)
-                    _sessionState.value = SessionState.Invalid
-                }
-            )
-        }
-    }
 }
 
 enum class Section { PURCHASES, SALES }
@@ -598,11 +556,4 @@ sealed class ForgotPasswordState {
     object Loading : ForgotPasswordState()
     data class Success(val message: String) : ForgotPasswordState()
     data class Error(val message: String) : ForgotPasswordState()
-}
-
-sealed class SessionState {
-    object Idle : SessionState()
-    object Loading : SessionState()
-    data class Valid(val response: SessionResponse) : SessionState()
-    object Invalid : SessionState()
 }

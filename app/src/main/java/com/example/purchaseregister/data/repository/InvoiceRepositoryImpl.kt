@@ -18,7 +18,6 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 import com.example.purchaseregister.api.responses.AuthResponse
-import com.example.purchaseregister.api.responses.SessionResponse
 
 class InvoiceRepositoryImpl : InvoiceRepository {
 
@@ -119,7 +118,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         periodEnd: String,
         isPurchase: Boolean,
         ruc: String,
-        user: String,
+        solUsername: String,
         solPassword: String,
         clientId: String,
         clientSecret: String
@@ -133,7 +132,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
 
         println("🌐 [Repository] Llamando a API SUNAT")
         val response = apiService.getInvoices(
-            periodStart, periodEnd, ruc, user, solPassword, clientId, clientSecret
+            periodStart, periodEnd, ruc, solUsername, solPassword, clientId, clientSecret
         )
 
         return if (response.success == true) {
@@ -167,7 +166,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
             onError("Complete sus credenciales SUNAT primero")
             return
         }
-        val user = SunatPrefs.getUser(context) ?: run {
+        val solUsername = SunatPrefs.getSolUsername(context) ?: run {
             onError("Complete sus credenciales SUNAT primero")
             return
         }
@@ -183,7 +182,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 series = invoice?.series,
                 number = invoice?.number,
                 ruc = if (isPurchase) myRuc else invoice?.ruc,
-                solUser = user,
+                solUsername = solUsername,
                 solPassword = solPassword
             )
 
@@ -412,7 +411,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
 
     override suspend fun validateSunatCredentials(
         ruc: String,
-        user: String,
+        solUsername: String,
         solPassword: String,
         clientId: String,
         clientSecret: String
@@ -421,7 +420,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
             val response = apiService.validateCredentials(
                 ValidateCredentialsRequest(
                     ruc = ruc,
-                    user = user,
+                    solUsername = solUsername,
                     solPassword = solPassword,
                     clientId = clientId,
                     clientSecret = clientSecret
@@ -639,19 +638,6 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 Result.success(Unit)
             } else {
                 Result.failure(Exception(response.errorBody()?.string() ?: "Error al enviar el correo"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    override suspend fun validateSession(): Result<SessionResponse> {
-        return try {
-            val response = apiService.getSession()
-            if (response.isSuccessful && response.body() != null) {
-                Result.success(response.body()!!)
-            } else {
-                Result.failure(Exception("Sesión inválida"))
             }
         } catch (e: Exception) {
             Result.failure(e)

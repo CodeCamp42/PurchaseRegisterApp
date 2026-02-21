@@ -12,8 +12,3 @@ data class UserData(
     val email: String? = null,
     val name: String? = null,
 )
-
-data class SessionResponse(
-    val user: UserData? = null,
-    val token: String? = null
-)

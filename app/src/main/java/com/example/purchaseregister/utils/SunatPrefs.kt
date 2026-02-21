@@ -6,7 +6,7 @@ import android.util.Base64
 object SunatPrefs {
     private const val PREFS_NAME = "auth_prefs"
     private const val KEY_RUC = "sunat_ruc"
-    private const val KEY_USER = "sunat_usuario"
+    private const val KEY_SOL_USERNAME = "sunat_usuario"
     private const val KEY_SOL_PASSWORD = "sunat_clave_sol"
     private const val KEY_CLIENT_ID = "sunat_client_id"
     private const val KEY_CLIENT_SECRET = "sunat_client_secret"
@@ -35,24 +35,24 @@ object SunatPrefs {
         }
     }
 
+    fun saveSolUsername(context: Context, solUsername: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(KEY_SOL_USERNAME, solUsername).apply()
+    }
+
+    fun getSolUsername(context: Context): String? {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_SOL_USERNAME, null)
+    }
+
     fun saveRuc(context: Context, ruc: String) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putString(KEY_RUC, ruc).apply()
     }
 
-    fun saveUser(context: Context, user: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(KEY_USER, user).apply()
-    }
-
     fun getRuc(context: Context): String? {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_RUC, null)
-    }
-
-    fun getUser(context: Context): String? {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_USER, null)
     }
 
     fun saveClientId(context: Context, clientId: String) {

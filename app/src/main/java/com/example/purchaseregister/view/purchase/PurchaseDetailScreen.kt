@@ -27,7 +27,6 @@ import com.example.purchaseregister.utils.*
 import com.example.purchaseregister.view.components.ForgotPasswordDialog
 import com.example.purchaseregister.viewmodel.InvoiceListViewModel
 import com.example.purchaseregister.viewmodel.Section
-import com.example.purchaseregister.viewmodel.SessionState
 import java.util.Calendar
 import kotlinx.coroutines.delay
 
@@ -39,7 +38,6 @@ fun PurchaseDetailScreen(
     onNavigateToDetail: (DetailRoute) -> Unit
 ) {
     val context = LocalContext.current
-    val sessionState by viewModel.sessionState.collectAsStateWithLifecycle()
 
     // Estados de UI locales
     var sectionActive by rememberSaveable { mutableStateOf(Section.PURCHASES) }
@@ -84,47 +82,33 @@ fun PurchaseDetailScreen(
     var hasSunatCredentials by remember {
         mutableStateOf(
             SunatPrefs.getRuc(context) != null &&
-                    SunatPrefs.getUser(context) != null &&
+                    SunatPrefs.getSolUsername(context) != null &&
                     SunatPrefs.getSolPassword(context) != null &&
                     SunatPrefs.getClientId(context) != null &&
                     SunatPrefs.getClientSecret(context) != null
         )
     }
 
+    // LÓGICA DE CARGA INICIAL
     LaunchedEffect(Unit) {
-        viewModel.checkSession(context)
-    }
+        if (!isInitialLoadDone) {
+            viewModel.loadInvoicesFromDB(sectionActive == Section.PURCHASES)
+            isListVisible = true
+            delay(500)
 
-    fun loadInitialData() {
-        viewModel.loadInvoicesFromDB(sectionActive == Section.PURCHASES)
-        isListVisible = true
-
-        when {
-            !hasSunatCredentials -> {
-                consultAfterLogin = true
-                showCredentialsDialog = true
-            }
-            else -> {
-                val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
-                val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-                viewModel.loadInvoicesFromAPI(periodStart, periodEnd, sectionActive == Section.PURCHASES, context)
-            }
-        }
-        isInitialLoadDone = true
-    }
-
-    LaunchedEffect(sessionState) {
-        when (sessionState) {
-            is SessionState.Invalid -> {
-                showProfileDialog = true
-                isInitialLoadDone = false
-            }
-            is SessionState.Valid -> {
-                if (!isInitialLoadDone) {
-                    loadInitialData()
+            when {
+                !isAppLoggedIn -> showProfileDialog = true
+                isAppLoggedIn && !hasSunatCredentials -> {
+                    consultAfterLogin = true
+                    showCredentialsDialog = true
+                }
+                isAppLoggedIn && hasSunatCredentials -> {
+                    val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+                    val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
+                    viewModel.loadInvoicesFromAPI(periodStart, periodEnd, sectionActive == Section.PURCHASES, context)
                 }
             }
-            else -> {}
+            isInitialLoadDone = true
         }
     }
 
@@ -228,10 +212,10 @@ fun PurchaseDetailScreen(
                     }
 
                     val ruc = SunatPrefs.getRuc(context)
-                    val user = SunatPrefs.getUser(context)
+                    val solUsername = SunatPrefs.getSolUsername(context)
                     val solPassword = SunatPrefs.getSolPassword(context)
 
-                    if (ruc == null || user == null || solPassword == null) {
+                    if (ruc == null || solUsername == null || solPassword == null) {
                         Toast.makeText(context, "⚠️ Primero configure sus credenciales SUNAT", Toast.LENGTH_LONG).show()
                         return@DateFilterSection
                     }

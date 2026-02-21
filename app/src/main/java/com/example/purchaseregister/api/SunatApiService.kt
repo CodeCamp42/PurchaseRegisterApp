@@ -12,7 +12,7 @@ interface SunatApiService {
         @Query("periodoInicio") periodStart: String,
         @Query("periodoFin") periodEnd: String,
         @Query("ruc") ruc: String,
-        @Query("usuario") user: String,
+        @Query("usuario") solUsername: String,
         @Query("claveSol") solPassword: String,
         @Query("clientId") clientId: String,
         @Query("clientSecret") clientSecret: String
@@ -100,8 +100,4 @@ interface SunatApiService {
     suspend fun requestPasswordReset(
         @Body request: ForgotPasswordRequest
     ): Response<Unit>
-
-    @GET("api/auth/session")
-    suspend fun getSession(
-    ): Response<SessionResponse>
 }

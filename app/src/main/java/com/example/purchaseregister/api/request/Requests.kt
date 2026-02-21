@@ -20,7 +20,7 @@ data class InvoiceDetailRequest(
     val series: String? = null,
     val number: String? = null,
     val ruc: String? = null,
-    val solUser: String? = null,
+    val solUsername: String? = null,
     val solPassword: String? = null
 )
 
@@ -66,7 +66,7 @@ data class RegisterInvoiceFromSunatRequest(
 
 data class ValidateCredentialsRequest(
     val ruc: String? = null,
-    val user: String? = null,
+    val solUsername: String? = null,
     val solPassword: String? = null,
     val clientId: String? = null,
     val clientSecret: String? = null

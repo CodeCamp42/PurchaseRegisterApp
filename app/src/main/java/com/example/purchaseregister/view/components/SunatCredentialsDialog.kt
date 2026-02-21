@@ -35,7 +35,7 @@ fun SunatCredentialsDialog(
     val coroutineScope = rememberCoroutineScope()
 
     var rucInput by remember { mutableStateOf("") }
-    var userInput by remember { mutableStateOf("") }
+    var solUsernameInput by remember { mutableStateOf("") }
     var solPasswordInput by remember { mutableStateOf("") }
     var clientIdInput by remember { mutableStateOf("") }
     var clientSecretInput by remember { mutableStateOf("") }
@@ -66,8 +66,8 @@ fun SunatCredentialsDialog(
         if (rucInput.isEmpty()) {
             rucInput = SunatPrefs.getRuc(context) ?: ""
         }
-        if (userInput.isEmpty()) {
-            userInput = SunatPrefs.getUser(context) ?: ""
+        if (solUsernameInput.isEmpty()) {
+            solUsernameInput = SunatPrefs.getSolUsername(context) ?: ""
         }
         if (solPasswordInput.isEmpty()) {
             solPasswordInput = SunatPrefs.getSolPassword(context) ?: ""
@@ -108,12 +108,12 @@ fun SunatCredentialsDialog(
                 )
 
                 OutlinedTextField(
-                    value = userInput,
-                    onValueChange = { userInput = it.uppercase().take(8) },
+                    value = solUsernameInput,
+                    onValueChange = { solUsernameInput = it.uppercase().take(8) },
                     label = { Text("Usuario SOL") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    supportingText = { Text("${userInput.length}/8 caracteres") }
+                    supportingText = { Text("${solUsernameInput.length}/8 caracteres") }
                 )
 
                 OutlinedTextField(
@@ -199,7 +199,7 @@ fun SunatCredentialsDialog(
                                     localError = "El RUC debe tener 11 dígitos"
                                     return@launch
                                 }
-                                if (userInput.isEmpty()) {
+                                if (solUsernameInput.isEmpty()) {
                                     localError = "El usuario SOL no puede estar vacío"
                                     return@launch
                                 }
@@ -217,7 +217,7 @@ fun SunatCredentialsDialog(
                                 }
 
                                 SunatPrefs.saveRuc(context, rucInput)
-                                SunatPrefs.saveUser(context, userInput)
+                                SunatPrefs.saveSolUsername(context, solUsernameInput)
                                 SunatPrefs.saveSolPassword(context, solPasswordInput)
                                 SunatPrefs.saveClientId(context, clientIdInput)
                                 SunatPrefs.saveClientSecret(context, clientSecretInput)
@@ -237,7 +237,7 @@ fun SunatCredentialsDialog(
                             }
                         },
                         enabled = rucInput.length == 11 &&
-                                userInput.isNotEmpty() &&
+                                solUsernameInput.isNotEmpty() &&
                                 solPasswordInput.isNotEmpty() &&
                                 clientIdInput.isNotEmpty() &&
                                 clientSecretInput.isNotEmpty(),
