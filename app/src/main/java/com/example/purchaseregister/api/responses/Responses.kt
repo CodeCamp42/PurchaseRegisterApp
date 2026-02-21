@@ -178,8 +178,7 @@ data class JobResult(
     val xmlFile: String? = null
 )
 
-data class ValidateCredentialsResponse(
-    val valid: Boolean? = null,
-    val message: String? = null,
-    val token: String? = null
+data class SaveSunatCredentialsResponse(
+    val success: Boolean? = null,
+    val message: String? = null
 )

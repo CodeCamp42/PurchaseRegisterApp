@@ -417,8 +417,8 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         clientSecret: String
     ): Boolean {
         return try {
-            val response = apiService.validateCredentials(
-                ValidateCredentialsRequest(
+            val response = apiService.saveSunatCredentials(
+                SaveSunatCredentialsRequest(
                     ruc = ruc,
                     solUsername = solUsername,
                     solPassword = solPassword,
@@ -426,7 +426,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                     clientSecret = clientSecret
                 )
             )
-            response.valid == true
+            response.isSuccessful && response.body()?.success == true
         } catch (e: Exception) {
             false
         }

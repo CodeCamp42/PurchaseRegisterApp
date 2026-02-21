@@ -7,6 +7,27 @@ import retrofit2.http.*
 import okhttp3.ResponseBody
 
 interface SunatApiService {
+
+    @POST("api/auth/sign-in/email")
+    suspend fun login(
+        @Body request: LoginRequest
+    ): Response<AuthResponse>
+
+    @POST("api/auth/sign-up/email")
+    suspend fun register(
+        @Body request: RegisterRequest
+    ): Response<AuthResponse>
+
+    @POST("api/auth/forget-password")
+    suspend fun requestPasswordReset(
+        @Body request: ForgotPasswordRequest
+    ): Response<Unit>
+
+    @POST("api/user/sunat-credentials")
+    suspend fun saveSunatCredentials(
+        @Body request: SaveSunatCredentialsRequest
+    ): Response<SaveSunatCredentialsResponse>
+
     @GET("sunat/facturas")
     suspend fun getInvoices(
         @Query("periodoInicio") periodStart: String,
@@ -76,28 +97,8 @@ interface SunatApiService {
         @Path("tipo") type: String
     ): ResponseBody
 
-    @POST("sunat/validar-credenciales")
-    suspend fun validateCredentials(
-        @Body request: ValidateCredentialsRequest
-    ): ValidateCredentialsResponse
-
     @GET("factura/ui/usuario/{usuarioId}/completo")
     suspend fun getCompleteUserInvoices(
         @Path("usuarioId") userId: String
     ): InvoicesUIResponse
-
-    @POST("api/auth/sign-in/email")
-    suspend fun login(
-        @Body request: LoginRequest
-    ): Response<AuthResponse>
-
-    @POST("api/auth/sign-up/email")
-    suspend fun register(
-        @Body request: RegisterRequest
-    ): Response<AuthResponse>
-
-    @POST("api/auth/forget-password")
-    suspend fun requestPasswordReset(
-        @Body request: ForgotPasswordRequest
-    ): Response<Unit>
 }

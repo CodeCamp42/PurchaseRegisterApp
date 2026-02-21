@@ -64,7 +64,7 @@ data class RegisterInvoiceFromSunatRequest(
     val userId: Int = 1
 )
 
-data class ValidateCredentialsRequest(
+data class SaveSunatCredentialsRequest(
     val ruc: String? = null,
     val solUsername: String? = null,
     val solPassword: String? = null,

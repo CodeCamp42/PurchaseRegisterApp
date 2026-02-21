@@ -8,7 +8,6 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -87,7 +86,7 @@ fun SunatCredentialsDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     text = "Credenciales SUNAT",
@@ -104,7 +103,8 @@ fun SunatCredentialsDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     isError = localError != null,
-                    supportingText = { Text("${rucInput.length}/11 dígitos") }
+                    supportingText = { Text("${rucInput.length}/11 dígitos") },
+                    shape = MaterialTheme.shapes.small,
                 )
 
                 OutlinedTextField(
@@ -113,7 +113,8 @@ fun SunatCredentialsDialog(
                     label = { Text("Usuario SOL") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    supportingText = { Text("${solUsernameInput.length}/8 caracteres") }
+                    supportingText = { Text("${solUsernameInput.length}/8 caracteres") },
+                    shape = MaterialTheme.shapes.small,
                 )
 
                 OutlinedTextField(
@@ -123,6 +124,7 @@ fun SunatCredentialsDialog(
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
+                    supportingText = { Text("${solPasswordInput.length}/12 caracteres") },
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
@@ -130,7 +132,8 @@ fun SunatCredentialsDialog(
                                 contentDescription = null
                             )
                         }
-                    }
+                    },
+                    shape = MaterialTheme.shapes.small,
                 )
 
                 OutlinedTextField(
@@ -138,7 +141,8 @@ fun SunatCredentialsDialog(
                     onValueChange = { clientIdInput = it },
                     label = { Text("Client ID") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
                 )
 
                 OutlinedTextField(
@@ -155,7 +159,8 @@ fun SunatCredentialsDialog(
                                 contentDescription = null
                             )
                         }
-                    }
+                    },
+                    shape = MaterialTheme.shapes.small,
                 )
 
                 TextButton(
@@ -168,7 +173,7 @@ fun SunatCredentialsDialog(
                         tint = Color(0xFF1FB8B9),
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(2.dp))
                     Text(
                         "¿Cómo obtener Client ID y Client Secret?",
                         color = Color(0xFF1FB8B9),
