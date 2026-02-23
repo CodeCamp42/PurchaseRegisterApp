@@ -434,20 +434,6 @@ class InvoiceListViewModel : ViewModel() {
         }
     }
 
-    fun validateSunatCredentials(
-        ruc: String,
-        solUsername: String,
-        solPassword: String,
-        clientId: String,
-        clientSecret: String,
-        onResult: (Boolean) -> Unit
-    ) {
-        viewModelScope.launch {
-            val isValid = repository.validateSunatCredentials(ruc, solUsername, solPassword, clientId, clientSecret)
-            onResult(isValid)
-        }
-    }
-
     fun register(name: String, email: String, password: String, context: Context) {
         viewModelScope.launch {
             _registerState.value = AuthState.Loading
@@ -500,6 +486,30 @@ class InvoiceListViewModel : ViewModel() {
                 },
                 onFailure = { exception ->
                     _loginState.value = AuthState.Error(exception.message ?: "Error de conexión")
+                }
+            )
+        }
+    }
+
+    fun saveSunatCredentials(
+        ruc: String,
+        solUsername: String,
+        solPassword: String,
+        clientId: String,
+        clientSecret: String,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = repository.validateSunatCredentials(
+                ruc, solUsername, solPassword, clientId, clientSecret
+            )
+
+            result.fold(
+                onSuccess = {
+                    onResult(true, null)
+                },
+                onFailure = { exception ->
+                    onResult(false, exception.message)
                 }
             )
         }

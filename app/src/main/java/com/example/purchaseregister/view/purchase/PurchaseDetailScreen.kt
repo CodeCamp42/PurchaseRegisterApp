@@ -293,6 +293,12 @@ fun PurchaseDetailScreen(
             externalClientSecret = clientSecretInput,
             onExternalCredentialsUpdated = {
             },
+            onSaveToBackend = { ruc, solUsername, solPassword, clientId, clientSecret, onResult ->
+                viewModel.saveSunatCredentials(
+                    ruc, solUsername, solPassword, clientId, clientSecret,
+                    onResult = onResult
+                )
+            },
             consultAfterLogin = consultAfterLogin,
             onConsultAfterLogin = {
                 val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)

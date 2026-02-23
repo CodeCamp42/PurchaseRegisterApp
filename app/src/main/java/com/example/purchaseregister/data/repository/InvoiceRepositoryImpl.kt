@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 import com.example.purchaseregister.api.responses.AuthResponse
+import com.example.purchaseregister.api.responses.SaveSunatCredentialsResponse
 
 class InvoiceRepositoryImpl : InvoiceRepository {
 
@@ -415,7 +416,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         solPassword: String,
         clientId: String,
         clientSecret: String
-    ): Boolean {
+    ): Result<Boolean> {
         return try {
             val response = apiService.saveSunatCredentials(
                 SaveSunatCredentialsRequest(
@@ -426,9 +427,27 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                     clientSecret = clientSecret
                 )
             )
-            response.isSuccessful && response.body()?.success == true
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true) {
+                    Result.success(true)
+                } else {
+                    Result.failure(Exception(body?.message ?: "Error desconocido"))
+                }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorMessage = try {
+                    val gson = com.google.gson.Gson()
+                    val errorResponse = gson.fromJson(errorBody, SaveSunatCredentialsResponse::class.java)
+                    errorResponse.message ?: "Error ${response.code()}"
+                } catch (e: Exception) {
+                    "Error ${response.code()}"
+                }
+                Result.failure(Exception(errorMessage))
+            }
         } catch (e: Exception) {
-            false
+            Result.failure(e)
         }
     }
 

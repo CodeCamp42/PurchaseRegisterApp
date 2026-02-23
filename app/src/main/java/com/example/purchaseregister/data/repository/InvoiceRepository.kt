@@ -63,5 +63,5 @@ interface InvoiceRepository {
         solPassword: String,
         clientId: String,
         clientSecret: String
-    ): Boolean
+    ): Result<Boolean>
 }

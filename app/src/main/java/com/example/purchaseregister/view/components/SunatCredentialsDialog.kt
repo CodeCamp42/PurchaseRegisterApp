@@ -24,6 +24,14 @@ fun SunatCredentialsDialog(
     onDismiss: () -> Unit,
     onCredentialsSaved: () -> Unit,
     onShowTutorial: () -> Unit,
+    onSaveToBackend: (
+        ruc: String,
+        solUsername: String,
+        solPassword: String,
+        clientId: String,
+        clientSecret: String,
+        onResult: (Boolean, String?) -> Unit
+    ) -> Unit,
     externalClientId: String = "",
     externalClientSecret: String = "",
     onExternalCredentialsUpdated: () -> Unit = {},
@@ -199,45 +207,35 @@ fun SunatCredentialsDialog(
                     TextButton(
                         onClick = {
                             coroutineScope.launch {
-                                // Validaciones
-                                if (rucInput.length != 11) {
-                                    localError = "El RUC debe tener 11 dígitos"
-                                    return@launch
-                                }
-                                if (solUsernameInput.isEmpty()) {
-                                    localError = "El usuario SOL no puede estar vacío"
-                                    return@launch
-                                }
-                                if (solPasswordInput.isEmpty()) {
-                                    localError = "La clave SOL no puede estar vacía"
-                                    return@launch
-                                }
-                                if (clientIdInput.isEmpty()) {
-                                    localError = "El Client ID no puede estar vacío"
-                                    return@launch
-                                }
-                                if (clientSecretInput.isEmpty()) {
-                                    localError = "El Client Secret no puede estar vacío"
-                                    return@launch
-                                }
+                                onSaveToBackend(
+                                    rucInput,
+                                    solUsernameInput,
+                                    solPasswordInput,
+                                    clientIdInput,
+                                    clientSecretInput
+                                ) { success, errorMessage ->
+                                    if (success) {
+                                        SunatPrefs.saveRuc(context, rucInput)
+                                        SunatPrefs.saveSolUsername(context, solUsernameInput)
+                                        SunatPrefs.saveSolPassword(context, solPasswordInput)
+                                        SunatPrefs.saveClientId(context, clientIdInput)
+                                        SunatPrefs.saveClientSecret(context, clientSecretInput)
 
-                                SunatPrefs.saveRuc(context, rucInput)
-                                SunatPrefs.saveSolUsername(context, solUsernameInput)
-                                SunatPrefs.saveSolPassword(context, solPasswordInput)
-                                SunatPrefs.saveClientId(context, clientIdInput)
-                                SunatPrefs.saveClientSecret(context, clientSecretInput)
+                                        onCredentialsSaved()
+                                        onDismiss()
 
-                                onCredentialsSaved()
-                                onDismiss()
+                                        Toast.makeText(
+                                            context,
+                                            "✅ Credenciales SUNAT guardadas",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
 
-                                Toast.makeText(
-                                    context,
-                                    "✅ Credenciales SUNAT guardadas",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-
-                                if (consultAfterLogin) {
-                                    onConsultAfterLogin()
+                                        if (consultAfterLogin) {
+                                            onConsultAfterLogin()
+                                        }
+                                    } else {
+                                        localError = errorMessage
+                                    }
                                 }
                             }
                         },
