@@ -429,12 +429,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
             )
 
             if (response.isSuccessful) {
-                val body = response.body()
-                if (body?.success == true) {
-                    Result.success(true)
-                } else {
-                    Result.failure(Exception(body?.message ?: "Error desconocido"))
-                }
+                Result.success(true)
             } else {
                 val errorBody = response.errorBody()?.string()
                 val errorMessage = try {
@@ -451,11 +446,9 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         }
     }
 
-    // --- Funciones de mapeo privadas con manejo de nulos ---
+    //Funciones de mapeo privadas con manejo de nulos
 
     private fun mapRegisteredInvoiceToModel(response: RegisteredInvoiceResponse): Invoice? {
-        // Si falta un dato crítico, podrías retornar null o manejarlo con valores por defecto.
-        // Aquí optamos por valores por defecto para no perder la factura, pero es una decisión de diseño.
         return try {
             Invoice(
                 id = response.invoiceId ?: 0,

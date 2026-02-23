@@ -17,6 +17,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.purchaseregister.utils.SunatPrefs
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.example.purchaseregister.utils.TokenPrefs
 import kotlinx.coroutines.launch
 
 @Composable
@@ -49,6 +52,17 @@ fun SunatCredentialsDialog(
     var passwordVisible by remember { mutableStateOf(false) }
     var clientSecretVisible by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf<String?>(null) }
+
+    var tokenDebug by remember { mutableStateOf("Cargando token...") }
+
+    LaunchedEffect(Unit) {
+        val token = TokenPrefs.getToken(context)
+        tokenDebug = if (token != null) {
+            "Token: ${token.take(50)}..."  // Muestra primeros 30 caracteres
+        } else {
+            "⚠️ No hay token guardado"
+        }
+    }
 
     LaunchedEffect(externalClientId, externalClientSecret) {
         if (externalClientId.isNotEmpty()) {
@@ -93,6 +107,7 @@ fun SunatCredentialsDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -103,6 +118,20 @@ fun SunatCredentialsDialog(
                 )
 
                 Text("Complete para continuar:")
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFF0F0F0)
+                    )
+                ) {
+                    Text(
+                        text = tokenDebug,
+                        fontSize = 12.sp,
+                        color = if (tokenDebug.contains("⚠️")) Color.Red else Color.Blue,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
 
                 OutlinedTextField(
                     value = rucInput,

@@ -23,7 +23,7 @@ interface SunatApiService {
         @Body request: ForgotPasswordRequest
     ): Response<Unit>
 
-    @POST("api/user/sunat-credentials")
+    @POST("api/users/me/sunat-credentials")
     suspend fun saveSunatCredentials(
         @Body request: SaveSunatCredentialsRequest
     ): Response<SaveSunatCredentialsResponse>
