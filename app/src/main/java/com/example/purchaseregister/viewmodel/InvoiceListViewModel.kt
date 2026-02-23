@@ -515,6 +515,40 @@ class InvoiceListViewModel : ViewModel() {
         }
     }
 
+    fun signOut(
+        context: Context,
+        onComplete: (success: Boolean, message: String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val token = TokenPrefs.getToken(context)
+            if (token == null) {
+                // Si no hay token, solo limpiamos localmente
+                performLocalLogout(context)
+                onComplete(true, null)
+                return@launch
+            }
+
+            val result = repository.signOut(token)
+
+            result.fold(
+                onSuccess = {
+                    performLocalLogout(context)
+                    onComplete(true, null)
+                },
+                onFailure = { exception ->
+                    performLocalLogout(context)
+                    onComplete(false, exception.message)
+                }
+            )
+        }
+    }
+
+    private fun performLocalLogout(context: Context) {
+        SessionPrefs.clearSession(context)
+        TokenPrefs.clearToken(context)
+        clearInvoices()
+    }
+
     fun resetAuthStates() {
         _loginState.value = AuthState.Idle
         _registerState.value = AuthState.Idle

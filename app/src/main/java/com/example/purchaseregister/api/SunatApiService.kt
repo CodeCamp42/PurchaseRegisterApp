@@ -28,6 +28,11 @@ interface SunatApiService {
         @Body request: SaveSunatCredentialsRequest
     ): Response<SaveSunatCredentialsResponse>
 
+    @POST("api/auth/sign-out")
+    suspend fun signOut(
+        @Header("Authorization") authorization: String?
+    ): Response<Unit>
+
     @GET("sunat/facturas")
     suspend fun getInvoices(
         @Query("periodoInicio") periodStart: String,

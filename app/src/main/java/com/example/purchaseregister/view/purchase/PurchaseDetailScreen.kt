@@ -315,15 +315,21 @@ fun PurchaseDetailScreen(
         LogoutDialog(
             onDismiss = { showLogoutDialog = false },
             onConfirm = {
-                SessionPrefs.clearSession(context)
-                isAppLoggedIn = false
-                hasSunatCredentials = false
-                viewModel.clearInvoices()
-                isListVisible = false
-                showLogoutDialog = false
-                consultAfterLogin = false
-                showProfileDialog = true
-                Toast.makeText(context, "Sesión cerrada", Toast.LENGTH_SHORT).show()
+                viewModel.signOut(
+                    context,
+                    onComplete = { success, message ->
+                        if (!success) {
+                            Toast.makeText(context, message ?: "Error al cerrar sesión", Toast.LENGTH_SHORT).show()
+                        }
+                        isAppLoggedIn = false
+                        hasSunatCredentials = false
+                        isListVisible = false
+                        showLogoutDialog = false
+                        consultAfterLogin = false
+                        showProfileDialog = true
+                        Toast.makeText(context, "Sesión cerrada", Toast.LENGTH_SHORT).show()
+                    }
+                )
             }
         )
     }

@@ -655,4 +655,20 @@ class InvoiceRepositoryImpl : InvoiceRepository {
             Result.failure(e)
         }
     }
+
+    override suspend fun signOut(token: String): Result<Unit> {
+        return try {
+            val authHeader = "Bearer $token"
+            val response = apiService.signOut(authHeader)
+
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                val errorMessage = response.errorBody()?.string() ?: "Error al cerrar sesión"
+                Result.failure(Exception(errorMessage))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

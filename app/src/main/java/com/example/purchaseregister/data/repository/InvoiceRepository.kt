@@ -52,6 +52,8 @@ interface InvoiceRepository {
 
     suspend fun requestPasswordReset(email: String): Result<Unit>
 
+    suspend fun signOut(token: String): Result<Unit>
+
     // Getters auxiliares (pueden ser suspend si son lentos, pero aquí son rápidos)
     fun getIssuerRuc(invoiceId: Int): String?
     fun clearAll()
