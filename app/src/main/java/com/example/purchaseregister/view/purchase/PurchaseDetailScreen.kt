@@ -79,14 +79,16 @@ fun PurchaseDetailScreen(
     var isAppLoggedIn by remember { mutableStateOf(SessionPrefs.isLoggedIn(context)) }
     val forgotPasswordState by viewModel.forgotPasswordState.collectAsStateWithLifecycle()
 
-    var hasSunatCredentials by remember {
-        mutableStateOf(
-            SunatPrefs.getRuc(context) != null &&
-                    SunatPrefs.getSolUsername(context) != null &&
-                    SunatPrefs.getSolPassword(context) != null &&
-                    SunatPrefs.getClientId(context) != null &&
-                    SunatPrefs.getClientSecret(context) != null
-        )
+    val hasSunatCredentials by remember {
+        derivedStateOf {
+            isAppLoggedIn && (
+                    SunatPrefs.getRuc(context) != null &&
+                            SunatPrefs.getSolUsername(context) != null &&
+                            SunatPrefs.getSolPassword(context) != null &&
+                            SunatPrefs.getClientId(context) != null &&
+                            SunatPrefs.getClientSecret(context) != null
+                    )
+        }
     }
 
     // LÓGICA DE CARGA INICIAL
@@ -284,7 +286,6 @@ fun PurchaseDetailScreen(
                 consultAfterLogin = false
             },
             onCredentialsSaved = {
-                hasSunatCredentials = true
                 clientIdInput = ""
                 clientSecretInput = ""
             },
@@ -322,7 +323,6 @@ fun PurchaseDetailScreen(
                             Toast.makeText(context, message ?: "Error al cerrar sesión", Toast.LENGTH_SHORT).show()
                         }
                         isAppLoggedIn = false
-                        hasSunatCredentials = false
                         isListVisible = false
                         showLogoutDialog = false
                         consultAfterLogin = false
