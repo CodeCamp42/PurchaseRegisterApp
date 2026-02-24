@@ -99,7 +99,6 @@ fun PurchaseDetailScreen(
     // LÓGICA DE CARGA INICIAL
     LaunchedEffect(Unit) {
         if (!isInitialLoadDone) {
-            viewModel.loadInvoicesFromDB(sectionActive == Section.PURCHASES)
             isListVisible = true
             delay(500)
 
@@ -278,6 +277,7 @@ fun PurchaseDetailScreen(
             BottomActionButtons(
                 isAppLoggedIn = isAppLoggedIn,
                 hasSunatCredentials = hasSunatCredentials,
+                hasCredentialError = showCredentialErrorDialog,
                 onConsultClick = {
                     val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
                     val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
@@ -482,7 +482,8 @@ fun convertDateToPeriod(millis: Long): String {
     }
     val year = calendar.get(Calendar.YEAR)
     val month = calendar.get(Calendar.MONTH) + 1
-    return "${year}${String.format("%02d", month)}"
+    val day = calendar.get(Calendar.DAY_OF_MONTH)
+    return "${year}-${String.format("%02d", month)}-${String.format("%02d", day)}"
 }
 
 @Preview(showBackground = true, showSystemUi = true)

@@ -12,7 +12,6 @@ interface InvoiceRepository {
     val salesInvoices: StateFlow<List<Invoice>>
 
     // Carga de datos
-    suspend fun loadInvoicesFromDB(isPurchase: Boolean): List<Invoice>
     suspend fun loadInvoicesFromAPI(
         periodStart: String,
         periodEnd: String,

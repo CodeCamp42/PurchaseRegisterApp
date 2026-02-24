@@ -71,16 +71,7 @@ class InvoiceListViewModel : ViewModel() {
 
     fun loadInvoicesFromDB(isPurchase: Boolean) {
         viewModelScope.launch {
-            try {
-                val dbInvoices = repository.loadInvoicesFromDB(isPurchase)
-                // Combinar con las facturas actuales de la API (si las hay)
-                val currentApiInvoices = if (isPurchase) purchaseInvoices.value else salesInvoices.value
-                val combined = combineInvoices(currentApiInvoices, dbInvoices)
-            } catch (e: Exception) {
-                _errorMessage.value = "Error cargando de BD: ${e.message}"
-            } finally {
-                _isLoading.value = false
-            }
+            _isLoading.value = false
         }
     }
 
@@ -106,7 +97,7 @@ class InvoiceListViewModel : ViewModel() {
             _isLoading.value = true
             _errorMessage.value = null
             try {
-                val apiInvoices = repository.loadInvoicesFromAPI(
+                repository.loadInvoicesFromAPI(
                     periodStart, periodEnd, isPurchase, ruc, solUsername, solPassword, clientId, clientSecret
                 )
                 // El repositorio ya actualiza su propio StateFlow internamente

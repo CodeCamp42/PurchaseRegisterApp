@@ -69,22 +69,6 @@ interface SunatApiService {
         @Path("numeroComprobante") documentNumber: String
     ): RegisteredInvoiceResponse
 
-    @POST("factura/registrar-desde-sunat")
-    @Headers("Content-Type: application/json")
-    suspend fun registerInvoiceFromSunat(
-        @Body request: RegisterInvoiceFromSunatRequest
-    ): RegisterInvoiceFromSunatResponse
-
-    @GET("factura/ui/{numeroComprobante}")
-    suspend fun getInvoiceForUI(
-        @Path("numeroComprobante") documentNumber: String
-    ): InvoiceUIResponse
-
-    @GET("factura/ui/usuario/{usuarioId}")
-    suspend fun getUserInvoicesForUI(
-        @Path("usuarioId") userId: String
-    ): InvoicesUIResponse
-
     @POST("sunat/descargar-xml")
     suspend fun downloadXmlWithQueue(
         @Body request: InvoiceDetailRequest

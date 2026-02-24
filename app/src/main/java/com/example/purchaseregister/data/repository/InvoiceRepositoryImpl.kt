@@ -92,28 +92,6 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         _issuerRucs.clear()
     }
 
-    // Implementación de métodos de la interfaz
-    override suspend fun loadInvoicesFromDB(isPurchase: Boolean): List<Invoice> {
-        return try {
-            println("🔴🔴🔴 [Repository] INICIANDO CARGA DESDE BD")
-            val response = apiService.getCompleteUserInvoices("1")
-
-            if (response.success == true && response.invoices != null) {
-                println("✅ [Repository] Facturas BD: ${response.invoices.size}")
-                response.invoices.mapNotNull { invoiceResponse -> // Usamos mapNotNull para filtrar nulos
-                    mapRegisteredInvoiceToModel(invoiceResponse)
-                }
-            } else {
-                println("❌ [Repository] response.success es false")
-                emptyList()
-            }
-        } catch (e: Exception) {
-            println("💥 [Repository] ERROR EN CARGA BD: ${e.message}")
-            e.printStackTrace()
-            emptyList()
-        }
-    }
-
     override suspend fun loadInvoicesFromAPI(
         periodStart: String,
         periodEnd: String,
@@ -348,54 +326,8 @@ class InvoiceRepositoryImpl : InvoiceRepository {
     }
 
     override suspend fun registerNewPurchaseInvoice(invoiceData: Map<String, Any>): Invoice? {
-        return try {
-            val request = RegisterInvoiceFromSunatRequest(
-                issuerRuc = invoiceData["ruc"] as? String,
-                series = invoiceData["series"] as? String,
-                number = invoiceData["number"] as? String,
-                issueDate = invoiceData["issueDate"] as? String,
-                businessName = invoiceData["businessName"] as? String,
-                documentType = invoiceData["documentType"] as? String,
-                currency = invoiceData["currency"] as? String,
-                totalCost = invoiceData["totalCost"] as? String,
-                igv = invoiceData["igv"] as? String,
-                totalAmount = invoiceData["totalAmount"] as? String,
-                userId = 1
-            )
-
-            val response = apiService.registerInvoiceFromSunat(request)
-
-            if (response.success == true && response.invoiceId != null) {
-                val products = invoiceData["products"] as? List<ProductItem> ?: emptyList()
-                val initialStatus = if (products.isNotEmpty()) "CON DETALLE" else "CONSULTADO"
-
-                Invoice(
-                    id = response.invoiceId!!,
-                    ruc = request.issuerRuc ?: "",
-                    businessName = request.businessName ?: "",
-                    series = request.series ?: "",
-                    number = request.number ?: "",
-                    issueDate = request.issueDate ?: "",
-                    documentType = request.documentType ?: "",
-                    year = invoiceData["year"] as? String ?: "",
-                    currency = request.currency ?: "",
-                    totalCost = request.totalCost ?: "",
-                    igv = request.igv ?: "",
-                    exchangeRate = invoiceData["exchangeRate"] as? String ?: "",
-                    totalAmount = request.totalAmount ?: "",
-                    status = initialStatus,
-                    isSelected = false,
-                    products = products
-                )
-            } else {
-                println("❌ Error registrando factura en BD: ${response.message}")
-                null
-            }
-        } catch (e: Exception) {
-            println("❌ Excepción al registrar factura: ${e.message}")
-            e.printStackTrace()
-            null
-        }
+        // Como ya no existe el endpoint, retornamos null
+        return null
     }
 
     override suspend fun updateInvoiceStatus(invoiceId: Int, newStatus: String, isPurchase: Boolean) {
@@ -472,42 +404,6 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         }
     }
 
-    //Funciones de mapeo privadas con manejo de nulos
-    private fun mapRegisteredInvoiceToModel(response: RegisteredInvoiceResponse): Invoice? {
-        return try {
-            Invoice(
-                id = response.invoiceId ?: 0,
-                ruc = response.providerRuc ?: "",
-                businessName = response.provider?.businessName ?: "",
-                series = response.series ?: "",
-                number = response.number ?: "",
-                issueDate = response.issueDate ?: "",
-                documentType = "FACTURA", // Podrías mapearlo si viene en la respuesta
-                currency = response.currency ?: "",
-                totalCost = response.totalCost ?: "",
-                igv = response.igv ?: "",
-                totalAmount = response.totalAmount ?: "",
-                status = response.status ?: "CONSULTADO",
-                isSelected = false,
-                products = response.details?.mapNotNull { detail ->
-                    detail?.let {
-                        ProductItem(
-                            description = it.description ?: "",
-                            quantity = it.quantity ?: "",
-                            unitCost = it.unitCost ?: "",
-                            unitOfMeasure = it.unitOfMeasure ?: ""
-                        )
-                    }
-                } ?: emptyList(),
-                year = response.issueDate?.take(4) ?: "",
-                exchangeRate = "" // No viene en esta respuesta
-            )
-        } catch (e: Exception) {
-            println("Error mapeando RegisteredInvoiceResponse: ${e.message}")
-            null
-        }
-    }
-
     private suspend fun parseSunatContent(
         items: List<SunatResponse>,
         isPurchase: Boolean
@@ -517,68 +413,16 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         val maxCurrentId = (allExistingInvoices.maxOfOrNull { it.id } ?: 0) + 1
         var idCounter = maxCurrentId
 
-        val invoicesToRegisterInDB = mutableListOf<RegisterInvoiceFromSunatRequest>()
-
         items.forEach { item ->
-            val documentNumber = "${item.series}-${item.number}"
-            var statusFromDB = "CONSULTADO"
-            var productsFromDB: List<ProductItem> = emptyList()
-            var existingId: Int? = null
+            val id = idCounter++
 
-            try {
-                val invoiceUI = apiService.getInvoiceForUI(documentNumber)
-                if (invoiceUI.invoice != null) {
-                    statusFromDB = invoiceUI.invoice.status ?: "CONSULTADO"
-                    existingId = invoiceUI.invoice.invoiceId
-                    productsFromDB = invoiceUI.invoice.details?.mapNotNull { detail ->
-                        detail?.let {
-                            ProductItem(
-                                description = it.description ?: "",
-                                quantity = it.quantity ?: "",
-                                unitCost = it.unitCost ?: "",
-                                unitOfMeasure = it.unitOfMeasure ?: ""
-                            )
-                        }
-                    } ?: emptyList()
-                }
-            } catch (e: Exception) {
-                val invoiceRequest = RegisterInvoiceFromSunatRequest(
-                    issuerRuc = item.issuerRuc,
-                    series = item.series,
-                    number = item.number,
-                    issueDate = item.issueDate,
-                    businessName = if (isPurchase) item.receiverName else item.issuerName,
-                    documentType = when (item.docType) {
-                        "01" -> "FACTURA"
-                        "03" -> "BOLETA"
-                        else -> "DOCUMENTO"
-                    },
-                    currency = when (item.currency) {
-                        "PEN" -> "Soles (PEN)"
-                        "USD" -> "Dólares (USD)"
-                        else -> item.currency
-                    },
-                    totalCost = item.taxableAmount.toString(),
-                    igv = item.igv.toString(),
-                    totalAmount = item.totalAmount.toString(),
-                    userId = 1
-                )
-                invoicesToRegisterInDB.add(invoiceRequest)
-            }
-
-            val id = existingId ?: idCounter++
-
-            // Guardar RUC para consultas de detalle (usando el RUC del emisor)
+            // Guardar RUC para consultas de detalle
             setIssuerRuc(id, item.issuerRuc)
 
             val invoice = Invoice(
                 id = id,
-                // 🔥 CORREGIDO: Para COMPRAS usa receiverDocNumber, para VENTAS usa issuerRuc
                 ruc = if (isPurchase) item.receiverDocNumber else item.issuerRuc,
-
-                // 🔥 CORREGIDO: Para COMPRAS usa receiverName, para VENTAS usa issuerName
                 businessName = if (isPurchase) item.receiverName else item.issuerName,
-
                 series = item.series,
                 number = item.number,
                 issueDate = item.issueDate,
@@ -595,34 +439,30 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 totalCost = item.taxableAmount.toString(),
                 igv = item.igv.toString(),
                 totalAmount = item.totalAmount.toString(),
-                status = statusFromDB,
+                status = "CONSULTADO", // Por defecto
                 isSelected = false,
-                products = productsFromDB,
+                products = emptyList(),
                 year = item.period.take(4),
                 exchangeRate = item.exchangeRate.toString()
             )
             invoices.add(invoice)
         }
 
-        if (invoicesToRegisterInDB.isNotEmpty()) {
-            CoroutineScope(context = kotlinx.coroutines.Job()).launch {
-                invoicesToRegisterInDB.forEach { request ->
-                    try {
-                        apiService.registerInvoiceFromSunat(request)
-                    } catch (e: Exception) {
-                        println("Error registrando factura: ${e.message}")
-                    }
-                }
-            }
-        }
-
-        return invoices.sortedBy { invoice ->
+        val sortedInvoices = invoices.sortedBy { invoice ->
             try {
                 SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(invoice.issueDate)?.time ?: 0L
             } catch (e: Exception) {
                 0L
             }
         }
+
+        if (isPurchase) {
+            _purchaseInvoices.value = sortedInvoices
+        } else {
+            _salesInvoices.value = sortedInvoices
+        }
+
+        return sortedInvoices
     }
 
     override suspend fun login(email: String, password: String): Result<AuthResponse> {

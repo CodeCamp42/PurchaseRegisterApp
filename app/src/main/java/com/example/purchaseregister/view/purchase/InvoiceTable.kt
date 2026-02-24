@@ -116,8 +116,9 @@ fun InvoiceTable(
                                     Text(
                                         text = invoice.businessName,
                                         fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color.Black
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.Black,
+                                        modifier = Modifier.padding(start = 8.dp)
                                     )
                                 }
 

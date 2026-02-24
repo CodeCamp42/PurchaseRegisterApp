@@ -17,12 +17,12 @@ import com.example.purchaseregister.viewmodel.Section
 fun BottomActionButtons(
     isAppLoggedIn: Boolean,
     hasSunatCredentials: Boolean,
+    hasCredentialError: Boolean = false,
     onConsultClick: () -> Unit,
     onShowProfile: () -> Unit,
     onShowCredentials: () -> Unit,
     sectionActive: Section,
     onNavigateToRegister: () -> Unit,
-    shouldShowCredentialsDialog: Boolean = false
 ) {
     val context = LocalContext.current
 
@@ -37,6 +37,9 @@ fun BottomActionButtons(
                     onShowProfile()
                 } else if (!hasSunatCredentials) {
                     Toast.makeText(context, "Debes configurar tus credenciales SUNAT", Toast.LENGTH_SHORT).show()
+                    onShowCredentials()
+                } else if (hasCredentialError) {
+                    Toast.makeText(context, "Tus credenciales SUNAT son inválidas", Toast.LENGTH_SHORT).show()
                     onShowCredentials()
                 } else {
                     onConsultClick()
@@ -59,6 +62,9 @@ fun BottomActionButtons(
                         onShowProfile()
                     } else if (!hasSunatCredentials) {
                         Toast.makeText(context, "Debes configurar tus credenciales SUNAT", Toast.LENGTH_SHORT).show()
+                        onShowCredentials()
+                    } else if (hasCredentialError) {
+                        Toast.makeText(context, "Corrige tus credenciales SUNAT primero", Toast.LENGTH_SHORT).show()
                         onShowCredentials()
                     } else {
                         onNavigateToRegister()
