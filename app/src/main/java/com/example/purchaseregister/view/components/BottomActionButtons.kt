@@ -21,9 +21,10 @@ fun BottomActionButtons(
     onShowProfile: () -> Unit,
     onShowCredentials: () -> Unit,
     sectionActive: Section,
-    onNavigateToRegister: () -> Unit
+    onNavigateToRegister: () -> Unit,
+    shouldShowCredentialsDialog: Boolean = false
 ) {
-    val context = LocalContext.current  // 👈 Contexto local del componente
+    val context = LocalContext.current
 
     Row(
         modifier = Modifier.fillMaxWidth(),

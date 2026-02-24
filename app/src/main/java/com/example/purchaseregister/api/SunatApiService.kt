@@ -33,16 +33,16 @@ interface SunatApiService {
         @Header("Authorization") authorization: String?
     ): Response<Unit>
 
-    @GET("sunat/facturas")
+    @GET("api/invoices")
     suspend fun getInvoices(
-        @Query("periodoInicio") periodStart: String,
-        @Query("periodoFin") periodEnd: String,
+        @Query("startDate") periodStart: String,
+        @Query("endDate") periodEnd: String,
         @Query("ruc") ruc: String,
         @Query("usuario") solUsername: String,
         @Query("claveSol") solPassword: String,
         @Query("clientId") clientId: String,
         @Query("clientSecret") clientSecret: String
-    ): SunatResponse
+    ): List<SunatResponse>
 
     @PUT("factura/scraping-completado/{numeroComprobante}")
     @Headers("Content-Type: application/json")

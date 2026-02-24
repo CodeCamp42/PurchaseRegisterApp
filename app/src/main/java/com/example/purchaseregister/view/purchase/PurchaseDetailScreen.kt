@@ -10,6 +10,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.purchaseregister.view.components.CustomDatePickerDialog
@@ -24,6 +25,7 @@ import com.example.purchaseregister.view.components.SectionButtons
 import com.example.purchaseregister.view.components.BottomActionButtons
 import com.example.purchaseregister.view.detail.DetailRoute
 import com.example.purchaseregister.utils.*
+import com.example.purchaseregister.view.components.CredentialErrorDialog
 import com.example.purchaseregister.view.components.ForgotPasswordDialog
 import com.example.purchaseregister.viewmodel.InvoiceListViewModel
 import com.example.purchaseregister.viewmodel.Section
@@ -78,6 +80,9 @@ fun PurchaseDetailScreen(
 
     var isAppLoggedIn by remember { mutableStateOf(SessionPrefs.isLoggedIn(context)) }
     val forgotPasswordState by viewModel.forgotPasswordState.collectAsStateWithLifecycle()
+    var showCredentialsForApiError by remember { mutableStateOf(false) }
+    var showCredentialErrorDialog by remember { mutableStateOf(false) }
+    var credentialErrorMessage by remember { mutableStateOf("") }
 
     val hasSunatCredentials by remember {
         derivedStateOf {
@@ -126,9 +131,18 @@ fun PurchaseDetailScreen(
 
     // Efecto para mostrar errores
     LaunchedEffect(errorMessage) {
-        errorMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-            viewModel.clearError()
+        errorMessage?.let { error ->
+            if (error.startsWith("CREDENTIAL_ERROR:")) {
+                credentialErrorMessage = error.substringAfter("CREDENTIAL_ERROR:").trim()
+                showCredentialErrorDialog = true
+            } else if (error.contains("CREDENCIALES_INVALIDAS") ||
+                error.contains("401") ||
+                error.contains("No autorizado")) {
+                showCredentialsForApiError = true
+                showCredentialsDialog = true
+            } else {
+                Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -278,16 +292,34 @@ fun PurchaseDetailScreen(
         }
     }
 
+    // solo si las credenciales son invalidas
+    if (showCredentialErrorDialog) {
+        CredentialErrorDialog(
+            errorMessage = credentialErrorMessage,
+            onEditClick = {
+                showCredentialsDialog = true
+                consultAfterLogin = true
+            },
+            onDismiss = {
+                showCredentialErrorDialog = false
+            }
+        )
+    }
+
     // Credenciales de sunat
     if (showCredentialsDialog) {
         SunatCredentialsDialog(
             onDismiss = {
                 showCredentialsDialog = false
-                consultAfterLogin = false
+                showCredentialsForApiError = false
             },
             onCredentialsSaved = {
                 clientIdInput = ""
                 clientSecretInput = ""
+                showCredentialsForApiError = false
+                val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+                val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
+                viewModel.loadInvoicesFromAPI(periodStart, periodEnd, sectionActive == Section.PURCHASES, context)
             },
             onShowTutorial = { showTutorial = true },
             externalClientId = clientIdInput,
@@ -300,13 +332,14 @@ fun PurchaseDetailScreen(
                     onResult = onResult
                 )
             },
-            consultAfterLogin = consultAfterLogin,
+            consultAfterLogin = consultAfterLogin || showCredentialsForApiError,
             onConsultAfterLogin = {
                 val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
                 val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
                 viewModel.loadInvoicesFromAPI(periodStart, periodEnd, sectionActive == Section.PURCHASES, context)
                 isListVisible = true
                 consultAfterLogin = false
+                showCredentialsForApiError = false
             }
         )
     }
@@ -386,6 +419,7 @@ fun PurchaseDetailScreen(
                 showProfileDialog = false
                 isAppLoggedIn = true
                 if (!hasSunatCredentials) {
+                    consultAfterLogin = true
                     showCredentialsDialog = true
                 } else {
                     val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)

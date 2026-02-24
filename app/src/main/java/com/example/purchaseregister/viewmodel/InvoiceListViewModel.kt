@@ -111,7 +111,14 @@ class InvoiceListViewModel : ViewModel() {
                 )
                 // El repositorio ya actualiza su propio StateFlow internamente
             } catch (e: Exception) {
-                _errorMessage.value = "Error al conectar con SUNAT: ${e.message}"
+                val errorMsg = e.message ?: "Error al conectar con SUNAT"
+                if (errorMsg.contains("No fue posible autenticar con SUNAT SIRE") ||
+                    errorMsg.contains("CREDENCIALES_INVALIDAS") ||
+                    errorMsg.contains("401")) {
+                    _errorMessage.value = "CREDENTIAL_ERROR: $errorMsg"
+                } else {
+                    _errorMessage.value = errorMsg
+                }
             } finally {
                 _isLoading.value = false
             }

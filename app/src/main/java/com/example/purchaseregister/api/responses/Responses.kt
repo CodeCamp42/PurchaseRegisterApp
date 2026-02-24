@@ -57,36 +57,24 @@ data class ItemResponse(
 )
 
 data class SunatResponse(
-    val success: Boolean? = null,
-    val periodStart: String? = null,
-    val periodEnd: String? = null,
-    val results: List<SunatResult>? = null
-)
-
-data class SunatResult(
-    val period: String? = null,
-    val content: List<ContentItem>? = null
-)
-
-data class ContentItem(
-    val issuerRuc: String? = null,
-    val issuerBusinessName: String? = null,
-    val period: String? = null,
-    val sunatFile: String? = null,
-    val issueDate: String? = null,
-    val documentType: String? = null,
-    val series: String? = null,
-    val number: String? = null,
-    val receiverDocType: String? = null,
-    val receiverDocNumber: String? = null,
-    val receiverName: String? = null,
-    val taxableBase: Double? = null,
-    val igv: Double? = null,
-    val nonTaxedAmount: Double? = null,
-    val total: Double? = null,
-    val currency: String? = null,
-    val exchangeRate: Double? = null,
-    val status: String? = null
+    val issuerRuc: String,
+    val issuerName: String,
+    val period: String,
+    val sunatCar: String,
+    val issueDate: String,
+    val docType: String,
+    val series: String,
+    val number: String,
+    val receiverDocType: String,
+    val receiverDocNumber: String,
+    val receiverName: String,
+    val taxableAmount: Double,
+    val igv: Double,
+    val nonTaxableAmount: Double,
+    val totalAmount: Double,
+    val currency: String,
+    val exchangeRate: Double,
+    val status: String
 )
 
 data class RegisterInvoicesResponse(
