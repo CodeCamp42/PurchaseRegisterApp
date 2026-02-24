@@ -10,7 +10,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.purchaseregister.view.components.CustomDatePickerDialog
@@ -26,6 +25,7 @@ import com.example.purchaseregister.view.components.BottomActionButtons
 import com.example.purchaseregister.view.detail.DetailRoute
 import com.example.purchaseregister.utils.*
 import com.example.purchaseregister.view.components.CredentialErrorDialog
+import com.example.purchaseregister.view.components.FilterDialog
 import com.example.purchaseregister.view.components.ForgotPasswordDialog
 import com.example.purchaseregister.viewmodel.InvoiceListViewModel
 import com.example.purchaseregister.viewmodel.Section
@@ -83,6 +83,12 @@ fun PurchaseDetailScreen(
     var showCredentialsForApiError by remember { mutableStateOf(false) }
     var showCredentialErrorDialog by remember { mutableStateOf(false) }
     var credentialErrorMessage by remember { mutableStateOf("") }
+    var showFilterDialog by remember { mutableStateOf(false) }
+
+    // En PurchaseDetailScreen.kt
+    val filteredPurchaseInvoices by viewModel.filteredPurchaseInvoices.collectAsStateWithLifecycle()
+    val filteredSalesInvoices by viewModel.filteredSalesInvoices.collectAsStateWithLifecycle()
+    val isFilterActive = viewModel.isFilterActive.value
 
     val hasSunatCredentials by remember {
         derivedStateOf {
@@ -118,6 +124,16 @@ fun PurchaseDetailScreen(
         }
     }
 
+    LaunchedEffect(selectedStartMillis, selectedEndMillis, sectionActive) {
+        if (isInitialLoadDone && hasSunatCredentials) {
+            // Al cambiar el período, intentar cargar datos automáticamente
+            val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+            val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
+
+            viewModel.loadInvoicesFromAPI(periodStart, periodEnd, sectionActive == Section.PURCHASES, context)
+        }
+    }
+
     // Efecto para auto-registro de facturas
     LaunchedEffect(purchaseInvoices, salesInvoices, invoicesWithActiveTimer) {
         viewModel.handleAutoRegisterInvoices(
@@ -148,9 +164,15 @@ fun PurchaseDetailScreen(
     // Calcular lista filtrada
     val filteredList = remember(
         sectionActive, isListVisible, selectedStartMillis, selectedEndMillis,
-        purchaseInvoices, salesInvoices
+        if (isFilterActive) filteredPurchaseInvoices else purchaseInvoices,
+        if (isFilterActive) filteredSalesInvoices else salesInvoices,
+        isFilterActive
     ) {
-        val baseList = if (sectionActive == Section.PURCHASES) purchaseInvoices else salesInvoices
+        val baseList = if (sectionActive == Section.PURCHASES) {
+            if (isFilterActive) filteredPurchaseInvoices else purchaseInvoices
+        } else {
+            if (isFilterActive) filteredSalesInvoices else salesInvoices
+        }
         val start = selectedStartMillis ?: todayMillis
         val end = selectedEndMillis ?: start
 
@@ -174,7 +196,7 @@ fun PurchaseDetailScreen(
         }.sortedByDescending { it.issueDate }
     }
 
-    val hasInvoicesInProcess = filteredList.any { it.status == "EN PROCESO" }
+    val hasInvoicesInProcess = filteredList.any { it.invoiceStatus == "EN PROCESO" }
 
     Scaffold(
         topBar = {
@@ -218,7 +240,7 @@ fun PurchaseDetailScreen(
                     }
 
                     val processableInvoices = filteredList.filter { invoice ->
-                        invoice.status !in setOf("CON DETALLE", "REGISTRADO", "EN PROCESO")
+                        invoice.invoiceStatus !in setOf("CON DETALLE", "REGISTRADO", "EN PROCESO")
                     }
 
                     if (processableInvoices.isEmpty()) {
@@ -242,7 +264,9 @@ fun PurchaseDetailScreen(
             )
 
             Spacer(modifier = Modifier.height(15.dp))
-            StatusLegend()
+            StatusLegend(
+                onFilterClick = { showFilterDialog = true }
+            )
             Spacer(modifier = Modifier.height(10.dp))
 
             InvoiceTable(
@@ -250,7 +274,7 @@ fun PurchaseDetailScreen(
                 sectionActive = sectionActive,
                 isListVisible = isListVisible,
                 onInvoiceClick = { invoice, isPurchase ->
-                    if (invoice.status == "CON DETALLE" || invoice.status == "REGISTRADO") {
+                    if (invoice.invoiceStatus == "CON DETALLE" || invoice.invoiceStatus == "REGISTRADO") {
                         onNavigateToDetail(DetailRoute(invoice.id, isPurchase))
                     } else {
                         val issuerRuc = viewModel.getIssuerRuc(invoice.id) ?: invoice.ruc
@@ -471,6 +495,21 @@ fun PurchaseDetailScreen(
             },
             onResetState = {
                 viewModel.resetForgotPasswordState()
+            }
+        )
+    }
+
+    if (showFilterDialog) {
+        FilterDialog(
+            onDismiss = { showFilterDialog = false },
+            onFilterClick = { businessName, ruc, status ->
+                viewModel.applyFilters(
+                    businessName = businessName,
+                    ruc = ruc,
+                    status = status,
+                    isPurchase = sectionActive == Section.PURCHASES
+                )
+                showFilterDialog = false
             }
         )
     }

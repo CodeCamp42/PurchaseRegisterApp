@@ -3,18 +3,15 @@ package com.example.purchaseregister.data.repository
 import android.content.Context
 import com.example.purchaseregister.api.RetrofitClient
 import com.example.purchaseregister.api.request.*
-import com.example.purchaseregister.api.responses.RegisteredInvoiceResponse
 import com.example.purchaseregister.api.responses.SunatResponse
 import com.example.purchaseregister.model.Invoice
 import com.example.purchaseregister.model.ProductItem
 import com.example.purchaseregister.utils.SunatPrefs
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 import com.example.purchaseregister.api.responses.AuthResponse
@@ -76,7 +73,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 if (cachedInvoice.ruc == originalInvoice.ruc &&
                     cachedInvoice.series == originalInvoice.series &&
                     cachedInvoice.number == originalInvoice.number) {
-                    cachedInvoice.copy(status = newStatus)
+                    cachedInvoice.copy(invoiceStatus = newStatus)
                 } else {
                     cachedInvoice
                 }
@@ -102,13 +99,6 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         clientId: String,
         clientSecret: String
     ): List<Invoice> {
-        val cacheKey = getCacheKey(isPurchase, periodStart)
-        val cached = getCachedInvoices(cacheKey)
-        if (cached != null) {
-            println("📦 [Repository] Usando cache")
-            return cached
-        }
-
         try {
             val response = apiService.getInvoices(
                 periodStart,
@@ -122,7 +112,6 @@ class InvoiceRepositoryImpl : InvoiceRepository {
 
             return if (response.isNotEmpty()) {
                 val apiInvoices = parseSunatContent(response, isPurchase)
-                updateCache(cacheKey, apiInvoices)
                 apiInvoices
             } else {
                 emptyList()
@@ -336,7 +325,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 list.map { invoice ->
                     if (invoice.id == invoiceId) {
                         updateInvoiceInAllCaches(invoice, newStatus)
-                        invoice.copy(status = newStatus)
+                        invoice.copy(invoiceStatus = newStatus)
                     } else invoice
                 }
             }
@@ -345,7 +334,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 list.map { invoice ->
                     if (invoice.id == invoiceId) {
                         updateInvoiceInAllCaches(invoice, newStatus)
-                        invoice.copy(status = newStatus)
+                        invoice.copy(invoiceStatus = newStatus)
                     } else invoice
                 }
             }
@@ -413,8 +402,18 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         val maxCurrentId = (allExistingInvoices.maxOfOrNull { it.id } ?: 0) + 1
         var idCounter = maxCurrentId
 
+        val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
+        val targetFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+
         items.forEach { item ->
             val id = idCounter++
+
+            val formattedDate = try {
+                val date = isoFormat.parse(item.issueDate)
+                targetFormat.format(date)
+            } catch (e: Exception) {
+                item.issueDate
+            }
 
             // Guardar RUC para consultas de detalle
             setIssuerRuc(id, item.issuerRuc)
@@ -425,7 +424,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 businessName = if (isPurchase) item.receiverName else item.issuerName,
                 series = item.series,
                 number = item.number,
-                issueDate = item.issueDate,
+                issueDate = formattedDate,
                 documentType = when (item.docType) {
                     "01" -> "FACTURA"
                     "03" -> "BOLETA"
@@ -439,7 +438,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 totalCost = item.taxableAmount.toString(),
                 igv = item.igv.toString(),
                 totalAmount = item.totalAmount.toString(),
-                status = "CONSULTADO", // Por defecto
+                invoiceStatus = "CONSULTADO", // Por defecto
                 isSelected = false,
                 products = emptyList(),
                 year = item.period.take(4),

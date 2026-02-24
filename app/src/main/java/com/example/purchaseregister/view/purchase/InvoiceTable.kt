@@ -111,10 +111,19 @@ fun InvoiceTable(
                                     modifier = Modifier
                                         .width(totalWidth)
                                         .background(Color(0xFFB0C4DE))
-                                        .padding(vertical = 8.dp, horizontal = 8.dp)
+                                        .padding(vertical = 8.dp, horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
                                         text = invoice.businessName,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.Black,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    )
+                                    Text(
+                                        text = "S/ ${invoice.totalAmount}",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.Black,
@@ -153,7 +162,7 @@ fun InvoiceTable(
                                                         return@IconButton
                                                     }
 
-                                                    if (invoice.status == "EN PROCESO") {
+                                                    if (invoice.invoiceStatus == "EN PROCESO") {
                                                         Toast.makeText(context, "Factura en proceso", Toast.LENGTH_SHORT).show()
                                                         return@IconButton
                                                     }
@@ -161,16 +170,16 @@ fun InvoiceTable(
                                                     onInvoiceClick(invoice, sectionActive == Section.PURCHASES)
                                                 },
                                                 modifier = Modifier.size(24.dp),
-                                                enabled = invoice.status != "EN PROCESO"
+                                                enabled = invoice.invoiceStatus != "EN PROCESO"
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Filled.Visibility,
                                                     contentDescription = "Ver detalle",
                                                     modifier = Modifier.size(20.dp),
-                                                    tint = if (invoice.status == "EN PROCESO") Color.Gray else Color.Black
+                                                    tint = if (invoice.invoiceStatus == "EN PROCESO") Color.Gray else Color.Black
                                                 )
                                             }
-                                            InvoiceStatusCircle(invoice.status, size = 14.dp)
+                                            InvoiceStatusCircle(invoice.invoiceStatus, size = 14.dp)
                                         }
                                     }
 

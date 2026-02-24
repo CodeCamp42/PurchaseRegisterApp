@@ -2,6 +2,7 @@ package com.example.purchaseregister.viewmodel
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.purchaseregister.api.responses.AuthResponse
@@ -69,11 +70,13 @@ class InvoiceListViewModel : ViewModel() {
     private val _forgotPasswordState = MutableStateFlow<ForgotPasswordState>(ForgotPasswordState.Idle)
     val forgotPasswordState: StateFlow<ForgotPasswordState> = _forgotPasswordState.asStateFlow()
 
-    fun loadInvoicesFromDB(isPurchase: Boolean) {
-        viewModelScope.launch {
-            _isLoading.value = false
-        }
-    }
+    private val _filteredPurchaseInvoices = MutableStateFlow<List<Invoice>>(emptyList())
+    val filteredPurchaseInvoices: StateFlow<List<Invoice>> = _filteredPurchaseInvoices.asStateFlow()
+
+    private val _filteredSalesInvoices = MutableStateFlow<List<Invoice>>(emptyList())
+    val filteredSalesInvoices: StateFlow<List<Invoice>> = _filteredSalesInvoices.asStateFlow()
+
+    var isFilterActive = mutableStateOf(false)
 
     fun loadInvoicesFromAPI(
         periodStart: String,
@@ -134,7 +137,7 @@ class InvoiceListViewModel : ViewModel() {
             return
         }
 
-        if (invoice.status == "CON DETALLE" || invoice.status == "REGISTRADO") {
+        if (invoice.invoiceStatus == "CON DETALLE" || invoice.invoiceStatus == "REGISTRADO") {
             if (invoice.products.isNotEmpty()) {
                 onLoadingComplete(true, "Detalles ya cargados")
             } else {
@@ -143,7 +146,7 @@ class InvoiceListViewModel : ViewModel() {
             return
         }
 
-        if (invoice.status == "EN PROCESO") {
+        if (invoice.invoiceStatus == "EN PROCESO") {
             onLoadingComplete(false, "Ya se está procesando esta factura")
             return
         }
@@ -201,7 +204,7 @@ class InvoiceListViewModel : ViewModel() {
             val currentInvoice = if (isPurchase) purchaseInvoices.value.firstOrNull { it.id == invoiceId }
             else salesInvoices.value.firstOrNull { it.id == invoiceId }
 
-            if (currentInvoice?.status == "CON DETALLE") {
+            if (currentInvoice?.invoiceStatus == "CON DETALLE") {
                 val result = repository.registerInvoicesInDatabase(listOf(currentInvoice), isPurchase)
                 if (result.isSuccess) {
                     Toast.makeText(context, "✅ Factura ${currentInvoice.series}-${currentInvoice.number} registrada", Toast.LENGTH_SHORT).show()
@@ -221,7 +224,7 @@ class InvoiceListViewModel : ViewModel() {
             val allInvoices = purchaseInvoices + salesInvoices
 
             val invoicesToAutoRegister = allInvoices.filter { invoice ->
-                invoice.status == "CON DETALLE" && !invoicesWithActiveTimer.contains(invoice.id)
+                invoice.invoiceStatus == "CON DETALLE" && !invoicesWithActiveTimer.contains(invoice.id)
             }
 
             invoicesToAutoRegister.forEach { invoice ->
@@ -230,7 +233,7 @@ class InvoiceListViewModel : ViewModel() {
                 launch {
                     delay(10000L)
 
-                    val currentStatus = allInvoices.firstOrNull { it.id == invoice.id }?.status
+                    val currentStatus = allInvoices.firstOrNull { it.id == invoice.id }?.invoiceStatus
 
                     if (currentStatus == "CON DETALLE") {
                         val isPurchase = purchaseInvoices.any { it.id == invoice.id }
@@ -260,7 +263,7 @@ class InvoiceListViewModel : ViewModel() {
                 }
             }
 
-            val invoicesWithDetail = allInvoices.filter { it.status == "CON DETALLE" }.map { it.id }.toSet()
+            val invoicesWithDetail = allInvoices.filter { it.invoiceStatus == "CON DETALLE" }.map { it.id }.toSet()
             val timersToClean = invoicesWithActiveTimer.filter { !invoicesWithDetail.contains(it) }
             if (timersToClean.isNotEmpty()) {
                 _invoicesWithActiveTimer.value = _invoicesWithActiveTimer.value.filter {
@@ -316,9 +319,9 @@ class InvoiceListViewModel : ViewModel() {
             }
 
             val processableInvoices = invoicesToProcess.filter { invoice ->
-                invoice.status != "CON DETALLE" &&
-                        invoice.status != "REGISTRADO" &&
-                        invoice.status != "EN PROCESO"
+                invoice.invoiceStatus != "CON DETALLE" &&
+                        invoice.invoiceStatus != "REGISTRADO" &&
+                        invoice.invoiceStatus != "EN PROCESO"
             }
 
             if (processableInvoices.isEmpty()) {
@@ -581,6 +584,33 @@ class InvoiceListViewModel : ViewModel() {
 
     fun resetForgotPasswordState() {
         _forgotPasswordState.value = ForgotPasswordState.Idle
+    }
+
+    fun applyFilters(businessName: String?, ruc: String?, status: String?, isPurchase: Boolean) {
+        val sourceList = if (isPurchase) purchaseInvoices.value else salesInvoices.value
+
+        val filtered = sourceList.filter { invoice ->
+            (businessName == null || invoice.businessName.contains(businessName, ignoreCase = true)) &&
+                    (ruc == null || invoice.ruc.contains(ruc)) &&
+                    (status == null || invoice.invoiceStatus == status)
+        }
+
+        if (isPurchase) {
+            _filteredPurchaseInvoices.value = filtered
+        } else {
+            _filteredSalesInvoices.value = filtered
+        }
+
+        isFilterActive.value = (businessName != null || ruc != null || status != null)
+    }
+
+    fun clearFilters(isPurchase: Boolean) {
+        if (isPurchase) {
+            _filteredPurchaseInvoices.value = purchaseInvoices.value
+        } else {
+            _filteredSalesInvoices.value = salesInvoices.value
+        }
+        isFilterActive.value = false
     }
 }
 
