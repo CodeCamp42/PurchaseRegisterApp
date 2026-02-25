@@ -53,6 +53,8 @@ interface InvoiceRepository {
 
     suspend fun signOut(token: String): Result<Unit>
 
+    suspend fun sendFcmToken(context: Context, token: String): Result<Unit>
+
     // Getters auxiliares (pueden ser suspend si son lentos, pero aquí son rápidos)
     fun getIssuerRuc(invoiceId: Int): String?
     fun clearAll()

@@ -23,6 +23,7 @@ import kotlin.coroutines.suspendCoroutine
 import kotlin.coroutines.resume
 import java.text.SimpleDateFormat
 import java.util.Locale
+import com.google.firebase.messaging.FirebaseMessaging
 
 class InvoiceListViewModel : ViewModel() {
 
@@ -450,6 +451,7 @@ class InvoiceListViewModel : ViewModel() {
                         )
                         // Guardar el token
                         TokenPrefs.saveToken(context, response.token)
+                        getAndSendFcmToken(context)
                         _registerState.value = AuthState.Success(response)
                     } else {
                         _registerState.value = AuthState.Error(
@@ -478,6 +480,7 @@ class InvoiceListViewModel : ViewModel() {
                             response.user.name ?: "Usuario"
                         )
                         TokenPrefs.saveToken(context, response.token)
+                        getAndSendFcmToken(context)
                         _loginState.value = AuthState.Success(response)
                     } else {
                         _loginState.value = AuthState.Error(
@@ -489,6 +492,30 @@ class InvoiceListViewModel : ViewModel() {
                     _loginState.value = AuthState.Error(exception.message ?: "Error de conexión")
                 }
             )
+        }
+    }
+
+    private fun getAndSendFcmToken(context: Context) {
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val token = task.result
+                sendTokenToBackend(context, token)
+            }
+        }
+    }
+
+    private fun sendTokenToBackend(context: Context, token: String) {
+        viewModelScope.launch {
+            try {
+                val result = repository.sendFcmToken(context, token)
+                if (result.isSuccess) {
+                    println("✅ Token FCM enviado correctamente: $token")
+                } else {
+                    println("❌ Error al enviar token: ${result.exceptionOrNull()?.message}")
+                }
+            } catch (e: Exception) {
+                println("❌ Excepción al enviar token: ${e.message}")
+            }
         }
     }
 

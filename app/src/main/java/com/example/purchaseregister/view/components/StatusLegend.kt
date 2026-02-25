@@ -24,7 +24,7 @@ fun StatusLegend(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFFF8F9FA))
+            .background(Color(0xFFF8F9FA)),
     ) {
         // Primera fila con 3 estados
         Row(
@@ -37,7 +37,7 @@ fun StatusLegend(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(end = 12.dp)
+                modifier = Modifier.padding(end = 20.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -55,7 +55,7 @@ fun StatusLegend(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(end = 12.dp)
+                modifier = Modifier.padding(end = 20.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -73,7 +73,6 @@ fun StatusLegend(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(end = 12.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -100,7 +99,7 @@ fun StatusLegend(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(end = 12.dp)
+                modifier = Modifier.padding(end = 16.dp)
             ) {
                 Box(
                     modifier = Modifier

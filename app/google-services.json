@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "367521514104",
+    "project_id": "rctm-3be57",
+    "storage_bucket": "rctm-3be57.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:367521514104:android:d28760ca1b4e101755a38d",
+        "android_client_info": {
+          "package_name": "com.example.purchaseregister"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkYpwC2xjbIfZMzUpYLE4FtHutqw04HJ0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -16,6 +16,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import com.example.purchaseregister.api.responses.AuthResponse
 import com.example.purchaseregister.api.responses.SaveSunatCredentialsResponse
+import com.example.purchaseregister.utils.TokenPrefs
 
 class InvoiceRepositoryImpl : InvoiceRepository {
 
@@ -79,6 +80,30 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 }
             }
             _invoicesCache[key] = updatedInvoices
+        }
+    }
+
+    override suspend fun sendFcmToken(context: Context, token: String): Result<Unit> {
+        return try {
+            val authToken = TokenPrefs.getToken(context)
+
+            if (authToken == null) {
+                return Result.failure(Exception("Usuario no autenticado"))
+            }
+
+            val response = apiService.sendFcmToken(
+                authorization = "Bearer $authToken",
+                request = FcmTokenRequest(token = token)
+            )
+
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                val errorMessage = response.errorBody()?.string() ?: "Error al enviar token FCM"
+                Result.failure(Exception(errorMessage))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 

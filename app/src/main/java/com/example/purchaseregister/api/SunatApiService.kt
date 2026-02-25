@@ -13,6 +13,12 @@ interface SunatApiService {
         @Body request: LoginRequest
     ): Response<AuthResponse>
 
+    @POST("api/users/me/fcm-token")
+    suspend fun sendFcmToken(
+        @Header("Authorization") authorization: String?,
+        @Body request: FcmTokenRequest
+    ): Response<FcmTokenResponse>
+
     @POST("api/auth/sign-up/email")
     suspend fun register(
         @Body request: RegisterRequest
