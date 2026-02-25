@@ -1,20 +1,5 @@
 package com.example.purchaseregister.api.responses
 
-data class SaveProductsResponse(
-    val success: Boolean? = null,
-    val message: String? = null,
-    val savedProducts: Int? = null,
-    val invoiceId: Int? = null,
-    val updatedStatus: Boolean? = null
-)
-
-data class InvoiceUIResponse(
-    val success: Boolean? = null,
-    val message: String? = null,
-    val invoice: RegisteredInvoiceResponse? = null,
-    val note: String? = null
-)
-
 data class InvoicesUIResponse(
     val success: Boolean? = null,
     val message: String? = null,
@@ -22,20 +7,6 @@ data class InvoicesUIResponse(
     val statusDistribution: Map<String, Int>? = null,
     val invoices: List<RegisteredInvoiceResponse>? = null,
     val note: String? = null
-)
-
-data class InvoiceDetailXmlResponse(
-    val id: String? = null,
-    val issueDate: String? = null,
-    val issueTime: String? = null,
-    val currency: String? = null,
-    val issuer: IssuerResponse? = null,
-    val receiver: ReceiverResponse? = null,
-    val subtotal: Double? = null,
-    val igv: Double? = null,
-    val total: Double? = null,
-    val items: List<ItemResponse>? = null,
-    val xmlFile: String? = null
 )
 
 data class IssuerResponse(
@@ -74,7 +45,8 @@ data class SunatResponse(
     val totalAmount: Double,
     val currency: String,
     val exchangeRate: Double,
-    val status: String
+    val status: String,
+    val invoiceStatus: String
 )
 
 data class RegisterInvoicesResponse(
@@ -116,54 +88,10 @@ data class RegisteredProvider(
     val businessName: String? = null
 )
 
-data class ScrapingCompletedResponse(
-    val message: String? = null,
-    val timestamp: String? = null,
-    val invoice: ScrapedInvoiceResponse? = null,
-    val status: String? = null,
-    val savedProducts: Int? = null,
-    val warning: String? = null
-)
-
 data class ScrapedInvoiceResponse(
     val invoiceId: Int? = null,
     val documentNumber: String? = null,
     val status: String? = null
-)
-
-data class RegisterInvoiceFromSunatResponse(
-    val success: Boolean? = null,
-    val invoiceId: Int? = null,
-    val documentNumber: String? = null,
-    val message: String? = null
-)
-
-data class QueuedResponse(
-    val success: Boolean? = null,
-    val jobId: String? = null,
-    val message: String? = null
-)
-
-data class JobStatusResponse(
-    val id: String? = null,
-    val state: String? = null,
-    val progress: Int? = null,
-    val result: JobResult? = null,
-    val reason: String? = null
-)
-
-data class JobResult(
-    val id: String? = null,
-    val issueDate: String? = null,
-    val issueTime: String? = null,
-    val currency: String? = null,
-    val issuer: IssuerResponse? = null,
-    val receiver: ReceiverResponse? = null,
-    val subtotal: Double? = null,
-    val igv: Double? = null,
-    val total: Double? = null,
-    val items: List<ItemResponse>? = null,
-    val xmlFile: String? = null
 )
 
 data class SaveSunatCredentialsResponse(

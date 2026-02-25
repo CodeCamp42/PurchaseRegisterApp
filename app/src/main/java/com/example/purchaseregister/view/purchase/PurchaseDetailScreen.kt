@@ -72,7 +72,6 @@ fun PurchaseDetailScreen(
     val salesInvoices by viewModel.salesInvoices.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
-    val invoicesWithActiveTimer by viewModel.invoicesWithActiveTimer.collectAsStateWithLifecycle()
     val isDetailingAll by viewModel.isDetailingAll.collectAsStateWithLifecycle()
     val showLoadingDialog by viewModel.showLoadingDialog.collectAsStateWithLifecycle()
     val loadingStatus by viewModel.loadingStatus.collectAsStateWithLifecycle()
@@ -114,10 +113,16 @@ fun PurchaseDetailScreen(
                     consultAfterLogin = true
                     showCredentialsDialog = true
                 }
+
                 isAppLoggedIn && hasSunatCredentials -> {
                     val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
                     val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-                    viewModel.loadInvoicesFromAPI(periodStart, periodEnd, sectionActive == Section.PURCHASES, context)
+                    viewModel.loadInvoicesFromAPI(
+                        periodStart,
+                        periodEnd,
+                        sectionActive == Section.PURCHASES,
+                        context
+                    )
                 }
             }
             isInitialLoadDone = true
@@ -130,18 +135,13 @@ fun PurchaseDetailScreen(
             val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
             val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
 
-            viewModel.loadInvoicesFromAPI(periodStart, periodEnd, sectionActive == Section.PURCHASES, context)
+            viewModel.loadInvoicesFromAPI(
+                periodStart,
+                periodEnd,
+                sectionActive == Section.PURCHASES,
+                context
+            )
         }
-    }
-
-    // Efecto para auto-registro de facturas
-    LaunchedEffect(purchaseInvoices, salesInvoices, invoicesWithActiveTimer) {
-        viewModel.handleAutoRegisterInvoices(
-            purchaseInvoices = purchaseInvoices,
-            salesInvoices = salesInvoices,
-            invoicesWithActiveTimer = invoicesWithActiveTimer,
-            context = context
-        )
     }
 
     // Efecto para mostrar errores
@@ -152,7 +152,8 @@ fun PurchaseDetailScreen(
                 showCredentialErrorDialog = true
             } else if (error.contains("CREDENCIALES_INVALIDAS") ||
                 error.contains("401") ||
-                error.contains("No autorizado")) {
+                error.contains("No autorizado")
+            ) {
                 showCredentialsForApiError = true
                 showCredentialsDialog = true
             } else {
@@ -207,7 +208,8 @@ fun PurchaseDetailScreen(
                     if (isAppLoggedIn) {
                         showLogoutDialog = true
                     } else {
-                        Toast.makeText(context, "Debes iniciar sesión primero", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Debes iniciar sesión primero", Toast.LENGTH_SHORT)
+                            .show()
                     }
                 }
             )
@@ -233,32 +235,6 @@ fun PurchaseDetailScreen(
                 selectedStartMillis = selectedStartMillis,
                 selectedEndMillis = selectedEndMillis,
                 onDateRangeClick = { showCustomDatePicker = true },
-                onDetailAllClick = {
-                    if (filteredList.isEmpty()) {
-                        Toast.makeText(context, "No hay facturas en lista para detallar", Toast.LENGTH_SHORT).show()
-                        return@DateFilterSection
-                    }
-
-                    val processableInvoices = filteredList.filter { invoice ->
-                        invoice.invoiceStatus !in setOf("CON DETALLE", "REGISTRADO", "EN PROCESO")
-                    }
-
-                    if (processableInvoices.isEmpty()) {
-                        Toast.makeText(context, "Todas las facturas ya tienen detalle o están en proceso", Toast.LENGTH_SHORT).show()
-                        return@DateFilterSection
-                    }
-
-                    val ruc = SunatPrefs.getRuc(context)
-                    val solUsername = SunatPrefs.getSolUsername(context)
-                    val solPassword = SunatPrefs.getSolPassword(context)
-
-                    if (ruc == null || solUsername == null || solPassword == null) {
-                        Toast.makeText(context, "⚠️ Primero configure sus credenciales SUNAT", Toast.LENGTH_LONG).show()
-                        return@DateFilterSection
-                    }
-
-                    viewModel.detailAllInvoices(context, processableInvoices, sectionActive)
-                },
                 hasInvoicesInProcess = hasInvoicesInProcess,
                 isDetailingAll = isDetailingAll
             )
@@ -277,17 +253,23 @@ fun PurchaseDetailScreen(
                     if (invoice.invoiceStatus == "CON DETALLE" || invoice.invoiceStatus == "REGISTRADO") {
                         onNavigateToDetail(DetailRoute(invoice.id, isPurchase))
                     } else {
-                        val issuerRuc = viewModel.getIssuerRuc(invoice.id) ?: invoice.ruc
-                        viewModel.loadInvoiceDetailXmlWithUser(
+                        viewModel.checkInvoiceStatus(
                             invoiceId = invoice.id,
                             isPurchase = isPurchase,
-                            issuerRuc = issuerRuc,
                             context = context
-                        ) { success, message ->
+                        ) { success, shouldNavigate, message ->
                             if (success) {
-                                onNavigateToDetail(DetailRoute(invoice.id, isPurchase))
+                                if (shouldNavigate) {
+                                    onNavigateToDetail(DetailRoute(invoice.id, isPurchase))
+                                } else {
+                                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                                }
                             } else {
-                                Toast.makeText(context, message ?: "Error al cargar detalle", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    message ?: "Error al verificar factura",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         }
                     }
@@ -305,7 +287,12 @@ fun PurchaseDetailScreen(
                 onConsultClick = {
                     val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
                     val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-                    viewModel.loadInvoicesFromAPI(periodStart, periodEnd, sectionActive == Section.PURCHASES, context)
+                    viewModel.loadInvoicesFromAPI(
+                        periodStart,
+                        periodEnd,
+                        sectionActive == Section.PURCHASES,
+                        context
+                    )
                     isListVisible = true
                 },
                 onShowProfile = { showProfileDialog = true },
@@ -343,7 +330,12 @@ fun PurchaseDetailScreen(
                 showCredentialsForApiError = false
                 val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
                 val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-                viewModel.loadInvoicesFromAPI(periodStart, periodEnd, sectionActive == Section.PURCHASES, context)
+                viewModel.loadInvoicesFromAPI(
+                    periodStart,
+                    periodEnd,
+                    sectionActive == Section.PURCHASES,
+                    context
+                )
             },
             onShowTutorial = { showTutorial = true },
             externalClientId = clientIdInput,
@@ -360,7 +352,12 @@ fun PurchaseDetailScreen(
             onConsultAfterLogin = {
                 val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
                 val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-                viewModel.loadInvoicesFromAPI(periodStart, periodEnd, sectionActive == Section.PURCHASES, context)
+                viewModel.loadInvoicesFromAPI(
+                    periodStart,
+                    periodEnd,
+                    sectionActive == Section.PURCHASES,
+                    context
+                )
                 isListVisible = true
                 consultAfterLogin = false
                 showCredentialsForApiError = false
@@ -377,7 +374,11 @@ fun PurchaseDetailScreen(
                     context,
                     onComplete = { success, message ->
                         if (!success) {
-                            Toast.makeText(context, message ?: "Error al cerrar sesión", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                message ?: "Error al cerrar sesión",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                         isAppLoggedIn = false
                         isListVisible = false
@@ -429,7 +430,7 @@ fun PurchaseDetailScreen(
         InvoiceLoadingDialog(
             isLoading = true,
             statusMessage = loadingStatus,
-            debugInfo = loadingDebugInfo,
+            debugInfo = null,
             onDismiss = { viewModel.clearLoadingDialog() }
         )
     }
@@ -448,7 +449,12 @@ fun PurchaseDetailScreen(
                 } else {
                     val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
                     val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-                    viewModel.loadInvoicesFromAPI(periodStart, periodEnd, sectionActive == Section.PURCHASES, context)
+                    viewModel.loadInvoicesFromAPI(
+                        periodStart,
+                        periodEnd,
+                        sectionActive == Section.PURCHASES,
+                        context
+                    )
                     isListVisible = true
                 }
             },

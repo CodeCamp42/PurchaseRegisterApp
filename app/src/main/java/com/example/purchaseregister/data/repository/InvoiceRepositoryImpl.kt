@@ -6,8 +6,6 @@ import com.example.purchaseregister.api.request.*
 import com.example.purchaseregister.api.responses.SunatResponse
 import com.example.purchaseregister.model.Invoice
 import com.example.purchaseregister.model.ProductItem
-import com.example.purchaseregister.utils.SunatPrefs
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +14,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import com.example.purchaseregister.api.responses.AuthResponse
 import com.example.purchaseregister.api.responses.SaveSunatCredentialsResponse
+import com.example.purchaseregister.api.responses.InvoiceDetailsResponse
 import com.example.purchaseregister.utils.TokenPrefs
 
 class InvoiceRepositoryImpl : InvoiceRepository {
@@ -44,28 +43,10 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         _salesInvoices.update { update(it) }
     }
 
-    private fun setPurchaseInvoices(invoices: List<Invoice>) {
-        _purchaseInvoices.value = invoices
-    }
-
-    private fun setSalesInvoices(invoices: List<Invoice>) {
-        _salesInvoices.value = invoices
-    }
-
     override fun getIssuerRuc(invoiceId: Int): String? = _issuerRucs[invoiceId]
 
     private fun setIssuerRuc(invoiceId: Int, ruc: String) {
         _issuerRucs[invoiceId] = ruc
-    }
-
-    private fun getCacheKey(isPurchase: Boolean, periodStart: String): String {
-        return "${if (isPurchase) "COMPRAS" else "VENTAS"}-${periodStart}"
-    }
-
-    private fun getCachedInvoices(key: String): List<Invoice>? = _invoicesCache[key]
-
-    private fun updateCache(key: String, invoices: List<Invoice>) {
-        _invoicesCache[key] = invoices
     }
 
     fun updateInvoiceInAllCaches(originalInvoice: Invoice, newStatus: String) {
@@ -73,7 +54,8 @@ class InvoiceRepositoryImpl : InvoiceRepository {
             val updatedInvoices = cachedInvoices.map { cachedInvoice ->
                 if (cachedInvoice.ruc == originalInvoice.ruc &&
                     cachedInvoice.series == originalInvoice.series &&
-                    cachedInvoice.number == originalInvoice.number) {
+                    cachedInvoice.number == originalInvoice.number
+                ) {
                     cachedInvoice.copy(invoiceStatus = newStatus)
                 } else {
                     cachedInvoice
@@ -128,11 +110,6 @@ class InvoiceRepositoryImpl : InvoiceRepository {
             val response = apiService.getInvoices(
                 periodStart,
                 periodEnd,
-                ruc,
-                solUsername,
-                solPassword,
-                clientId,
-                clientSecret
             )
 
             return if (response.isNotEmpty()) {
@@ -164,130 +141,20 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         }
     }
 
-    override suspend fun loadInvoiceDetail(
-        invoiceId: Int,
-        isPurchase: Boolean,
-        issuerRuc: String,
-        context: Context,
-        onJobQueued: (String) -> Unit,
-        onStatusUpdate: (Int, String) -> Unit,
-        onProductsUpdate: (Int, List<ProductItem>, Boolean) -> Unit,
-        onError: (String) -> Unit
-    ) {
-        // Esta función ahora contiene la lógica de ScrapingManager
-        val invoice = if (isPurchase) getPurchaseInvoices().firstOrNull { it.id == invoiceId }
-        else getSalesInvoices().firstOrNull { it.id == invoiceId } ?: run {
-            onError("Factura no encontrada")
-            return
-        }
+    override suspend fun checkInvoiceStatus(
+        invoiceId: Int
+    ): Result<InvoiceDetailsResponse> {
+        return try {
+            val response = apiService.getInvoiceDetails(invoiceId)
 
-        val myRuc = SunatPrefs.getRuc(context) ?: run {
-            onError("Complete sus credenciales SUNAT primero")
-            return
-        }
-        val solUsername = SunatPrefs.getSolUsername(context) ?: run {
-            onError("Complete sus credenciales SUNAT primero")
-            return
-        }
-        val solPassword = SunatPrefs.getSolPassword(context) ?: run {
-            onError("Complete sus credenciales SUNAT primero")
-            return
-        }
-
-        // Iniciar proceso de scraping
-        try {
-            val request = InvoiceDetailRequest(
-                issuerRuc = issuerRuc,
-                series = invoice?.series,
-                number = invoice?.number,
-                ruc = if (isPurchase) myRuc else invoice?.ruc,
-                solUsername = solUsername,
-                solPassword = solPassword
-            )
-
-            val queuedResponse = apiService.downloadXmlWithQueue(request)
-
-            if (queuedResponse.success == true && queuedResponse.jobId != null) {
-                onJobQueued(queuedResponse.jobId)
-                startPollingJob(
-                    jobId = queuedResponse.jobId,
-                    invoiceId = invoiceId,
-                    isPurchase = isPurchase,
-                    onStatusUpdate = onStatusUpdate,
-                    onProductsUpdate = onProductsUpdate,
-                    onError = onError
-                )
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
             } else {
-                onError("Error al encolar trabajo: ${queuedResponse.message}")
+                val errorBody = response.errorBody()?.string()
+                Result.failure(Exception(errorBody ?: "Error ${response.code()}"))
             }
         } catch (e: Exception) {
-            onError("Error: ${e.message}")
-        }
-    }
-
-    // Función privada para el polling
-    private suspend fun startPollingJob(
-        jobId: String,
-        invoiceId: Int,
-        isPurchase: Boolean,
-        onStatusUpdate: (Int, String) -> Unit,
-        onProductsUpdate: (Int, List<ProductItem>, Boolean) -> Unit,
-        onError: (String) -> Unit
-    ) {
-        var attempts = 0
-        val maxAttempts = 60
-
-        while (attempts < maxAttempts) {
-            delay(3000)
-            try {
-                val jobStatus = apiService.getJobStatus(jobId)
-
-                when (jobStatus.state) {
-                    "completed" -> {
-                        val products = jobStatus.result?.items?.mapNotNull { item ->
-                            // Mapeo con manejo de nulos
-                            item?.let {
-                                ProductItem(
-                                    description = it.description ?: "",
-                                    quantity = it.quantity?.toString() ?: "0",
-                                    unitCost = String.format("%.2f", it.unitValue ?: 0.0),
-                                    unitOfMeasure = it.unit ?: ""
-                                )
-                            }
-                        } ?: emptyList()
-
-                        onProductsUpdate(invoiceId, products, isPurchase)
-                        onStatusUpdate(invoiceId, "CON DETALLE")
-                        saveProductsInBackend(jobStatus.result?.id ?: "sin-id", products)
-                        return
-                    }
-                    "failed" -> {
-                        onError("Scraping falló: ${jobStatus.reason}")
-                        return
-                    }
-                }
-            } catch (e: Exception) {
-                // Ignorar errores de polling y reintentar
-            }
-            attempts++
-        }
-        onError("Timeout: El scraping no se completó")
-    }
-
-    private suspend fun saveProductsInBackend(documentNumber: String, products: List<ProductItem>) {
-        try {
-            val productsToSave = products.map { product ->
-                ProductRequest(
-                    description = product.description,
-                    quantity = product.quantity.toDoubleOrNull() ?: 0.0,
-                    unitCost = product.unitCost.toDoubleOrNull() ?: 0.0,
-                    unitOfMeasure = product.unitOfMeasure
-                )
-            }
-            apiService.saveInvoiceProducts(documentNumber, SaveProductsRequest(products = productsToSave))
-            apiService.markScrapingCompleted(documentNumber, ScrapingCompletedRequest(products = productsToSave))
-        } catch (e: Exception) {
-            // Silencioso
+            Result.failure(e)
         }
     }
 
@@ -344,7 +211,11 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         return null
     }
 
-    override suspend fun updateInvoiceStatus(invoiceId: Int, newStatus: String, isPurchase: Boolean) {
+    override suspend fun updateInvoiceStatus(
+        invoiceId: Int,
+        newStatus: String,
+        isPurchase: Boolean
+    ) {
         if (isPurchase) {
             updatePurchaseInvoices { list ->
                 list.map { invoice ->
@@ -366,7 +237,11 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         }
     }
 
-    override suspend fun updateInvoiceProducts(invoiceId: Int, products: List<ProductItem>, isPurchase: Boolean) {
+    override suspend fun updateInvoiceProducts(
+        invoiceId: Int,
+        products: List<ProductItem>,
+        isPurchase: Boolean
+    ) {
         if (isPurchase) {
             updatePurchaseInvoices { list ->
                 list.map { invoice ->
@@ -406,7 +281,8 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 val errorBody = response.errorBody()?.string()
                 val errorMessage = try {
                     val gson = com.google.gson.Gson()
-                    val errorResponse = gson.fromJson(errorBody, SaveSunatCredentialsResponse::class.java)
+                    val errorResponse =
+                        gson.fromJson(errorBody, SaveSunatCredentialsResponse::class.java)
                     errorResponse.message ?: "Error ${response.code()}"
                 } catch (e: Exception) {
                     "Error ${response.code()}"
@@ -443,6 +319,13 @@ class InvoiceRepositoryImpl : InvoiceRepository {
             // Guardar RUC para consultas de detalle
             setIssuerRuc(id, item.issuerRuc)
 
+            val mappedStatus = when (item.invoiceStatus) {
+                "PENDING_DETAILS" -> "EN PROCESO"
+                "WITH_DETAILS" -> "CON DETALLE"
+                "REGISTERED" -> "REGISTRADO"
+                else -> "CONSULTADO"
+            }
+
             val invoice = Invoice(
                 id = id,
                 ruc = if (isPurchase) item.receiverDocNumber else item.issuerRuc,
@@ -463,7 +346,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 totalCost = item.taxableAmount.toString(),
                 igv = item.igv.toString(),
                 totalAmount = item.totalAmount.toString(),
-                invoiceStatus = "CONSULTADO", // Por defecto
+                invoiceStatus = mappedStatus,
                 isSelected = false,
                 products = emptyList(),
                 year = item.period.take(4),
@@ -474,7 +357,8 @@ class InvoiceRepositoryImpl : InvoiceRepository {
 
         val sortedInvoices = invoices.sortedBy { invoice ->
             try {
-                SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(invoice.issueDate)?.time ?: 0L
+                SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(invoice.issueDate)?.time
+                    ?: 0L
             } catch (e: Exception) {
                 0L
             }
@@ -510,7 +394,11 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         }
     }
 
-    override suspend fun register(name: String, email: String, password: String): Result<AuthResponse> {
+    override suspend fun register(
+        name: String,
+        email: String,
+        password: String
+    ): Result<AuthResponse> {
         return try {
             val response = apiService.register(RegisterRequest(name, email, password))
             if (response.isSuccessful) {
@@ -540,7 +428,11 @@ class InvoiceRepositoryImpl : InvoiceRepository {
             if (response.isSuccessful) {
                 Result.success(Unit)
             } else {
-                Result.failure(Exception(response.errorBody()?.string() ?: "Error al enviar el correo"))
+                Result.failure(
+                    Exception(
+                        response.errorBody()?.string() ?: "Error al enviar el correo"
+                    )
+                )
             }
         } catch (e: Exception) {
             Result.failure(e)

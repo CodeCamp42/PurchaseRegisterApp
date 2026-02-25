@@ -150,8 +150,10 @@ fun InvoiceTable(
                                             IconButton(
                                                 onClick = {
                                                     val ruc = SunatPrefs.getRuc(context)
-                                                    val solUsername = SunatPrefs.getSolUsername(context)
-                                                    val solPassword = SunatPrefs.getSolPassword(context)
+                                                    val solUsername =
+                                                        SunatPrefs.getSolUsername(context)
+                                                    val solPassword =
+                                                        SunatPrefs.getSolPassword(context)
 
                                                     if (ruc == null || solUsername == null || solPassword == null) {
                                                         Toast.makeText(
@@ -162,21 +164,22 @@ fun InvoiceTable(
                                                         return@IconButton
                                                     }
 
-                                                    if (invoice.invoiceStatus == "EN PROCESO") {
-                                                        Toast.makeText(context, "Factura en proceso", Toast.LENGTH_SHORT).show()
-                                                        return@IconButton
-                                                    }
-
-                                                    onInvoiceClick(invoice, sectionActive == Section.PURCHASES)
+                                                    onInvoiceClick(
+                                                        invoice,
+                                                        sectionActive == Section.PURCHASES
+                                                    )
                                                 },
                                                 modifier = Modifier.size(24.dp),
-                                                enabled = invoice.invoiceStatus != "EN PROCESO"
+                                                enabled = invoice.invoiceStatus == "CON DETALLE" || invoice.invoiceStatus == "REGISTRADO"
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Filled.Visibility,
                                                     contentDescription = "Ver detalle",
                                                     modifier = Modifier.size(20.dp),
-                                                    tint = if (invoice.invoiceStatus == "EN PROCESO") Color.Gray else Color.Black
+                                                    tint = if (invoice.invoiceStatus == "CON DETALLE" || invoice.invoiceStatus == "REGISTRADO")
+                                                        Color.Black
+                                                    else
+                                                        Color.Gray
                                                 )
                                             }
                                             InvoiceStatusCircle(invoice.invoiceStatus, size = 14.dp)

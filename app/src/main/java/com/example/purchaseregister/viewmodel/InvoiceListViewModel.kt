@@ -1,7 +1,6 @@
 package com.example.purchaseregister.viewmodel
 
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,16 +11,12 @@ import com.example.purchaseregister.model.Invoice
 import com.example.purchaseregister.utils.SunatPrefs
 import com.example.purchaseregister.utils.SessionPrefs
 import com.example.purchaseregister.utils.TokenPrefs
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.Dispatchers
-import kotlin.coroutines.suspendCoroutine
-import kotlin.coroutines.resume
 import java.text.SimpleDateFormat
+import com.example.purchaseregister.model.ProductItem
 import java.util.Locale
 import com.google.firebase.messaging.FirebaseMessaging
 
@@ -44,9 +39,6 @@ class InvoiceListViewModel : ViewModel() {
     val registrationCompleted: StateFlow<Boolean> = _registrationCompleted.asStateFlow()
 
     // Estados específicos de la pantalla de lista
-    private val _invoicesWithActiveTimer = MutableStateFlow<Set<Int>>(emptySet())
-    val invoicesWithActiveTimer: StateFlow<Set<Int>> = _invoicesWithActiveTimer.asStateFlow()
-
     private val _isDetailingAll = MutableStateFlow(false)
     val isDetailingAll: StateFlow<Boolean> = _isDetailingAll.asStateFlow()
 
@@ -68,7 +60,8 @@ class InvoiceListViewModel : ViewModel() {
     private val _registerState = MutableStateFlow<AuthState>(AuthState.Idle)
     val registerState: StateFlow<AuthState> = _registerState.asStateFlow()
 
-    private val _forgotPasswordState = MutableStateFlow<ForgotPasswordState>(ForgotPasswordState.Idle)
+    private val _forgotPasswordState =
+        MutableStateFlow<ForgotPasswordState>(ForgotPasswordState.Idle)
     val forgotPasswordState: StateFlow<ForgotPasswordState> = _forgotPasswordState.asStateFlow()
 
     private val _filteredPurchaseInvoices = MutableStateFlow<List<Invoice>>(emptyList())
@@ -93,7 +86,8 @@ class InvoiceListViewModel : ViewModel() {
             val clientSecret = SunatPrefs.getClientSecret(context)
 
             if (ruc == null || solUsername == null || solPassword == null ||
-                clientId == null || clientSecret == null) {
+                clientId == null || clientSecret == null
+            ) {
                 _errorMessage.value = "Credenciales no configuradas"
                 return@launch
             }
@@ -102,14 +96,22 @@ class InvoiceListViewModel : ViewModel() {
             _errorMessage.value = null
             try {
                 repository.loadInvoicesFromAPI(
-                    periodStart, periodEnd, isPurchase, ruc, solUsername, solPassword, clientId, clientSecret
+                    periodStart,
+                    periodEnd,
+                    isPurchase,
+                    ruc,
+                    solUsername,
+                    solPassword,
+                    clientId,
+                    clientSecret
                 )
                 // El repositorio ya actualiza su propio StateFlow internamente
             } catch (e: Exception) {
                 val errorMsg = e.message ?: "Error al conectar con SUNAT"
                 if (errorMsg.contains("No fue posible autenticar con SUNAT SIRE") ||
                     errorMsg.contains("CREDENCIALES_INVALIDAS") ||
-                    errorMsg.contains("401")) {
+                    errorMsg.contains("401")
+                ) {
                     _errorMessage.value = "CREDENTIAL_ERROR: $errorMsg"
                 } else {
                     _errorMessage.value = errorMsg
@@ -121,155 +123,89 @@ class InvoiceListViewModel : ViewModel() {
     }
 
     // --- Funciones de interacción con facturas ---
-
-    fun loadInvoiceDetailXmlWithUser(
+    fun checkInvoiceStatus(
         invoiceId: Int,
         isPurchase: Boolean,
-        issuerRuc: String,
         context: Context,
-        onLoadingComplete: (success: Boolean, message: String?) -> Unit = { _, _ -> }
+        onResult: (success: Boolean, shouldNavigate: Boolean, message: String?) -> Unit
     ) {
-        val invoice = if (isPurchase) purchaseInvoices.value.firstOrNull { it.id == invoiceId }
-        else salesInvoices.value.firstOrNull { it.id == invoiceId }
-
-        if (invoice == null) {
-            _errorMessage.value = "Factura no encontrada"
-            onLoadingComplete(false, "Factura no encontrada")
-            return
-        }
-
-        if (invoice.invoiceStatus == "CON DETALLE" || invoice.invoiceStatus == "REGISTRADO") {
-            if (invoice.products.isNotEmpty()) {
-                onLoadingComplete(true, "Detalles ya cargados")
-            } else {
-                onLoadingComplete(false, "No hay detalles disponibles")
-            }
-            return
-        }
-
-        if (invoice.invoiceStatus == "EN PROCESO") {
-            onLoadingComplete(false, "Ya se está procesando esta factura")
-            return
-        }
-
-        _showLoadingDialog.value = true
-        _loadingStatus.value = "Encolando trabajo de scraping..."
-        _loadingInvoiceId.value = invoiceId
-
-        // Actualizar estado a EN PROCESO inmediatamente
         viewModelScope.launch {
-            repository.updateInvoiceStatus(invoiceId, "EN PROCESO", isPurchase)
-        }
+            try {
+                val result = repository.checkInvoiceStatus(invoiceId)
 
-        viewModelScope.launch {
-            repository.loadInvoiceDetail(
-                invoiceId = invoiceId,
-                isPurchase = isPurchase,
-                issuerRuc = issuerRuc,
-                context = context,
-                onJobQueued = { jobId ->
-                    _loadingStatus.value = "Scraping en cola. Job ID: $jobId"
-                    onLoadingComplete(true, "Scraping encolado. Job ID: $jobId")
-                },
-                onStatusUpdate = { id, status ->
-                    viewModelScope.launch {
-                        repository.updateInvoiceStatus(id, status, isPurchase)
-                        if (status == "CON DETALLE") {
-                            startAutoRegisterTimer(id, isPurchase, context)
+                result.fold(
+                    onSuccess = { response ->
+                        when (response.status) {
+                            "PROCESSING" -> {
+                                onResult(
+                                    true,
+                                    false,
+                                    response.message
+                                        ?: "⏳ La factura está en proceso de obtención de detalles"
+                                )
+                            }
+
+                            "COMPLETED" -> {
+                                if (response.invoice?.details?.isNotEmpty() == true) {
+                                    val products = response.invoice.details.map { detail ->
+                                        ProductItem(
+                                            description = detail.description ?: "",
+                                            quantity = detail.quantity ?: "0",
+                                            unitCost = detail.unitCost ?: "0",
+                                            unitOfMeasure = detail.unitOfMeasure ?: ""
+                                        )
+                                    }
+
+                                    viewModelScope.launch {
+                                        repository.updateInvoiceProducts(
+                                            invoiceId,
+                                            products,
+                                            isPurchase
+                                        )
+                                        repository.updateInvoiceStatus(
+                                            invoiceId,
+                                            "CON DETALLE",
+                                            isPurchase
+                                        )
+                                    }
+
+                                    onResult(
+                                        true,
+                                        true,
+                                        null
+                                    )
+                                } else {
+                                    onResult(
+                                        true,
+                                        false,
+                                        "Factura sin detalles disponibles"
+                                    )
+                                }
+                            }
+
+                            else -> {
+                                onResult(
+                                    false,
+                                    false,
+                                    "Estado desconocido: ${response.status}"
+                                )
+                            }
                         }
-                    }
-                },
-                onProductsUpdate = { id, products, isPur ->
-                    viewModelScope.launch {
-                        repository.updateInvoiceProducts(id, products, isPur)
-                    }
-                },
-                onError = { error ->
-                    _errorMessage.value = error
-                    _showLoadingDialog.value = false
-                    _loadingInvoiceId.value = null
-                    viewModelScope.launch {
-                        repository.updateInvoiceStatus(invoiceId, "CONSULTADO", isPurchase)
-                    }
-                    onLoadingComplete(false, error)
-                }
-            )
-        }
-    }
-
-    private fun startAutoRegisterTimer(invoiceId: Int, isPurchase: Boolean, context: Context) {
-        viewModelScope.launch {
-            _invoicesWithActiveTimer.value = _invoicesWithActiveTimer.value + invoiceId
-            delay(10000L) // 10 segundos
-
-            val currentInvoice = if (isPurchase) purchaseInvoices.value.firstOrNull { it.id == invoiceId }
-            else salesInvoices.value.firstOrNull { it.id == invoiceId }
-
-            if (currentInvoice?.invoiceStatus == "CON DETALLE") {
-                val result = repository.registerInvoicesInDatabase(listOf(currentInvoice), isPurchase)
-                if (result.isSuccess) {
-                    Toast.makeText(context, "✅ Factura ${currentInvoice.series}-${currentInvoice.number} registrada", Toast.LENGTH_SHORT).show()
-                }
-            }
-            _invoicesWithActiveTimer.value = _invoicesWithActiveTimer.value - invoiceId
-        }
-    }
-
-    fun handleAutoRegisterInvoices(
-        purchaseInvoices: List<Invoice>,
-        salesInvoices: List<Invoice>,
-        invoicesWithActiveTimer: Set<Int>,
-        context: Context,
-    ) {
-        viewModelScope.launch {
-            val allInvoices = purchaseInvoices + salesInvoices
-
-            val invoicesToAutoRegister = allInvoices.filter { invoice ->
-                invoice.invoiceStatus == "CON DETALLE" && !invoicesWithActiveTimer.contains(invoice.id)
-            }
-
-            invoicesToAutoRegister.forEach { invoice ->
-                _invoicesWithActiveTimer.value = _invoicesWithActiveTimer.value + invoice.id
-
-                launch {
-                    delay(10000L)
-
-                    val currentStatus = allInvoices.firstOrNull { it.id == invoice.id }?.invoiceStatus
-
-                    if (currentStatus == "CON DETALLE") {
-                        val isPurchase = purchaseInvoices.any { it.id == invoice.id }
-                        val invoicesToRegister = listOf(invoice)
-
-                        registerInvoicesInDatabase(
-                            invoices = invoicesToRegister,
-                            isPurchase = isPurchase,
-                            context = context,
-                            showLoading = false
+                    },
+                    onFailure = { exception ->
+                        onResult(
+                            false,
+                            false,
+                            "Error: ${exception.message}"
                         )
-
-                        updateInvoiceStatus(
-                            invoiceId = invoice.id,
-                            newStatus = "REGISTRADO",
-                            isPurchase = isPurchase
-                        )
-
-                        Toast.makeText(
-                            context,
-                            "✅ Factura ${invoice.series}-${invoice.number} registrada automáticamente",
-                            Toast.LENGTH_SHORT
-                        ).show()
                     }
-
-                    _invoicesWithActiveTimer.value = _invoicesWithActiveTimer.value - invoice.id
-                }
-            }
-
-            val invoicesWithDetail = allInvoices.filter { it.invoiceStatus == "CON DETALLE" }.map { it.id }.toSet()
-            val timersToClean = invoicesWithActiveTimer.filter { !invoicesWithDetail.contains(it) }
-            if (timersToClean.isNotEmpty()) {
-                _invoicesWithActiveTimer.value = _invoicesWithActiveTimer.value.filter {
-                    invoicesWithDetail.contains(it)
-                }.toSet()
+                )
+            } catch (e: Exception) {
+                onResult(
+                    false,
+                    false,
+                    "Error de conexión: ${e.message}"
+                )
             }
         }
     }
@@ -308,99 +244,10 @@ class InvoiceListViewModel : ViewModel() {
         }
     }
 
-    fun detailAllInvoices(
-        context: Context,
-        invoicesToProcess: List<Invoice>,
-        sectionActive: Section
-    ) {
-        viewModelScope.launch {
-            if (invoicesToProcess.isEmpty()) {
-                Toast.makeText(context, "No hay facturas en lista para detallar", Toast.LENGTH_SHORT).show()
-                return@launch
-            }
-
-            val processableInvoices = invoicesToProcess.filter { invoice ->
-                invoice.invoiceStatus != "CON DETALLE" &&
-                        invoice.invoiceStatus != "REGISTRADO" &&
-                        invoice.invoiceStatus != "EN PROCESO"
-            }
-
-            if (processableInvoices.isEmpty()) {
-                Toast.makeText(
-                    context,
-                    "Todas las facturas ya tienen detalle o están en proceso",
-                    Toast.LENGTH_SHORT
-                ).show()
-                return@launch
-            }
-
-            val ruc = SunatPrefs.getRuc(context)
-            val solUsername = SunatPrefs.getSolUsername(context)
-            val solPassword = SunatPrefs.getSolPassword(context)
-
-            if (ruc == null || solUsername == null || solPassword == null) {
-                Toast.makeText(
-                    context,
-                    "⚠️ Primero configure sus credenciales SUNAT en el botón CONSULTAR",
-                    Toast.LENGTH_LONG
-                ).show()
-                return@launch
-            }
-
-            _isDetailingAll.value = true
-            var successful = 0
-            var failed = 0
-            val total = processableInvoices.size
-
-            _loadingStatus.value = "Procesando 0/$total facturas..."
-            _showLoadingDialog.value = true
-
-            processableInvoices.forEach { invoice ->
-                val currentIsPurchase = (sectionActive == Section.PURCHASES)
-                val issuerRuc = getIssuerRuc(invoice.id) ?: invoice.ruc
-
-                val result = suspendCoroutine { continuation ->
-                    loadInvoiceDetailXmlWithUser(
-                        invoiceId = invoice.id,
-                        isPurchase = currentIsPurchase,
-                        issuerRuc = issuerRuc,
-                        context = context
-                    ) { success, _ ->
-                        continuation.resume(success)
-                    }
-                }
-
-                if (result) successful++ else failed++
-
-                withContext(Dispatchers.Main) {
-                    _loadingStatus.value = "Procesando ${successful + failed}/$total facturas...\n✅ Exitosas: $successful\n❌ Fallidas: $failed"
-                }
-
-                delay(300)
-            }
-
-            withContext(Dispatchers.Main) {
-                _isDetailingAll.value = false
-                _showLoadingDialog.value = false
-                Toast.makeText(
-                    context,
-                    "✅ Proceso completado: $successful exitosas, $failed fallidas",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-    }
-
     fun updateInvoiceStatus(invoiceId: Int, newStatus: String, isPurchase: Boolean) {
         viewModelScope.launch {
             repository.updateInvoiceStatus(invoiceId, newStatus, isPurchase)
         }
-    }
-
-    fun getIssuerRuc(invoiceId: Int): String? = repository.getIssuerRuc(invoiceId)
-
-    fun clearError() {
-        _errorMessage.value = null
     }
 
     fun clearLoadingDialog() {
@@ -409,7 +256,10 @@ class InvoiceListViewModel : ViewModel() {
         _loadingInvoiceId.value = null
     }
 
-    private fun combineInvoices(apiInvoices: List<Invoice>, localInvoices: List<Invoice>): List<Invoice> {
+    private fun combineInvoices(
+        apiInvoices: List<Invoice>,
+        localInvoices: List<Invoice>
+    ): List<Invoice> {
         val result = mutableMapOf<String, Invoice>()
         localInvoices.forEach { local ->
             val key = "${local.series}-${local.number}"
@@ -617,7 +467,10 @@ class InvoiceListViewModel : ViewModel() {
         val sourceList = if (isPurchase) purchaseInvoices.value else salesInvoices.value
 
         val filtered = sourceList.filter { invoice ->
-            (businessName == null || invoice.businessName.contains(businessName, ignoreCase = true)) &&
+            (businessName == null || invoice.businessName.contains(
+                businessName,
+                ignoreCase = true
+            )) &&
                     (ruc == null || invoice.ruc.contains(ruc)) &&
                     (status == null || invoice.invoiceStatus == status)
         }
