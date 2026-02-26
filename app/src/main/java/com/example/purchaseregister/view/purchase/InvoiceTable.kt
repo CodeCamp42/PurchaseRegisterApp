@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.purchaseregister.view.components.HeaderCell
@@ -115,18 +116,27 @@ fun InvoiceTable(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text(
-                                        text = invoice.businessName,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.Black,
-                                        modifier = Modifier.padding(start = 8.dp)
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .horizontalScroll(rememberScrollState())
+                                    ) {
+                                        Text(
+                                            text = invoice.businessName,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.Black,
+                                            modifier = Modifier.padding(start = 8.dp, end = 8.dp)
+                                        )
+                                    }
+
+                                    // Monto fijo a la derecha
                                     Text(
                                         text = "S/ ${invoice.totalAmount}",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.Black,
+                                        textAlign = TextAlign.End,
                                         modifier = Modifier.padding(start = 8.dp)
                                     )
                                 }

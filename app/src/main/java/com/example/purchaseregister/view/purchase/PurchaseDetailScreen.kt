@@ -13,7 +13,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.purchaseregister.view.components.CustomDatePickerDialog
-import com.example.purchaseregister.view.components.InvoiceLoadingDialog
+import com.example.purchaseregister.view.components.ProcessingInfoDialog
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import com.example.purchaseregister.view.components.ProfileDialog
 import com.example.purchaseregister.view.components.StatusLegend
 import com.example.purchaseregister.view.components.TutorialSunatDialog
@@ -40,6 +42,7 @@ fun PurchaseDetailScreen(
     onNavigateToDetail: (DetailRoute) -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     // Estados de UI locales
     var sectionActive by rememberSaveable { mutableStateOf(Section.PURCHASES) }
@@ -89,6 +92,9 @@ fun PurchaseDetailScreen(
     val filteredSalesInvoices by viewModel.filteredSalesInvoices.collectAsStateWithLifecycle()
     val isFilterActive = viewModel.isFilterActive.value
 
+    var showProcessingDialog by remember { mutableStateOf(false) }
+    var pendingInvoiceCount by remember { mutableStateOf(0) }
+
     val hasSunatCredentials by remember {
         derivedStateOf {
             isAppLoggedIn && (
@@ -99,6 +105,29 @@ fun PurchaseDetailScreen(
                             SunatPrefs.getClientSecret(context) != null
                     )
         }
+    }
+
+    fun checkForPendingInvoices() {
+        val pendingCount = (purchaseInvoices + salesInvoices).count {
+            it.invoiceStatus == "CONSULTADO"
+        }
+
+        if (pendingCount > 0) {
+            pendingInvoiceCount = pendingCount
+            showProcessingDialog = true
+        }
+    }
+
+    fun executeConsult() {
+        val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+        val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
+        viewModel.loadInvoicesFromAPI(
+            periodStart,
+            periodEnd,
+            sectionActive == Section.PURCHASES,
+            context
+        )
+        isListVisible = true
     }
 
     // LÓGICA DE CARGA INICIAL
@@ -113,25 +142,30 @@ fun PurchaseDetailScreen(
                     consultAfterLogin = true
                     showCredentialsDialog = true
                 }
-
                 isAppLoggedIn && hasSunatCredentials -> {
-                    val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
-                    val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-                    viewModel.loadInvoicesFromAPI(
-                        periodStart,
-                        periodEnd,
-                        sectionActive == Section.PURCHASES,
-                        context
-                    )
+                    executeConsult()
+
+                    delay(1000)
+
+                    checkForPendingInvoices()
                 }
             }
             isInitialLoadDone = true
         }
     }
 
+    LaunchedEffect(purchaseInvoices, salesInvoices, selectedStartMillis, sectionActive) {
+        if (isInitialLoadDone && hasSunatCredentials) {
+            // Solo verificar si hay facturas cargadas
+            if (purchaseInvoices.isNotEmpty() || salesInvoices.isNotEmpty()) {
+                delay(500)  // Pequeño delay para estabilidad
+                checkForPendingInvoices()
+            }
+        }
+    }
+
     LaunchedEffect(selectedStartMillis, selectedEndMillis, sectionActive) {
         if (isInitialLoadDone && hasSunatCredentials) {
-            // Al cambiar el período, intentar cargar datos automáticamente
             val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
             val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
 
@@ -426,12 +460,18 @@ fun PurchaseDetailScreen(
         )
     }
 
-    if (showLoadingDialog) {
-        InvoiceLoadingDialog(
-            isLoading = true,
-            statusMessage = loadingStatus,
-            debugInfo = null,
-            onDismiss = { viewModel.clearLoadingDialog() }
+    if (showProcessingDialog) {
+        ProcessingInfoDialog(
+            showDialog = showProcessingDialog,
+            invoiceCount = pendingInvoiceCount,
+            onAccept = {
+                showProcessingDialog = false
+                executeConsult()
+            },
+            onDismiss = {
+                showProcessingDialog = false
+                executeConsult()
+            }
         )
     }
 

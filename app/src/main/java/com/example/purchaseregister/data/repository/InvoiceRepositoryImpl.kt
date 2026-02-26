@@ -320,10 +320,11 @@ class InvoiceRepositoryImpl : InvoiceRepository {
             setIssuerRuc(id, item.issuerRuc)
 
             val mappedStatus = when (item.invoiceStatus) {
+                "CONSULTED" -> "CONSULTADO"
                 "PENDING_DETAILS" -> "EN PROCESO"
                 "WITH_DETAILS" -> "CON DETALLE"
                 "REGISTERED" -> "REGISTRADO"
-                else -> "CONSULTADO"
+                else -> ""
             }
 
             val invoice = Invoice(
