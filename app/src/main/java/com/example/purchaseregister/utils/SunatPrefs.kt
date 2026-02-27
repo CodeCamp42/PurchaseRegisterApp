@@ -88,4 +88,61 @@ object SunatPrefs {
             }
         }
     }
+
+    fun saveRucSync(context: Context, ruc: String): Boolean {
+        return try {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_RUC, ruc).commit()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun saveSolUsernameSync(context: Context, solUsername: String): Boolean {
+        return try {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_SOL_USERNAME, solUsername).commit()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun saveSolPasswordSync(context: Context, solPassword: String): Boolean {
+        return try {
+            val encrypted = Base64.encodeToString(solPassword.toByteArray(), Base64.NO_WRAP)
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_SOL_PASSWORD, encrypted).commit()
+        } catch (e: Exception) {
+            try {
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit().putString(KEY_SOL_PASSWORD, solPassword).commit()
+            } catch (e2: Exception) {
+                false
+            }
+        }
+    }
+
+    fun saveClientIdSync(context: Context, clientId: String): Boolean {
+        return try {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_CLIENT_ID, clientId).commit()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun saveClientSecretSync(context: Context, clientSecret: String): Boolean {
+        return try {
+            val encrypted = Base64.encodeToString(clientSecret.toByteArray(), Base64.NO_WRAP)
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_CLIENT_SECRET, encrypted).commit()
+        } catch (e: Exception) {
+            try {
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit().putString(KEY_CLIENT_SECRET, clientSecret).commit()
+            } catch (e2: Exception) {
+                false
+            }
+        }
+    }
 }

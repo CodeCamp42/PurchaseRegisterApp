@@ -218,26 +218,28 @@ fun SunatCredentialsDialog(
                                     clientSecretInput
                                 ) { success, errorMessage ->
                                     if (success) {
-                                        SunatPrefs.saveRuc(context, rucInput)
-                                        SunatPrefs.saveSolUsername(context, solUsernameInput)
-                                        SunatPrefs.saveSolPassword(context, solPasswordInput)
-                                        SunatPrefs.saveClientId(context, clientIdInput)
-                                        SunatPrefs.saveClientSecret(context, clientSecretInput)
+                                        val rucSaved = SunatPrefs.saveRucSync(context, rucInput)
+                                        val usernameSaved = SunatPrefs.saveSolUsernameSync(context, solUsernameInput)
+                                        val passwordSaved = SunatPrefs.saveSolPasswordSync(context, solPasswordInput)
+                                        val clientIdSaved = SunatPrefs.saveClientIdSync(context, clientIdInput)
+                                        val clientSecretSaved = SunatPrefs.saveClientSecretSync(context, clientSecretInput)
 
-                                        onCredentialsSaved()
-                                        onDismiss()
+                                        if (rucSaved && usernameSaved && passwordSaved && clientIdSaved && clientSecretSaved) {
+                                            onCredentialsSaved()
+                                            onDismiss()
 
-                                        Toast.makeText(
-                                            context,
-                                            "✅ Credenciales SUNAT guardadas",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
+                                            Toast.makeText(
+                                                context,
+                                                "✅ Credenciales SUNAT guardadas",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
 
-                                        if (consultAfterLogin) {
-                                            onConsultAfterLogin()
+                                            if (consultAfterLogin) {
+                                                onConsultAfterLogin()
+                                            }
+                                        } else {
+                                            localError = "Error al guardar credenciales localmente"
                                         }
-                                    } else {
-                                        localError = errorMessage
                                     }
                                 }
                             }

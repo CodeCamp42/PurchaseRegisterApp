@@ -155,7 +155,7 @@ fun PurchaseDetailScreen(
     }
 
     LaunchedEffect(purchaseInvoices, salesInvoices, selectedStartMillis, sectionActive) {
-        if (isInitialLoadDone && hasSunatCredentials) {
+        if (isInitialLoadDone) {
             // Solo verificar si hay facturas cargadas
             if (purchaseInvoices.isNotEmpty() || salesInvoices.isNotEmpty()) {
                 delay(500)
@@ -343,7 +343,13 @@ fun PurchaseDetailScreen(
                     isListVisible = true
                 },
                 onShowProfile = { showProfileDialog = true },
-                onShowCredentials = { showCredentialsDialog = true },
+                onShowCredentials = {
+                    if (hasSunatCredentials) {
+                        showEditCredentialsDialog = true
+                    } else {
+                        showCredentialsDialog = true
+                    }
+                },
                 sectionActive = sectionActive,
                 onNavigateToRegister = onNavigateToRegister
             )
@@ -415,6 +421,11 @@ fun PurchaseDetailScreen(
                 clientIdInput = ""
                 clientSecretInput = ""
                 showCredentialsForApiError = false
+
+                val tempLoggedIn = isAppLoggedIn
+                isAppLoggedIn = false
+                isAppLoggedIn = tempLoggedIn
+
                 val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
                 val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
                 viewModel.loadInvoicesFromAPI(
