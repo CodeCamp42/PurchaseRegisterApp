@@ -52,6 +52,8 @@ interface InvoiceRepository {
 
     suspend fun sendFcmToken(context: Context, token: String): Result<Unit>
 
+    suspend fun getInvoiceDetails(invoiceId: Int): Result<InvoiceDetailsResponse>
+
     // Getters auxiliares
     fun getIssuerRuc(invoiceId: Int): String?
     fun clearAll()

@@ -123,6 +123,32 @@ class InvoiceListViewModel : ViewModel() {
     }
 
     // --- Funciones de interacción con facturas ---
+    fun getInvoiceDetails(
+        invoiceId: Int,
+        onResult: (success: Boolean, error: String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val result = repository.getInvoiceDetails(invoiceId)
+                result.fold(
+                    onSuccess = { response ->
+                        // Aquí podrías guardar los detalles si es necesario
+                        // Pero no es obligatorio porque DetailScreen cargará de nuevo
+                        onResult(true, null)
+                    },
+                    onFailure = { exception ->
+                        onResult(false, exception.message)
+                    }
+                )
+            } catch (e: Exception) {
+                onResult(false, e.message)
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
     fun checkInvoiceStatus(
         invoiceId: Int,
         isPurchase: Boolean,
@@ -135,19 +161,20 @@ class InvoiceListViewModel : ViewModel() {
 
                 result.fold(
                     onSuccess = { response ->
-                        when (response.status) {
+                        // Ahora usamos invoiceStatus directamente
+                        when (response.invoiceStatus) {
                             "PROCESSING" -> {
                                 onResult(
                                     true,
                                     false,
-                                    response.message
-                                        ?: "⏳ La factura está en proceso de obtención de detalles"
+                                    "⏳ La factura está en proceso de obtención de detalles"
                                 )
                             }
 
-                            "COMPLETED" -> {
-                                if (response.invoice?.details?.isNotEmpty() == true) {
-                                    val products = response.invoice.details.map { detail ->
+                            "COMPLETED", "WITH_DETAILS" -> {
+                                // Verificamos si tiene detalles usando invoiceDetails
+                                if (response.invoiceDetails.isNotEmpty()) {
+                                    val products = response.invoiceDetails.map { detail ->
                                         ProductItem(
                                             description = detail.description ?: "",
                                             quantity = detail.quantity ?: "0",
@@ -187,7 +214,7 @@ class InvoiceListViewModel : ViewModel() {
                                 onResult(
                                     false,
                                     false,
-                                    "Estado desconocido: ${response.status}"
+                                    "Estado desconocido: ${response.invoiceStatus}"
                                 )
                             }
                         }

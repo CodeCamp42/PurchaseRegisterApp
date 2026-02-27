@@ -72,22 +72,9 @@ fun AppNavHost() {
 
             if (invoice != null) {
                 DetailScreen(
-                    id = invoice.id,
-                    onBack = { navController.popBackStack() },
-                    providerRuc = invoice.ruc,
-                    series = invoice.series,
-                    number = invoice.number,
-                    date = invoice.issueDate,
-                    businessName = invoice.businessName,
-                    documentType = invoice.documentType,
-                    year = invoice.year,
-                    currency = invoice.currency,
-                    totalCost = invoice.totalCost,
-                    igv = invoice.igv,
-                    exchangeRate = invoice.exchangeRate,
-                    totalAmount = invoice.totalAmount,
+                    invoiceId = args.id,
                     isPurchase = args.isPurchase,
-                    products = invoice.products,
+                    onBack = { navController.popBackStack() },
                     viewModel = detailViewModel
                 )
             } else {

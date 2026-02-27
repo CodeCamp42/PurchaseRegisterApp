@@ -285,7 +285,20 @@ fun PurchaseDetailScreen(
                 isListVisible = isListVisible,
                 onInvoiceClick = { invoice, isPurchase ->
                     if (invoice.invoiceStatus == "CON DETALLE" || invoice.invoiceStatus == "REGISTRADO") {
-                        onNavigateToDetail(DetailRoute(invoice.id, isPurchase))
+                        viewModel.getInvoiceDetails(
+                            invoiceId = invoice.id,
+                            onResult = { success, error ->
+                                if (success) {
+                                    onNavigateToDetail(DetailRoute(invoice.id, isPurchase))
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        error ?: "Error al obtener detalles",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        )
                     } else {
                         viewModel.checkInvoiceStatus(
                             invoiceId = invoice.id,

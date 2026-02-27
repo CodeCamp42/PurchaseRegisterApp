@@ -28,6 +28,7 @@ data class ItemResponse(
 )
 
 data class SunatResponse(
+    val id: Int,
     val issuerRuc: String,
     val issuerName: String,
     val period: String,

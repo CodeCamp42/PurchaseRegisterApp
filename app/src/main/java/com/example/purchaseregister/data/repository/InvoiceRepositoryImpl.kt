@@ -158,6 +158,21 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         }
     }
 
+    override suspend fun getInvoiceDetails(invoiceId: Int): Result<InvoiceDetailsResponse> {
+        return try {
+            val response = apiService.getInvoiceDetails(invoiceId)
+
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Result.failure(Exception(errorBody ?: "Error ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun registerInvoicesInDatabase(
         invoices: List<Invoice>,
         isPurchase: Boolean
@@ -300,14 +315,12 @@ class InvoiceRepositoryImpl : InvoiceRepository {
     ): List<Invoice> {
         val invoices = mutableListOf<Invoice>()
         val allExistingInvoices = getPurchaseInvoices() + getSalesInvoices()
-        val maxCurrentId = (allExistingInvoices.maxOfOrNull { it.id } ?: 0) + 1
-        var idCounter = maxCurrentId
 
         val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
         val targetFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
 
         items.forEach { item ->
-            val id = idCounter++
+            val id = item.id
 
             val formattedDate = try {
                 val date = isoFormat.parse(item.issueDate)

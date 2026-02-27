@@ -88,6 +88,36 @@ fun getMonthNamePeru(millis: Long): String {
     return format.format(calendar.time).replaceFirstChar { it.uppercase() }
 }
 
+fun formatDateFromISO(isoDate: String): String {
+    return try {
+        // Parsear formato ISO (ej: 2026-02-16T05:00:00.000Z)
+        val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone("UTC") // Importante: el 'Z' indica UTC
+        }
+        // Formatear a dd/MM/yyyy para Perú
+        val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+            timeZone = PERU_TIME_ZONE // Convertir a hora Perú
+        }
+        val date = parser.parse(isoDate)
+        formatter.format(date)
+    } catch (e: Exception) {
+        // Si falla, intentar con otro formato común
+        try {
+            val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault()).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+                timeZone = PERU_TIME_ZONE
+            }
+            val date = parser.parse(isoDate)
+            formatter.format(date)
+        } catch (e2: Exception) {
+            // Si todo falla, devolver el original
+            isoDate
+        }
+    }
+}
+
 @Composable
 fun DateRangeSelector(
     selectedStartMillis: Long?,
