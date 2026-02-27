@@ -26,6 +26,7 @@ import com.example.purchaseregister.view.components.BottomActionButtons
 import com.example.purchaseregister.view.detail.DetailRoute
 import com.example.purchaseregister.utils.*
 import com.example.purchaseregister.view.components.CredentialErrorDialog
+import com.example.purchaseregister.view.components.DetailsReadyDialog
 import com.example.purchaseregister.view.components.EditCredentialsDialog
 import com.example.purchaseregister.view.components.FilterDialog
 import com.example.purchaseregister.view.components.ForgotPasswordDialog
@@ -33,6 +34,8 @@ import com.example.purchaseregister.viewmodel.InvoiceListViewModel
 import com.example.purchaseregister.viewmodel.Section
 import java.util.Calendar
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.text.compareTo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,6 +99,13 @@ fun PurchaseDetailScreen(
     var showEditCredentialsDialog by remember { mutableStateOf(false) }
     var currentPeriodKey by rememberSaveable { mutableStateOf("") }
     var dialogShownForCurrentPeriod by rememberSaveable { mutableStateOf(false) }
+    var showDetailsReadyDialog by remember { mutableStateOf(false) }
+    var readyInvoiceCount by remember { mutableStateOf(0) }
+    var totalProcessedInvoices by remember { mutableStateOf(0) }
+    var verificationStage by remember { mutableStateOf(0) }
+    var lastReportedReadyCount by remember { mutableStateOf(0) }
+    var totalPendingToProcess by remember { mutableStateOf(0) }
+    var isProcessingComplete by remember { mutableStateOf(false) }
 
     val hasSunatCredentials by remember {
         derivedStateOf {
@@ -152,6 +162,61 @@ fun PurchaseDetailScreen(
         }
     }
 
+    fun checkProgressiveReadyInvoices(stage: Int) {
+        val readyCount = (purchaseInvoices + salesInvoices).count {
+            it.invoiceStatus == "CON DETALLE" || it.invoiceStatus == "REGISTRADO"
+        }
+
+        // Si ya se completaron todas, no mostrar más
+        if (readyCount >= totalPendingToProcess) {
+            isProcessingComplete = true
+            // Mostrar una última vez que ya están todas listas
+            readyInvoiceCount = readyCount
+            totalProcessedInvoices = totalPendingToProcess
+            showDetailsReadyDialog = true
+            return
+        }
+
+        // Si hay más facturas listas que la última vez, mostrar diálogo
+        if (readyCount > lastReportedReadyCount) {
+            lastReportedReadyCount = readyCount
+            readyInvoiceCount = readyCount
+            totalProcessedInvoices = totalPendingToProcess
+            showDetailsReadyDialog = true
+        }
+
+        // Programar siguiente verificación según la etapa
+        when (stage) {
+            1 -> {
+                // Segunda verificación a los 10 segundos
+                coroutineScope.launch {
+                    delay(10000)
+                    if (!isProcessingComplete) {
+                        checkProgressiveReadyInvoices(2)
+                    }
+                }
+            }
+            2 -> {
+                // Tercera verificación a los 20 segundos
+                coroutineScope.launch {
+                    delay(20000)
+                    if (!isProcessingComplete) {
+                        checkProgressiveReadyInvoices(3)
+                    }
+                }
+            }
+            3 -> {
+                // Última verificación, ya no programamos más
+                // Si aún no se completaron, mostramos estado actual
+                if (readyCount < totalPendingToProcess && !isProcessingComplete) {
+                    readyInvoiceCount = readyCount
+                    totalProcessedInvoices = totalPendingToProcess
+                    showDetailsReadyDialog = true
+                }
+            }
+        }
+    }
+
     fun executeConsult() {
         val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
         val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
@@ -162,6 +227,21 @@ fun PurchaseDetailScreen(
             context
         )
         isListVisible = true
+    }
+
+    fun checkForReadyInvoices() {
+        val readyCount = (purchaseInvoices + salesInvoices).count {
+            it.invoiceStatus == "CON DETALLE" || it.invoiceStatus == "REGISTRADO"
+        }
+        val totalPendingCount = (purchaseInvoices + salesInvoices).count {
+            it.invoiceStatus == "CONSULTADO" || it.invoiceStatus == "EN PROCESO"
+        }
+
+        if (readyCount > 0) {
+            readyInvoiceCount = readyCount
+            totalProcessedInvoices = readyCount + totalPendingCount
+            showDetailsReadyDialog = true
+        }
     }
 
     // LÓGICA DE CARGA INICIAL
@@ -223,6 +303,8 @@ fun PurchaseDetailScreen(
                 error.contains("No autorizado")
             ) {
                 showCredentialsForApiError = true
+                showCredentialsDialog = true
+            } else if (error.contains("Credenciales de Sunat no encontradas")) {
                 showCredentialsDialog = true
             } else {
                 Toast.makeText(context, error, Toast.LENGTH_LONG).show()
@@ -559,16 +641,38 @@ fun PurchaseDetailScreen(
     }
 
     if (showProcessingDialog) {
+        // Guardar el total de facturas que se están procesando
+        totalPendingToProcess = pendingInvoiceCount
+        verificationStage = 0
+        lastReportedReadyCount = 0
+        isProcessingComplete = false
+
         ProcessingInfoDialog(
             showDialog = showProcessingDialog,
             invoiceCount = pendingInvoiceCount,
             onAccept = {
                 showProcessingDialog = false
                 executeConsult()
+
+                // Iniciar la primera verificación a los 5 segundos
+                coroutineScope.launch {
+                    delay(5000)
+                    if (!isProcessingComplete) {
+                        checkProgressiveReadyInvoices(1)
+                    }
+                }
             },
             onDismiss = {
                 showProcessingDialog = false
                 executeConsult()
+
+                // También iniciar si cierra sin aceptar
+                coroutineScope.launch {
+                    delay(5000)
+                    if (!isProcessingComplete) {
+                        checkProgressiveReadyInvoices(1)
+                    }
+                }
             }
         )
     }
@@ -654,6 +758,21 @@ fun PurchaseDetailScreen(
                     isPurchase = sectionActive == Section.PURCHASES
                 )
                 showFilterDialog = false
+            }
+        )
+    }
+
+    if (showDetailsReadyDialog) {
+        DetailsReadyDialog(
+            showDialog = showDetailsReadyDialog,
+            totalInvoices = totalProcessedInvoices,
+            readyCount = readyInvoiceCount,
+            onAccept = {
+                showDetailsReadyDialog = false
+                executeConsult()
+            },
+            onDismiss = {
+                showDetailsReadyDialog = false
             }
         )
     }

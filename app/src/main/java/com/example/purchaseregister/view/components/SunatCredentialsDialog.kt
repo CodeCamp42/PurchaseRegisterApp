@@ -66,23 +66,11 @@ fun SunatCredentialsDialog(
 
     // Precargar valores si existen
     LaunchedEffect(Unit) {
-        if (clientIdInput.isEmpty()) {
-            clientIdInput = SunatPrefs.getClientId(context) ?: ""
-        }
-        if (clientSecretInput.isEmpty()) {
-            clientSecretInput = SunatPrefs.getClientSecret(context) ?: ""
-        }
-        if (rucInput.isEmpty()) {
-            rucInput = SunatPrefs.getRuc(context) ?: ""
-        }
-        if (solUsernameInput.isEmpty()) {
-            solUsernameInput = SunatPrefs.getSolUsername(context) ?: ""
-        }
-        if (solPasswordInput.isEmpty()) {
-            solPasswordInput = SunatPrefs.getSolPassword(context) ?: ""
-        }
-        clientIdInput = SunatPrefs.getClientId(context) ?: ""
-        clientSecretInput = SunatPrefs.getClientSecret(context) ?: ""
+        rucInput = ""
+        solUsernameInput = ""
+        solPasswordInput = ""
+        clientIdInput = ""
+        clientSecretInput = ""
     }
 
     Dialog(onDismissRequest = onDismiss) {
