@@ -23,10 +23,8 @@ import com.example.purchaseregister.view.register.RegisterRoute
 fun AppNavHost() {
     val navController = rememberNavController()
 
-    // Instanciar ViewModels a nivel de NavHost para que vivan mientras el host exista
     val invoiceListViewModel: InvoiceListViewModel = viewModel()
     val purchaseRegistrationViewModel: PurchaseRegistrationViewModel = viewModel()
-    // DetailViewModel se instancia en la pantalla de detalle porque es específico de esa pantalla
 
     NavHost(
         navController = navController,
@@ -55,10 +53,10 @@ fun AppNavHost() {
             )
         }
 
-        // Ruta de detalle de factura, recibe parámetros de la ruta
+        // Ruta de detalle de factura
         composable<DetailRoute> { backStackEntry ->
             val args = backStackEntry.toRoute<DetailRoute>()
-            val detailViewModel: DetailViewModel = viewModel() // ViewModel específico de la pantalla
+            val detailViewModel: DetailViewModel = viewModel()
 
             // Obtener la factura de los flows del ViewModel de lista
             val purchaseInvoices by invoiceListViewModel.purchaseInvoices.collectAsState()

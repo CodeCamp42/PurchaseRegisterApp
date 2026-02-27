@@ -1,5 +1,7 @@
 package com.example.purchaseregister.api.request
 
+import com.google.gson.annotations.SerializedName
+
 data class ProductToRegister(
     val description: String? = null,
     val quantity: String? = null,
@@ -36,4 +38,12 @@ data class SaveSunatCredentialsRequest(
 
 data class ForgotPasswordRequest(
     val email: String
+)
+
+data class UpdateSunatCredentialsRequest(
+    val ruc: String? = null,
+    @SerializedName("solUsername") val solUsername: String? = null,
+    @SerializedName("solPassword") val solPassword: String? = null,
+    @SerializedName("clientId") val clientId: String? = null,
+    @SerializedName("clientSecret") val clientSecret: String? = null
 )

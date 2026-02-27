@@ -1,32 +1,4 @@
 package com.example.purchaseregister.api.responses
-
-data class InvoicesUIResponse(
-    val success: Boolean? = null,
-    val message: String? = null,
-    val count: Int? = null,
-    val statusDistribution: Map<String, Int>? = null,
-    val invoices: List<RegisteredInvoiceResponse>? = null,
-    val note: String? = null
-)
-
-data class IssuerResponse(
-    val ruc: String? = null,
-    val name: String? = null
-)
-
-data class ReceiverResponse(
-    val ruc: String? = null,
-    val name: String? = null
-)
-
-data class ItemResponse(
-    val quantity: Double? = null,
-    val unit: String? = null,
-    val code: String? = null,
-    val description: String? = null,
-    val unitValue: Double? = null
-)
-
 data class SunatResponse(
     val id: Int,
     val issuerRuc: String,
@@ -87,12 +59,6 @@ data class RegisteredDetail(
 data class RegisteredProvider(
     val providerRuc: String? = null,
     val businessName: String? = null
-)
-
-data class ScrapedInvoiceResponse(
-    val invoiceId: Int? = null,
-    val documentNumber: String? = null,
-    val status: String? = null
 )
 
 data class SaveSunatCredentialsResponse(

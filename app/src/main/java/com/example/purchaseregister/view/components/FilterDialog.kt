@@ -24,7 +24,7 @@ fun FilterDialog(
     var selectedStatus by remember { mutableStateOf<String?>(null) }
 
     // Lista de estados disponibles
-    val statusList = listOf("CONSULTADO", "CON DETALLE", "REGISTRADO")
+    val statusList = listOf("CONSULTADO", "EN PROCESO", "CON DETALLE", "REGISTRADO")
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -84,7 +84,7 @@ fun FilterDialog(
                     modifier = Modifier.align(Alignment.Start)
                 )
 
-                // Lista de estados (radio buttons)
+                // Lista de estados
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -118,7 +118,6 @@ fun FilterDialog(
                         .padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Botón Cancelar
                     TextButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
@@ -126,7 +125,6 @@ fun FilterDialog(
                         Text("Cancelar")
                     }
 
-                    // Botón Filtrar
                     Button(
                         onClick = {
                             onFilterClick(

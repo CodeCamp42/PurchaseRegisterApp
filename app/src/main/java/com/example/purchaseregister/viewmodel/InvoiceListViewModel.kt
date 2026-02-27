@@ -19,6 +19,7 @@ import java.text.SimpleDateFormat
 import com.example.purchaseregister.model.ProductItem
 import java.util.Locale
 import com.google.firebase.messaging.FirebaseMessaging
+import com.example.purchaseregister.api.request.UpdateSunatCredentialsRequest
 
 class InvoiceListViewModel : ViewModel() {
 
@@ -105,7 +106,6 @@ class InvoiceListViewModel : ViewModel() {
                     clientId,
                     clientSecret
                 )
-                // El repositorio ya actualiza su propio StateFlow internamente
             } catch (e: Exception) {
                 val errorMsg = e.message ?: "Error al conectar con SUNAT"
                 if (errorMsg.contains("No fue posible autenticar con SUNAT SIRE") ||
@@ -122,7 +122,7 @@ class InvoiceListViewModel : ViewModel() {
         }
     }
 
-    // --- Funciones de interacción con facturas ---
+    // Funciones de interacción con facturas
     fun getInvoiceDetails(
         invoiceId: Int,
         onResult: (success: Boolean, error: String?) -> Unit
@@ -133,8 +133,6 @@ class InvoiceListViewModel : ViewModel() {
                 val result = repository.getInvoiceDetails(invoiceId)
                 result.fold(
                     onSuccess = { response ->
-                        // Aquí podrías guardar los detalles si es necesario
-                        // Pero no es obligatorio porque DetailScreen cargará de nuevo
                         onResult(true, null)
                     },
                     onFailure = { exception ->
@@ -161,7 +159,6 @@ class InvoiceListViewModel : ViewModel() {
 
                 result.fold(
                     onSuccess = { response ->
-                        // Ahora usamos invoiceStatus directamente
                         when (response.invoiceStatus) {
                             "PROCESSING" -> {
                                 onResult(
@@ -172,7 +169,7 @@ class InvoiceListViewModel : ViewModel() {
                             }
 
                             "COMPLETED", "WITH_DETAILS" -> {
-                                // Verificamos si tiene detalles usando invoiceDetails
+                                // Verificar si tiene detalles usando invoiceDetails
                                 if (response.invoiceDetails.isNotEmpty()) {
                                     val products = response.invoiceDetails.map { detail ->
                                         ProductItem(
@@ -417,6 +414,42 @@ class InvoiceListViewModel : ViewModel() {
                     onResult(false, exception.message)
                 }
             )
+        }
+    }
+
+    fun updateSunatCredentials(
+        ruc: String?,
+        solUsername: String?,
+        solPassword: String?,
+        clientId: String?,
+        clientSecret: String?,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val request = UpdateSunatCredentialsRequest(
+                    ruc = ruc.takeIf { it?.isNotEmpty() == true },
+                    solUsername = solUsername.takeIf { it?.isNotEmpty() == true },
+                    solPassword = solPassword.takeIf { it?.isNotEmpty() == true },
+                    clientId = clientId.takeIf { it?.isNotEmpty() == true },
+                    clientSecret = clientSecret.takeIf { it?.isNotEmpty() == true }
+                )
+
+                val result = repository.updateSunatCredentials(request)
+                result.fold(
+                    onSuccess = {
+                        onResult(true, null)
+                    },
+                    onFailure = { exception ->
+                        onResult(false, exception.message)
+                    }
+                )
+            } catch (e: Exception) {
+                onResult(false, e.message)
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 

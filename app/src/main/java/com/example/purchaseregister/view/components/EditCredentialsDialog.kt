@@ -22,16 +22,16 @@ import androidx.compose.foundation.verticalScroll
 import kotlinx.coroutines.launch
 
 @Composable
-fun SunatCredentialsDialog(
+fun EditCredentialsDialog(
     onDismiss: () -> Unit,
     onCredentialsSaved: () -> Unit,
     onShowTutorial: () -> Unit,
     onSaveToBackend: (
-        ruc: String,
-        solUsername: String,
-        solPassword: String,
-        clientId: String,
-        clientSecret: String,
+        ruc: String?,
+        solUsername: String?,
+        solPassword: String?,
+        clientId: String?,
+        clientSecret: String?,
         onResult: (Boolean, String?) -> Unit
     ) -> Unit,
     externalClientId: String = "",
@@ -43,11 +43,18 @@ fun SunatCredentialsDialog(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    var rucInput by remember { mutableStateOf("") }
-    var solUsernameInput by remember { mutableStateOf("") }
-    var solPasswordInput by remember { mutableStateOf("") }
-    var clientIdInput by remember { mutableStateOf("") }
-    var clientSecretInput by remember { mutableStateOf("") }
+    val originalRuc = remember { SunatPrefs.getRuc(context) ?: "" }
+    val originalSolUsername = remember { SunatPrefs.getSolUsername(context) ?: "" }
+    val originalSolPassword = remember { SunatPrefs.getSolPassword(context) ?: "" }
+    val originalClientId = remember { SunatPrefs.getClientId(context) ?: "" }
+    val originalClientSecret = remember { SunatPrefs.getClientSecret(context) ?: "" }
+
+    var rucInput by remember { mutableStateOf(originalRuc) }
+    var solUsernameInput by remember { mutableStateOf(originalSolUsername) }
+    var solPasswordInput by remember { mutableStateOf(originalSolPassword) }
+    var clientIdInput by remember { mutableStateOf(originalClientId) }
+    var clientSecretInput by remember { mutableStateOf(originalClientSecret) }
+
     var passwordVisible by remember { mutableStateOf(false) }
     var clientSecretVisible by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf<String?>(null) }
@@ -62,27 +69,6 @@ fun SunatCredentialsDialog(
         if (externalClientId.isNotEmpty() || externalClientSecret.isNotEmpty()) {
             onExternalCredentialsUpdated()
         }
-    }
-
-    // Precargar valores si existen
-    LaunchedEffect(Unit) {
-        if (clientIdInput.isEmpty()) {
-            clientIdInput = SunatPrefs.getClientId(context) ?: ""
-        }
-        if (clientSecretInput.isEmpty()) {
-            clientSecretInput = SunatPrefs.getClientSecret(context) ?: ""
-        }
-        if (rucInput.isEmpty()) {
-            rucInput = SunatPrefs.getRuc(context) ?: ""
-        }
-        if (solUsernameInput.isEmpty()) {
-            solUsernameInput = SunatPrefs.getSolUsername(context) ?: ""
-        }
-        if (solPasswordInput.isEmpty()) {
-            solPasswordInput = SunatPrefs.getSolPassword(context) ?: ""
-        }
-        clientIdInput = SunatPrefs.getClientId(context) ?: ""
-        clientSecretInput = SunatPrefs.getClientSecret(context) ?: ""
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -100,12 +86,12 @@ fun SunatCredentialsDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Credenciales SUNAT",
+                    text = "Editar Credenciales SUNAT",
                     style = MaterialTheme.typography.headlineSmall,
                     color = Color(0xFF1FB8B9)
                 )
 
-                Text("Complete para continuar:")
+                Text("Modifica los datos que deseas actualizar:")
 
                 OutlinedTextField(
                     value = rucInput,
@@ -210,26 +196,42 @@ fun SunatCredentialsDialog(
                     TextButton(
                         onClick = {
                             coroutineScope.launch {
+                                // Solo enviar campos modificados
+                                val updatedRuc = if (rucInput != originalRuc) rucInput else null
+                                val updatedSolUsername = if (solUsernameInput != originalSolUsername) solUsernameInput else null
+                                val updatedSolPassword = if (solPasswordInput != originalSolPassword) solPasswordInput else null
+                                val updatedClientId = if (clientIdInput != originalClientId) clientIdInput else null
+                                val updatedClientSecret = if (clientSecretInput != originalClientSecret) clientSecretInput else null
+
+                                // Verificar si hay al menos un campo modificado
+                                if (updatedRuc == null && updatedSolUsername == null &&
+                                    updatedSolPassword == null && updatedClientId == null &&
+                                    updatedClientSecret == null) {
+                                    localError = "No hay cambios para guardar"
+                                    return@launch
+                                }
+
                                 onSaveToBackend(
-                                    rucInput,
-                                    solUsernameInput,
-                                    solPasswordInput,
-                                    clientIdInput,
-                                    clientSecretInput
+                                    updatedRuc,
+                                    updatedSolUsername,
+                                    updatedSolPassword,
+                                    updatedClientId,
+                                    updatedClientSecret
                                 ) { success, errorMessage ->
                                     if (success) {
-                                        SunatPrefs.saveRuc(context, rucInput)
-                                        SunatPrefs.saveSolUsername(context, solUsernameInput)
-                                        SunatPrefs.saveSolPassword(context, solPasswordInput)
-                                        SunatPrefs.saveClientId(context, clientIdInput)
-                                        SunatPrefs.saveClientSecret(context, clientSecretInput)
+                                        // Guardar solo los campos que se modificaron
+                                        if (updatedRuc != null) SunatPrefs.saveRuc(context, rucInput)
+                                        if (updatedSolUsername != null) SunatPrefs.saveSolUsername(context, solUsernameInput)
+                                        if (updatedSolPassword != null) SunatPrefs.saveSolPassword(context, solPasswordInput)
+                                        if (updatedClientId != null) SunatPrefs.saveClientId(context, clientIdInput)
+                                        if (updatedClientSecret != null) SunatPrefs.saveClientSecret(context, clientSecretInput)
 
                                         onCredentialsSaved()
                                         onDismiss()
 
                                         Toast.makeText(
                                             context,
-                                            "✅ Credenciales SUNAT guardadas",
+                                            "✅ Credenciales SUNAT actualizadas",
                                             Toast.LENGTH_SHORT
                                         ).show()
 
@@ -242,14 +244,19 @@ fun SunatCredentialsDialog(
                                 }
                             }
                         },
-                        enabled = rucInput.length == 11 &&
-                                solUsernameInput.isNotEmpty() &&
-                                solPasswordInput.isNotEmpty() &&
-                                clientIdInput.isNotEmpty() &&
-                                clientSecretInput.isNotEmpty(),
+                        // El botón se habilita si hay al menos un campo válido
+                        enabled = (rucInput.length == 11 || rucInput == originalRuc) &&
+                                (solUsernameInput.isNotEmpty() || solUsernameInput == originalSolUsername) &&
+                                (solPasswordInput.isNotEmpty() || solPasswordInput == originalSolPassword) &&
+                                (clientIdInput.isNotEmpty() || clientIdInput == originalClientId) &&
+                                (clientSecretInput.isNotEmpty() || clientSecretInput == originalClientSecret) &&
+                                // Y al menos un campo tiene cambios
+                                (rucInput != originalRuc || solUsernameInput != originalSolUsername ||
+                                        solPasswordInput != originalSolPassword || clientIdInput != originalClientId ||
+                                        clientSecretInput != originalClientSecret),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Guardar")
+                        Text("Editar y Guardar")
                     }
                 }
             }

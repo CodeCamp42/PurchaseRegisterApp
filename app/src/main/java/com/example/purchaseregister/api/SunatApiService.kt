@@ -33,6 +33,11 @@ interface SunatApiService {
         @Body request: SaveSunatCredentialsRequest
     ): Response<SaveSunatCredentialsResponse>
 
+    @PATCH("api/users/me/sunat-credentials")
+    suspend fun updateSunatCredentials(
+        @Body request: UpdateSunatCredentialsRequest
+    ): Response<Unit>
+
     @POST("api/auth/sign-out")
     suspend fun signOut(
         @Header("Authorization") authorization: String?

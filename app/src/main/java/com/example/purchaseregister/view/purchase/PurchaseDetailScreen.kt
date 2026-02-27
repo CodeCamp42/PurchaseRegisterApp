@@ -14,7 +14,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.purchaseregister.view.components.CustomDatePickerDialog
 import com.example.purchaseregister.view.components.ProcessingInfoDialog
-import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import com.example.purchaseregister.view.components.ProfileDialog
 import com.example.purchaseregister.view.components.StatusLegend
@@ -27,6 +26,7 @@ import com.example.purchaseregister.view.components.BottomActionButtons
 import com.example.purchaseregister.view.detail.DetailRoute
 import com.example.purchaseregister.utils.*
 import com.example.purchaseregister.view.components.CredentialErrorDialog
+import com.example.purchaseregister.view.components.EditCredentialsDialog
 import com.example.purchaseregister.view.components.FilterDialog
 import com.example.purchaseregister.view.components.ForgotPasswordDialog
 import com.example.purchaseregister.viewmodel.InvoiceListViewModel
@@ -87,13 +87,13 @@ fun PurchaseDetailScreen(
     var credentialErrorMessage by remember { mutableStateOf("") }
     var showFilterDialog by remember { mutableStateOf(false) }
 
-    // En PurchaseDetailScreen.kt
     val filteredPurchaseInvoices by viewModel.filteredPurchaseInvoices.collectAsStateWithLifecycle()
     val filteredSalesInvoices by viewModel.filteredSalesInvoices.collectAsStateWithLifecycle()
     val isFilterActive = viewModel.isFilterActive.value
 
     var showProcessingDialog by remember { mutableStateOf(false) }
     var pendingInvoiceCount by remember { mutableStateOf(0) }
+    var showEditCredentialsDialog by remember { mutableStateOf(false) }
 
     val hasSunatCredentials by remember {
         derivedStateOf {
@@ -158,7 +158,7 @@ fun PurchaseDetailScreen(
         if (isInitialLoadDone && hasSunatCredentials) {
             // Solo verificar si hay facturas cargadas
             if (purchaseInvoices.isNotEmpty() || salesInvoices.isNotEmpty()) {
-                delay(500)  // Pequeño delay para estabilidad
+                delay(500)
                 checkForPendingInvoices()
             }
         }
@@ -355,11 +355,51 @@ fun PurchaseDetailScreen(
         CredentialErrorDialog(
             errorMessage = credentialErrorMessage,
             onEditClick = {
-                showCredentialsDialog = true
+                showEditCredentialsDialog = true
                 consultAfterLogin = true
             },
             onDismiss = {
                 showCredentialErrorDialog = false
+            }
+        )
+    }
+
+    // Editor de credenciales de sunat
+    if (showEditCredentialsDialog) {
+        EditCredentialsDialog(
+            onDismiss = {
+                showEditCredentialsDialog = false
+            },
+            onCredentialsSaved = {
+            },
+            onShowTutorial = { showTutorial = true },
+            externalClientId = clientIdInput,
+            externalClientSecret = clientSecretInput,
+            onExternalCredentialsUpdated = {
+            },
+            onSaveToBackend = { ruc, solUsername, solPassword, clientId, clientSecret, onResult ->
+                viewModel.updateSunatCredentials(
+                    ruc = ruc,
+                    solUsername = solUsername,
+                    solPassword = solPassword,
+                    clientId = clientId,
+                    clientSecret = clientSecret,
+                    onResult = onResult
+                )
+            },
+            consultAfterLogin = consultAfterLogin,
+            onConsultAfterLogin = {
+                val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+                val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
+                viewModel.loadInvoicesFromAPI(
+                    periodStart,
+                    periodEnd,
+                    sectionActive == Section.PURCHASES,
+                    context
+                )
+                isListVisible = true
+                consultAfterLogin = false
+                showEditCredentialsDialog = false
             }
         )
     }

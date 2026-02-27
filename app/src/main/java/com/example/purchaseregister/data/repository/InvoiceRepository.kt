@@ -1,6 +1,7 @@
 package com.example.purchaseregister.data.repository
 
 import android.content.Context
+import com.example.purchaseregister.api.request.UpdateSunatCredentialsRequest
 import com.example.purchaseregister.model.Invoice
 import com.example.purchaseregister.model.ProductItem
 import kotlinx.coroutines.flow.StateFlow
@@ -8,6 +9,7 @@ import com.example.purchaseregister.api.responses.AuthResponse
 import com.example.purchaseregister.api.responses.InvoiceDetailsResponse
 
 interface InvoiceRepository {
+
     // Flows para observar los datos
     val purchaseInvoices: StateFlow<List<Invoice>>
     val salesInvoices: StateFlow<List<Invoice>>
@@ -66,4 +68,8 @@ interface InvoiceRepository {
         clientId: String,
         clientSecret: String
     ): Result<Boolean>
+
+    suspend fun updateSunatCredentials(
+        request: UpdateSunatCredentialsRequest
+    ): Result<Unit>
 }

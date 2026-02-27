@@ -89,6 +89,30 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         }
     }
 
+    override suspend fun updateSunatCredentials(
+        request: UpdateSunatCredentialsRequest
+    ): Result<Unit> {
+        return try {
+            val response = apiService.updateSunatCredentials(request)
+
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorMessage = try {
+                    val gson = com.google.gson.Gson()
+                    val errorResponse = gson.fromJson(errorBody, Map::class.java)
+                    errorResponse["message"] as? String ?: "Error ${response.code()}"
+                } catch (e: Exception) {
+                    "Error ${response.code()}"
+                }
+                Result.failure(Exception(errorMessage))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override fun clearAll() {
         _purchaseInvoices.value = emptyList()
         _salesInvoices.value = emptyList()

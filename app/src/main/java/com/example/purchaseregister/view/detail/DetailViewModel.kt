@@ -14,7 +14,6 @@ import kotlinx.coroutines.launch
 
 class DetailViewModel : ViewModel() {
 
-    // Repositorio
     private val repository: InvoiceRepository = InvoiceRepositoryImpl()
 
     // Estados para los detalles de la factura
@@ -27,7 +26,7 @@ class DetailViewModel : ViewModel() {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    // Estados para descarga de documentos (ya existentes)
+    // Estados para descarga de documentos
     private val _isDownloading = MutableStateFlow(false)
     val isDownloading: StateFlow<Boolean> = _isDownloading.asStateFlow()
 
@@ -65,7 +64,7 @@ class DetailViewModel : ViewModel() {
         _errorMessage.value = null
     }
 
-    // Funciones de descarga (ya existentes)
+    // Funciones de descarga
     fun downloadDocument(
         context: Context,
         documentNumber: String,

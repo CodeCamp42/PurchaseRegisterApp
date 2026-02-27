@@ -9,7 +9,6 @@ import kotlinx.coroutines.launch
 
 class PurchaseRegistrationViewModel : ViewModel() {
 
-    // Usar la interfaz, no la implementación concreta directamente (ideal para testeo)
     private val repository: InvoiceRepository = InvoiceRepositoryImpl()
 
     fun addNewPurchaseInvoice(
