@@ -94,6 +94,8 @@ fun PurchaseDetailScreen(
     var showProcessingDialog by remember { mutableStateOf(false) }
     var pendingInvoiceCount by remember { mutableStateOf(0) }
     var showEditCredentialsDialog by remember { mutableStateOf(false) }
+    var currentPeriodKey by rememberSaveable { mutableStateOf("") }
+    var dialogShownForCurrentPeriod by rememberSaveable { mutableStateOf(false) }
 
     val hasSunatCredentials by remember {
         derivedStateOf {
@@ -107,14 +109,46 @@ fun PurchaseDetailScreen(
         }
     }
 
+    val currentPeriodKeyValue = remember(selectedStartMillis, selectedEndMillis) {
+        if (selectedStartMillis != null && selectedEndMillis != null) {
+            val startCalendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
+                timeInMillis = selectedStartMillis!!
+            }
+            val endCalendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
+                timeInMillis = selectedEndMillis!!
+            }
+
+            val startYear = startCalendar.get(Calendar.YEAR)
+            val startMonth = startCalendar.get(Calendar.MONTH) + 1
+            val endYear = endCalendar.get(Calendar.YEAR)
+            val endMonth = endCalendar.get(Calendar.MONTH) + 1
+
+            if (startYear == endYear && startMonth == endMonth) {
+                "$startYear-${String.format("%02d", startMonth)}"
+            } else {
+                "${startYear}-${String.format("%02d", startMonth)}_${endYear}-${String.format("%02d", endMonth)}"
+            }
+        } else {
+            ""
+        }
+    }
+
+    LaunchedEffect(currentPeriodKeyValue) {
+        if (currentPeriodKeyValue != currentPeriodKey) {
+            currentPeriodKey = currentPeriodKeyValue
+            dialogShownForCurrentPeriod = false
+        }
+    }
+
     fun checkForPendingInvoices() {
         val pendingCount = (purchaseInvoices + salesInvoices).count {
             it.invoiceStatus == "CONSULTADO"
         }
 
-        if (pendingCount > 0) {
+        if (pendingCount > 0 && !dialogShownForCurrentPeriod && currentPeriodKey.isNotEmpty()) {
             pendingInvoiceCount = pendingCount
             showProcessingDialog = true
+            dialogShownForCurrentPeriod = true
         }
     }
 
