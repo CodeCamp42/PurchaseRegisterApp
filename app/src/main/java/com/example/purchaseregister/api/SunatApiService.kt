@@ -2,6 +2,7 @@ package com.example.purchaseregister.api
 
 import com.example.purchaseregister.api.request.*
 import com.example.purchaseregister.api.responses.*
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -53,6 +54,12 @@ interface SunatApiService {
     suspend fun getInvoiceDetails(
         @Path("id") invoiceId: Int
     ): Response<InvoiceDetailsResponse>
+
+    @GET("api/export-invoices/sunat")
+    suspend fun downloadSunatDocument(
+        @Query("invoiceId") invoiceId: Int,
+        @Query("documentType") documentType: String  // "pdf", "xml", "cdr"
+    ): Response<ResponseBody>
 
     @POST("factura/procesarFactura")
     @Headers("Content-Type: application/json")

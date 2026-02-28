@@ -1,4 +1,7 @@
 package com.example.purchaseregister.api.responses
+
+import com.google.gson.annotations.SerializedName
+
 data class SunatResponse(
     val id: Int,
     val issuerRuc: String,
@@ -64,4 +67,9 @@ data class RegisteredProvider(
 data class SaveSunatCredentialsResponse(
     val success: Boolean? = null,
     val message: String? = null
+)
+
+data class DownloadDocumentResponse(
+    @SerializedName("nomArchivo") val fileName: String,
+    @SerializedName("valArchivo") val fileContent: String
 )

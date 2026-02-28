@@ -234,6 +234,32 @@ class InvoiceListViewModel : ViewModel() {
         }
     }
 
+    fun exportInvoices(
+        startDate: String,
+        endDate: String,
+        context: Context,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val result = repository.exportInvoicesToCsv(startDate, endDate, context)
+                result.fold(
+                    onSuccess = {
+                        onResult(true, null)
+                    },
+                    onFailure = { exception ->
+                        onResult(false, exception.message)
+                    }
+                )
+            } catch (e: Exception) {
+                onResult(false, e.message)
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
     fun registerInvoicesInDatabase(
         invoices: List<Invoice>,
         isPurchase: Boolean,

@@ -33,7 +33,7 @@ fun SectionButtons(
             Text("Compras", style = MaterialTheme.typography.titleMedium)
         }
         Button(
-            onClick = { onSectionChange(Section.SALES) },
+            onClick = {},
             modifier = Modifier
                 .weight(1f)
                 .height(45.dp),

@@ -142,6 +142,7 @@ fun DetailScreen(
 
     if (showDocumentsDialog && invoiceDetails != null) {
         DocumentModal(
+            invoiceId = invoiceId,
             documents = createDocumentsForInvoice(
                 series = invoiceDetails!!.series,
                 documentNumber = "${invoiceDetails!!.series}-${invoiceDetails!!.number}",

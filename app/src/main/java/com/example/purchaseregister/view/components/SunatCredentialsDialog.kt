@@ -135,6 +135,24 @@ fun SunatCredentialsDialog(
                     shape = MaterialTheme.shapes.small,
                 )
 
+                TextButton(
+                    onClick = onShowTutorial,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = Color(0xFF1FB8B9),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        "¿Cómo obtener Client ID y Client Secret?",
+                        color = Color(0xFF1FB8B9),
+                        fontSize = 13.sp
+                    )
+                }
+
                 OutlinedTextField(
                     value = clientIdInput,
                     onValueChange = { clientIdInput = it },
@@ -161,24 +179,6 @@ fun SunatCredentialsDialog(
                     },
                     shape = MaterialTheme.shapes.small,
                 )
-
-                TextButton(
-                    onClick = onShowTutorial,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        Icons.Default.Info,
-                        contentDescription = null,
-                        tint = Color(0xFF1FB8B9),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(
-                        "¿Cómo obtener Client ID y Client Secret?",
-                        color = Color(0xFF1FB8B9),
-                        fontSize = 13.sp
-                    )
-                }
 
                 localError?.let {
                     Text(it, color = Color.Red, fontSize = 12.sp)

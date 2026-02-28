@@ -116,6 +116,16 @@ fun formatDateFromISO(isoDate: String): String {
     }
 }
 
+fun convertDateToDownload(millis: Long): String {
+    val calendar = Calendar.getInstance(PERU_TIME_ZONE).apply {
+        timeInMillis = millis
+    }
+    val year = calendar.get(Calendar.YEAR)
+    val month = calendar.get(Calendar.MONTH) + 1
+    val day = calendar.get(Calendar.DAY_OF_MONTH)
+    return "${year}/${String.format("%02d", month)}/${String.format("%02d", day)}"
+}
+
 @Composable
 fun DateRangeSelector(
     selectedStartMillis: Long?,

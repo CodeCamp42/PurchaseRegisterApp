@@ -1,5 +1,6 @@
 package com.example.purchaseregister.data.repository
 
+import android.app.DownloadManager
 import android.content.Context
 import com.example.purchaseregister.api.RetrofitClient
 import com.example.purchaseregister.api.request.*
@@ -16,6 +17,7 @@ import com.example.purchaseregister.api.responses.AuthResponse
 import com.example.purchaseregister.api.responses.SaveSunatCredentialsResponse
 import com.example.purchaseregister.api.responses.InvoiceDetailsResponse
 import com.example.purchaseregister.utils.TokenPrefs
+import com.example.purchaseregister.api.responses.DownloadDocumentResponse
 
 class InvoiceRepositoryImpl : InvoiceRepository {
 
@@ -107,6 +109,68 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                     "Error ${response.code()}"
                 }
                 Result.failure(Exception(errorMessage))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun exportInvoicesToCsv(
+        startDate: String,
+        endDate: String,
+        context: Context
+    ): Result<Unit> {
+        return try {
+            val baseUrl = "http://192.168.1.64:3000/"
+            val url = "${baseUrl}api/export-invoices?startDate=$startDate&endDate=$endDate"
+
+            val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+
+            val token = TokenPrefs.getToken(context)
+
+            val uri = android.net.Uri.parse(url)
+            val fileName = "facturas_${startDate.replace("/", "-")}_${endDate.replace("/", "-")}.csv"
+
+            val request = DownloadManager.Request(uri)
+                .setTitle("Exportando facturas")
+                .setDescription("Descargando facturas del $startDate al $endDate")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
+                .setAllowedOverMetered(true)
+                .setAllowedOverRoaming(true)
+
+            if (!token.isNullOrEmpty()) {
+                request.addRequestHeader("Authorization", "Bearer $token")
+            }
+
+            val downloadId = downloadManager.enqueue(request)
+            println("✅ Download enqueued with ID: $downloadId")
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            println("❌ Error en descarga: ${e.message}")
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun downloadSunatDocument(
+        invoiceId: Int,
+        documentType: String,
+        context: Context
+    ): Result<DownloadDocumentResponse> {
+        return try {
+            val response = apiService.downloadSunatDocument(invoiceId, documentType)
+
+            if (response.isSuccessful && response.body() != null) {
+                // Convertir ResponseBody a String (JSON)
+                val jsonString = response.body()?.string()
+                val gson = com.google.gson.Gson()
+                val downloadResponse = gson.fromJson(jsonString, DownloadDocumentResponse::class.java)
+                Result.success(downloadResponse)
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Result.failure(Exception(errorBody ?: "Error ${response.code()}"))
             }
         } catch (e: Exception) {
             Result.failure(e)

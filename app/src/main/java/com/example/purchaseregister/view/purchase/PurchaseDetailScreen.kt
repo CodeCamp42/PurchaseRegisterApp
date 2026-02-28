@@ -2,6 +2,7 @@ package com.example.purchaseregister.view.purchase
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,7 +36,8 @@ import com.example.purchaseregister.viewmodel.Section
 import java.util.Calendar
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.text.compareTo
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -136,7 +138,12 @@ fun PurchaseDetailScreen(
             if (startYear == endYear && startMonth == endMonth) {
                 "$startYear-${String.format("%02d", startMonth)}"
             } else {
-                "${startYear}-${String.format("%02d", startMonth)}_${endYear}-${String.format("%02d", endMonth)}"
+                "${startYear}-${
+                    String.format(
+                        "%02d",
+                        startMonth
+                    )
+                }_${endYear}-${String.format("%02d", endMonth)}"
             }
         } else {
             ""
@@ -196,6 +203,7 @@ fun PurchaseDetailScreen(
                     }
                 }
             }
+
             2 -> {
                 // Tercera verificación a los 20 segundos
                 coroutineScope.launch {
@@ -205,6 +213,7 @@ fun PurchaseDetailScreen(
                     }
                 }
             }
+
             3 -> {
                 // Última verificación, ya no programamos más
                 // Si aún no se completaron, mostramos estado actual
@@ -229,21 +238,6 @@ fun PurchaseDetailScreen(
         isListVisible = true
     }
 
-    fun checkForReadyInvoices() {
-        val readyCount = (purchaseInvoices + salesInvoices).count {
-            it.invoiceStatus == "CON DETALLE" || it.invoiceStatus == "REGISTRADO"
-        }
-        val totalPendingCount = (purchaseInvoices + salesInvoices).count {
-            it.invoiceStatus == "CONSULTADO" || it.invoiceStatus == "EN PROCESO"
-        }
-
-        if (readyCount > 0) {
-            readyInvoiceCount = readyCount
-            totalProcessedInvoices = readyCount + totalPendingCount
-            showDetailsReadyDialog = true
-        }
-    }
-
     // LÓGICA DE CARGA INICIAL
     LaunchedEffect(Unit) {
         if (!isInitialLoadDone) {
@@ -256,6 +250,7 @@ fun PurchaseDetailScreen(
                     consultAfterLogin = true
                     showCredentialsDialog = true
                 }
+
                 isAppLoggedIn && hasSunatCredentials -> {
                     executeConsult()
 
@@ -347,6 +342,14 @@ fun PurchaseDetailScreen(
         }.sortedByDescending { it.issueDate }
     }
 
+    // Calcular valores para el botón de descarga
+    val totalInvoices = filteredList.size
+    val readyInvoices = filteredList.count {
+        it.invoiceStatus == "CON DETALLE" || it.invoiceStatus == "REGISTRADO"
+    }
+    val pendingInvoices = totalInvoices - readyInvoices
+    val isDownloadButtonEnabled = pendingInvoices == 0
+
     val hasInvoicesInProcess = filteredList.any { it.invoiceStatus == "EN PROCESO" }
 
     Scaffold(
@@ -381,18 +384,78 @@ fun PurchaseDetailScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            DateFilterSection(
-                selectedStartMillis = selectedStartMillis,
-                selectedEndMillis = selectedEndMillis,
-                onDateRangeClick = { showCustomDatePicker = true },
-                hasInvoicesInProcess = hasInvoicesInProcess,
-                isDetailingAll = isDetailingAll
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = { showFilterDialog = true },
+                    modifier = Modifier
+                        .height(40.dp)
+                        .width(100.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1FB8B9)
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(
+                        text = "Filtrar",
+                        fontSize = 12.sp,
+                        color = Color.White
+                    )
+                }
+
+                DateFilterSection(
+                    selectedStartMillis = selectedStartMillis,
+                    selectedEndMillis = selectedEndMillis,
+                    onDateRangeClick = { showCustomDatePicker = true },
+                    hasInvoicesInProcess = hasInvoicesInProcess,
+                    isDetailingAll = isDetailingAll
+                )
+            }
 
             Spacer(modifier = Modifier.height(15.dp))
+
             StatusLegend(
-                onFilterClick = { showFilterDialog = true }
+                totalInvoices = totalInvoices,
+                readyInvoices = readyInvoices,
+                pendingInvoices = pendingInvoices,
+                isDownloadButtonEnabled = isDownloadButtonEnabled,
+                onDownloadClick = {
+                    if (isDownloadButtonEnabled) {
+                        val startDate = convertDateToDownload(selectedStartMillis ?: todayMillis)
+                        val endDate = convertDateToDownload(selectedEndMillis ?: todayMillis)
+
+                        viewModel.exportInvoices(
+                            startDate = startDate,
+                            endDate = endDate,
+                            context = context
+                        ) { success, error ->
+                            if (success) {
+                                Toast.makeText(
+                                    context,
+                                    "✅ Descarga iniciada",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "Error: ${error ?: "Error desconocido"}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    } else {
+                        Toast.makeText(
+                            context,
+                            "Pending details for $pendingInvoices invoices",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
             )
+
             Spacer(modifier = Modifier.height(10.dp))
 
             InvoiceTable(

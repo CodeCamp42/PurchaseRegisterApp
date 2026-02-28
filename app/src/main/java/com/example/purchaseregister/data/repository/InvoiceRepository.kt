@@ -6,6 +6,7 @@ import com.example.purchaseregister.model.Invoice
 import com.example.purchaseregister.model.ProductItem
 import kotlinx.coroutines.flow.StateFlow
 import com.example.purchaseregister.api.responses.AuthResponse
+import com.example.purchaseregister.api.responses.DownloadDocumentResponse
 import com.example.purchaseregister.api.responses.InvoiceDetailsResponse
 
 interface InvoiceRepository {
@@ -72,4 +73,16 @@ interface InvoiceRepository {
     suspend fun updateSunatCredentials(
         request: UpdateSunatCredentialsRequest
     ): Result<Unit>
+
+    suspend fun exportInvoicesToCsv(
+        startDate: String,
+        endDate: String,
+        context: Context
+    ): Result<Unit>
+
+    suspend fun downloadSunatDocument(
+        invoiceId: Int,
+        documentType: String,  // "pdf", "xml", "cdr"
+        context: Context
+    ): Result<DownloadDocumentResponse>
 }

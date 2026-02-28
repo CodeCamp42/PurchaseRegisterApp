@@ -21,6 +21,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import android.widget.Toast
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 
@@ -79,6 +80,7 @@ fun createDocumentsForInvoice(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentModal(
+    invoiceId: Int,
     documents: List<DocumentItem>,
     onDismiss: () -> Unit,
     viewModel: DetailViewModel = viewModel()
@@ -227,27 +229,22 @@ fun DocumentModal(
                                                 scope.launch {
                                                     viewModel.downloadDocument(
                                                         context = context,
-                                                        documentNumber = document.documentNumber,
-                                                        type = document.type,
-                                                        baseUrl = "http://192.168.1.85:3043",
+                                                        invoiceId = invoiceId,
+                                                        documentType = document.type,
                                                         onStart = {
-                                                            println("📥 [DocumentModal] Iniciando descarga: ${document.documentNumber}-${document.type}")
+                                                            println("📥 Iniciando descarga: ${document.documentNumber}-${document.type}")
                                                         },
-                                                        onSuccess = {
-                                                            println("✅ [DocumentModal] Descarga encolada exitosamente")
+                                                        onSuccess = { filePath ->
+                                                            println("✅ Archivo guardado en: $filePath")
                                                             Toast.makeText(
                                                                 context,
-                                                                "Descargando ${document.type.uppercase()}...",
+                                                                "✅ ${document.type.uppercase()} descargado",
                                                                 Toast.LENGTH_SHORT
                                                             ).show()
                                                         },
                                                         onError = { error ->
-                                                            println("❌ [DocumentModal] Error: $error")
-                                                            Toast.makeText(
-                                                                context,
-                                                                error,
-                                                                Toast.LENGTH_LONG
-                                                            ).show()
+                                                            println("❌ Error: $error")
+                                                            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
                                                         }
                                                     )
                                                 }

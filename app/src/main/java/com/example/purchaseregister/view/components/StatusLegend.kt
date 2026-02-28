@@ -1,12 +1,13 @@
 package com.example.purchaseregister.view.components
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -18,9 +19,14 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun StatusLegend(
-    onFilterClick: () -> Unit = {},
+    totalInvoices: Int,
+    readyInvoices: Int,
+    pendingInvoices: Int,
+    isDownloadButtonEnabled: Boolean,
+    onDownloadClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -115,17 +121,17 @@ fun StatusLegend(
             }
 
             Button(
-                onClick = onFilterClick,
+                onClick = onDownloadClick,
                 modifier = Modifier
                     .height(40.dp)
-                    .width(100.dp),
+                    .width(180.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1FB8B9)
+                    containerColor = if (isDownloadButtonEnabled) Color(0xFF1FB8B9) else Color.Gray
                 ),
                 shape = RoundedCornerShape(14.dp)
             ) {
                 Text(
-                    text = "Filtrar",
+                    text = "Descargar Facturas",
                     fontSize = 12.sp,
                     color = Color.White
                 )

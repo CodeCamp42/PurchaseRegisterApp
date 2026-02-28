@@ -6,7 +6,7 @@ import android.content.Context
 import com.example.purchaseregister.api.responses.InvoiceDetailsResponse
 import com.example.purchaseregister.data.repository.InvoiceRepository
 import com.example.purchaseregister.data.repository.InvoiceRepositoryImpl
-import com.example.purchaseregister.utils.DownloadManagerHelper
+import com.example.purchaseregister.utils.DocumentDownloadHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -67,35 +67,52 @@ class DetailViewModel : ViewModel() {
     // Funciones de descarga
     fun downloadDocument(
         context: Context,
-        documentNumber: String,
-        type: String,
-        baseUrl: String = "http://192.168.1.85:3043",
+        invoiceId: Int,
+        documentType: String,
         onStart: () -> Unit = {},
-        onSuccess: () -> Unit = {},
+        onSuccess: (String) -> Unit = {},
         onError: (String) -> Unit = {}
     ) {
         viewModelScope.launch {
             _isDownloading.value = true
-            _downloadingDocument.value = "${documentNumber}-${type}"
+            _downloadingDocument.value = "${invoiceId}-${documentType}"
             onStart()
 
-            DownloadManagerHelper.downloadDocument(
-                context = context,
-                documentNumber = documentNumber,
-                type = type,
-                baseUrl = baseUrl,
-                onEnqueued = { downloadId ->
-                    _isDownloading.value = false
-                    _downloadingDocument.value = null
-                    onSuccess()
-                },
-                onError = { error ->
-                    _isDownloading.value = false
-                    _downloadingDocument.value = null
-                    _errorMessage.value = error
-                    onError(error)
-                }
-            )
+            try {
+                val result = repository.downloadSunatDocument(invoiceId, documentType, context)
+
+                result.fold(
+                    onSuccess = { response ->
+                        DocumentDownloadHelper.processDownloadResponse(
+                            context = context,
+                            fileName = response.fileName,
+                            fileContentBase64 = response.fileContent,
+                            onSuccess = { filePath ->
+                                _isDownloading.value = false
+                                _downloadingDocument.value = null
+                                onSuccess(filePath)
+                            },
+                            onError = { error ->
+                                _isDownloading.value = false
+                                _downloadingDocument.value = null
+                                _errorMessage.value = error
+                                onError(error)
+                            }
+                        )
+                    },
+                    onFailure = { exception ->
+                        _isDownloading.value = false
+                        _downloadingDocument.value = null
+                        _errorMessage.value = exception.message
+                        onError(exception.message ?: "Error desconocido")
+                    }
+                )
+            } catch (e: Exception) {
+                _isDownloading.value = false
+                _downloadingDocument.value = null
+                _errorMessage.value = e.message
+                onError(e.message ?: "Error de conexión")
+            }
         }
     }
 }
