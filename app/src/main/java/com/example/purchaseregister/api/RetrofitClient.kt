@@ -10,7 +10,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    private const val BASE_URL = "http://192.168.1.62:3000/"
+    private const val BASE_URL = "http://192.168.1.64:3000/"
     private lateinit var appContext: Context
 
     fun init(context: Context) {

@@ -95,7 +95,6 @@ class DetailViewModel : ViewModel() {
                             onError = { error ->
                                 _isDownloading.value = false
                                 _downloadingDocument.value = null
-                                _errorMessage.value = error
                                 onError(error)
                             }
                         )
@@ -103,14 +102,12 @@ class DetailViewModel : ViewModel() {
                     onFailure = { exception ->
                         _isDownloading.value = false
                         _downloadingDocument.value = null
-                        _errorMessage.value = exception.message
                         onError(exception.message ?: "Error desconocido")
                     }
                 )
             } catch (e: Exception) {
                 _isDownloading.value = false
                 _downloadingDocument.value = null
-                _errorMessage.value = e.message
                 onError(e.message ?: "Error de conexión")
             }
         }
