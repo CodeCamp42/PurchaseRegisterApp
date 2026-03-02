@@ -17,6 +17,8 @@ object RetrofitClient {
         appContext = context.applicationContext
     }
 
+    fun getBaseUrl(): String = BASE_URL
+
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
     }

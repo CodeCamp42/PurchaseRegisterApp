@@ -121,7 +121,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         context: Context
     ): Result<Unit> {
         return try {
-            val baseUrl = "http://192.168.1.64:3000/"
+            val baseUrl = RetrofitClient.getBaseUrl()
             val url = "${baseUrl}api/export-invoices?startDate=$startDate&endDate=$endDate"
 
             val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
