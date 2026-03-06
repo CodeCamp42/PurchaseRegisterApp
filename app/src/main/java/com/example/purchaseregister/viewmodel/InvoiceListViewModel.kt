@@ -81,12 +81,12 @@ class InvoiceListViewModel : ViewModel() {
     ) {
         viewModelScope.launch {
             val ruc = SunatPrefs.getRuc(context)
-            val solUsername = SunatPrefs.getSolUsername(context)
+            val solUser = SunatPrefs.getSolUser(context)
             val solPassword = SunatPrefs.getSolPassword(context)
             val clientId = SunatPrefs.getClientId(context)
             val clientSecret = SunatPrefs.getClientSecret(context)
 
-            if (ruc == null || solUsername == null || solPassword == null ||
+            if (ruc == null || solUser == null || solPassword == null ||
                 clientId == null || clientSecret == null
             ) {
                 _errorMessage.value = "Credenciales no configuradas"
@@ -101,7 +101,7 @@ class InvoiceListViewModel : ViewModel() {
                     periodEnd,
                     isPurchase,
                     ruc,
-                    solUsername,
+                    solUser,
                     solPassword,
                     clientId,
                     clientSecret
@@ -176,7 +176,7 @@ class InvoiceListViewModel : ViewModel() {
                                             description = detail.description ?: "",
                                             quantity = detail.quantity ?: "0",
                                             unitCost = detail.unitCost ?: "0",
-                                            unitOfMeasure = detail.unitOfMeasure ?: ""
+                                            unitOfMeasure = detail.unitOfMeasureCode ?: ""
                                         )
                                     }
 
@@ -238,7 +238,7 @@ class InvoiceListViewModel : ViewModel() {
         startDate: String,
         endDate: String,
         context: Context,
-        onResult: (Boolean, String?) -> Unit
+        onResult: (Boolean, String?, String?) -> Unit
     ) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -246,14 +246,14 @@ class InvoiceListViewModel : ViewModel() {
                 val result = repository.exportInvoicesToCsv(startDate, endDate, context)
                 result.fold(
                     onSuccess = {
-                        onResult(true, null)
+                        onResult(true, "Archivo guardado en: $it", null)
                     },
                     onFailure = { exception ->
-                        onResult(false, exception.message)
+                        onResult(false, null, exception.message)
                     }
                 )
             } catch (e: Exception) {
-                onResult(false, e.message)
+                onResult(false, null, e.message)
             } finally {
                 _isLoading.value = false
             }
@@ -297,36 +297,6 @@ class InvoiceListViewModel : ViewModel() {
     fun updateInvoiceStatus(invoiceId: Int, newStatus: String, isPurchase: Boolean) {
         viewModelScope.launch {
             repository.updateInvoiceStatus(invoiceId, newStatus, isPurchase)
-        }
-    }
-
-    fun clearLoadingDialog() {
-        _showLoadingDialog.value = false
-        _loadingDebugInfo.value = null
-        _loadingInvoiceId.value = null
-    }
-
-    private fun combineInvoices(
-        apiInvoices: List<Invoice>,
-        localInvoices: List<Invoice>
-    ): List<Invoice> {
-        val result = mutableMapOf<String, Invoice>()
-        localInvoices.forEach { local ->
-            val key = "${local.series}-${local.number}"
-            result[key] = local
-        }
-        apiInvoices.forEach { api ->
-            val key = "${api.series}-${api.number}"
-            if (!result.containsKey(key)) {
-                result[key] = api
-            }
-        }
-        return result.values.sortedBy { inv ->
-            try {
-                SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(inv.issueDate)?.time ?: 0L
-            } catch (e: Exception) {
-                0L
-            }
         }
     }
 
@@ -421,7 +391,7 @@ class InvoiceListViewModel : ViewModel() {
 
     fun saveSunatCredentials(
         ruc: String,
-        solUsername: String,
+        solUser: String,
         solPassword: String,
         clientId: String,
         clientSecret: String,
@@ -429,7 +399,7 @@ class InvoiceListViewModel : ViewModel() {
     ) {
         viewModelScope.launch {
             val result = repository.validateSunatCredentials(
-                ruc, solUsername, solPassword, clientId, clientSecret
+                ruc, solUser, solPassword, clientId, clientSecret
             )
 
             result.fold(
@@ -445,7 +415,7 @@ class InvoiceListViewModel : ViewModel() {
 
     fun updateSunatCredentials(
         ruc: String?,
-        solUsername: String?,
+        solUser: String?,
         solPassword: String?,
         clientId: String?,
         clientSecret: String?,
@@ -456,7 +426,7 @@ class InvoiceListViewModel : ViewModel() {
             try {
                 val request = UpdateSunatCredentialsRequest(
                     ruc = ruc.takeIf { it?.isNotEmpty() == true },
-                    solUsername = solUsername.takeIf { it?.isNotEmpty() == true },
+                    solUser = solUser.takeIf { it?.isNotEmpty() == true },
                     solPassword = solPassword.takeIf { it?.isNotEmpty() == true },
                     clientId = clientId.takeIf { it?.isNotEmpty() == true },
                     clientSecret = clientSecret.takeIf { it?.isNotEmpty() == true }

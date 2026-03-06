@@ -160,12 +160,12 @@ fun InvoiceTable(
                                             IconButton(
                                                 onClick = {
                                                     val ruc = SunatPrefs.getRuc(context)
-                                                    val solUsername =
-                                                        SunatPrefs.getSolUsername(context)
+                                                    val solUser =
+                                                        SunatPrefs.getSolUser(context)
                                                     val solPassword =
                                                         SunatPrefs.getSolPassword(context)
 
-                                                    if (ruc == null || solUsername == null || solPassword == null) {
+                                                    if (ruc == null || solUser == null || solPassword == null) {
                                                         Toast.makeText(
                                                             context,
                                                             "⚠️ Primero configure sus credenciales SUNAT en el botón CONSULTAR",

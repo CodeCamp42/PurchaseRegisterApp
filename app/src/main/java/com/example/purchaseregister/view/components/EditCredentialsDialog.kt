@@ -28,7 +28,7 @@ fun EditCredentialsDialog(
     onShowTutorial: () -> Unit,
     onSaveToBackend: (
         ruc: String?,
-        solUsername: String?,
+        solUser: String?,
         solPassword: String?,
         clientId: String?,
         clientSecret: String?,
@@ -44,13 +44,13 @@ fun EditCredentialsDialog(
     val coroutineScope = rememberCoroutineScope()
 
     val originalRuc = remember { SunatPrefs.getRuc(context) ?: "" }
-    val originalSolUsername = remember { SunatPrefs.getSolUsername(context) ?: "" }
+    val originalSolUser = remember { SunatPrefs.getSolUser(context) ?: "" }
     val originalSolPassword = remember { SunatPrefs.getSolPassword(context) ?: "" }
     val originalClientId = remember { SunatPrefs.getClientId(context) ?: "" }
     val originalClientSecret = remember { SunatPrefs.getClientSecret(context) ?: "" }
 
     var rucInput by remember { mutableStateOf(originalRuc) }
-    var solUsernameInput by remember { mutableStateOf(originalSolUsername) }
+    var solUserInput by remember { mutableStateOf(originalSolUser) }
     var solPasswordInput by remember { mutableStateOf(originalSolPassword) }
     var clientIdInput by remember { mutableStateOf(originalClientId) }
     var clientSecretInput by remember { mutableStateOf(originalClientSecret) }
@@ -105,12 +105,12 @@ fun EditCredentialsDialog(
                 )
 
                 OutlinedTextField(
-                    value = solUsernameInput,
-                    onValueChange = { solUsernameInput = it.uppercase().take(8) },
+                    value = solUserInput,
+                    onValueChange = { solUserInput = it.uppercase().take(8) },
                     label = { Text("Usuario SOL") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    supportingText = { Text("${solUsernameInput.length}/8 caracteres") },
+                    supportingText = { Text("${solUserInput.length}/8 caracteres") },
                     shape = MaterialTheme.shapes.small,
                 )
 
@@ -198,13 +198,13 @@ fun EditCredentialsDialog(
                             coroutineScope.launch {
                                 // Solo enviar campos modificados
                                 val updatedRuc = if (rucInput != originalRuc) rucInput else null
-                                val updatedSolUsername = if (solUsernameInput != originalSolUsername) solUsernameInput else null
+                                val updatedSolUser = if (solUserInput != originalSolUser) solUserInput else null
                                 val updatedSolPassword = if (solPasswordInput != originalSolPassword) solPasswordInput else null
                                 val updatedClientId = if (clientIdInput != originalClientId) clientIdInput else null
                                 val updatedClientSecret = if (clientSecretInput != originalClientSecret) clientSecretInput else null
 
                                 // Verificar si hay al menos un campo modificado
-                                if (updatedRuc == null && updatedSolUsername == null &&
+                                if (updatedRuc == null && updatedSolUser == null &&
                                     updatedSolPassword == null && updatedClientId == null &&
                                     updatedClientSecret == null) {
                                     localError = "No hay cambios para guardar"
@@ -213,7 +213,7 @@ fun EditCredentialsDialog(
 
                                 onSaveToBackend(
                                     updatedRuc,
-                                    updatedSolUsername,
+                                    updatedSolUser,
                                     updatedSolPassword,
                                     updatedClientId,
                                     updatedClientSecret
@@ -221,7 +221,7 @@ fun EditCredentialsDialog(
                                     if (success) {
                                         // Guardar solo los campos que se modificaron
                                         if (updatedRuc != null) SunatPrefs.saveRuc(context, rucInput)
-                                        if (updatedSolUsername != null) SunatPrefs.saveSolUsername(context, solUsernameInput)
+                                        if (updatedSolUser != null) SunatPrefs.saveSolUser(context, solUserInput)
                                         if (updatedSolPassword != null) SunatPrefs.saveSolPassword(context, solPasswordInput)
                                         if (updatedClientId != null) SunatPrefs.saveClientId(context, clientIdInput)
                                         if (updatedClientSecret != null) SunatPrefs.saveClientSecret(context, clientSecretInput)
@@ -246,12 +246,12 @@ fun EditCredentialsDialog(
                         },
                         // El botón se habilita si hay al menos un campo válido
                         enabled = (rucInput.length == 11 || rucInput == originalRuc) &&
-                                (solUsernameInput.isNotEmpty() || solUsernameInput == originalSolUsername) &&
+                                (solUserInput.isNotEmpty() || solUserInput == originalSolUser) &&
                                 (solPasswordInput.isNotEmpty() || solPasswordInput == originalSolPassword) &&
                                 (clientIdInput.isNotEmpty() || clientIdInput == originalClientId) &&
                                 (clientSecretInput.isNotEmpty() || clientSecretInput == originalClientSecret) &&
                                 // Y al menos un campo tiene cambios
-                                (rucInput != originalRuc || solUsernameInput != originalSolUsername ||
+                                (rucInput != originalRuc || solUserInput != originalSolUser ||
                                         solPasswordInput != originalSolPassword || clientIdInput != originalClientId ||
                                         clientSecretInput != originalClientSecret),
                         modifier = Modifier.weight(1f)

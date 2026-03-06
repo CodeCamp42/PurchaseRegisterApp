@@ -28,7 +28,7 @@ fun SunatCredentialsDialog(
     onShowTutorial: () -> Unit,
     onSaveToBackend: (
         ruc: String,
-        solUsername: String,
+        solUser: String,
         solPassword: String,
         clientId: String,
         clientSecret: String,
@@ -44,7 +44,7 @@ fun SunatCredentialsDialog(
     val coroutineScope = rememberCoroutineScope()
 
     var rucInput by remember { mutableStateOf("") }
-    var solUsernameInput by remember { mutableStateOf("") }
+    var solUserInput by remember { mutableStateOf("") }
     var solPasswordInput by remember { mutableStateOf("") }
     var clientIdInput by remember { mutableStateOf("") }
     var clientSecretInput by remember { mutableStateOf("") }
@@ -67,7 +67,7 @@ fun SunatCredentialsDialog(
     // Precargar valores si existen
     LaunchedEffect(Unit) {
         rucInput = ""
-        solUsernameInput = ""
+        solUserInput = ""
         solPasswordInput = ""
         clientIdInput = ""
         clientSecretInput = ""
@@ -107,12 +107,12 @@ fun SunatCredentialsDialog(
                 )
 
                 OutlinedTextField(
-                    value = solUsernameInput,
-                    onValueChange = { solUsernameInput = it.uppercase().take(8) },
+                    value = solUserInput,
+                    onValueChange = { solUserInput = it.uppercase().take(8) },
                     label = { Text("Usuario SOL") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    supportingText = { Text("${solUsernameInput.length}/8 caracteres") },
+                    supportingText = { Text("${solUserInput.length}/8 caracteres") },
                     shape = MaterialTheme.shapes.small,
                 )
 
@@ -200,14 +200,14 @@ fun SunatCredentialsDialog(
                             coroutineScope.launch {
                                 onSaveToBackend(
                                     rucInput,
-                                    solUsernameInput,
+                                    solUserInput,
                                     solPasswordInput,
                                     clientIdInput,
                                     clientSecretInput
                                 ) { success, errorMessage ->
                                     if (success) {
                                         val rucSaved = SunatPrefs.saveRucSync(context, rucInput)
-                                        val usernameSaved = SunatPrefs.saveSolUsernameSync(context, solUsernameInput)
+                                        val usernameSaved = SunatPrefs.saveSolUserSync(context, solUserInput)
                                         val passwordSaved = SunatPrefs.saveSolPasswordSync(context, solPasswordInput)
                                         val clientIdSaved = SunatPrefs.saveClientIdSync(context, clientIdInput)
                                         val clientSecretSaved = SunatPrefs.saveClientSecretSync(context, clientSecretInput)
@@ -233,7 +233,7 @@ fun SunatCredentialsDialog(
                             }
                         },
                         enabled = rucInput.length == 11 &&
-                                solUsernameInput.isNotEmpty() &&
+                                solUserInput.isNotEmpty() &&
                                 solPasswordInput.isNotEmpty() &&
                                 clientIdInput.isNotEmpty() &&
                                 clientSecretInput.isNotEmpty(),

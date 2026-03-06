@@ -70,6 +70,5 @@ data class SaveSunatCredentialsResponse(
 )
 
 data class DownloadDocumentResponse(
-    @SerializedName("nomArchivo") val fileName: String,
-    @SerializedName("valArchivo") val fileContent: String
+    @SerializedName("url") val url: String
 )

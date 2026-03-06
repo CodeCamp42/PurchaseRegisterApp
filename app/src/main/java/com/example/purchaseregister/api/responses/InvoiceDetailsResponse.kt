@@ -26,16 +26,33 @@ data class InvoiceDetailsResponse(
     @SerializedName("invoiceStatus") val invoiceStatus: String,
     @SerializedName("createdAt") val createdAt: String,
     @SerializedName("updatedAt") val updatedAt: String,
-    @SerializedName("invoiceDetails") val invoiceDetails: List<InvoiceDetailItem>
+    @SerializedName("invoiceDetails") val invoiceDetails: List<InvoiceDetailItem>,
+    @SerializedName("invoiceFiles") val invoiceFiles: List<InvoiceFileItem>
 )
 
 data class InvoiceDetailItem(
     val id: Int,
     @SerializedName("invoiceId") val invoiceId: Int,
-    val description: String,
-    val quantity: String,
+    @SerializedName("productDescription") val description: String,
+    @SerializedName("productCode") val productCode: String? = null,
+    @SerializedName("quantity") val quantity: String,
     @SerializedName("unitCost") val unitCost: String,
-    @SerializedName("unitOfMeasure") val unitOfMeasure: String,
+    @SerializedName("unitOfMeasureCode") val unitOfMeasureCode: String,
+    @SerializedName("unitOfMeasureDescription") val unitOfMeasureDescription: String? = null,
+    @SerializedName("taxAmount") val taxAmount: String,
+    @SerializedName("taxRate") val taxRate: String,
+    @SerializedName("unitPriceWithTax") val unitPriceWithTax: String,
+    @SerializedName("totalAmount") val totalAmount: String,
+    @SerializedName("discountAmount") val discountAmount: String,
+    @SerializedName("icbper") val icbper: String,
     @SerializedName("createdAt") val createdAt: String,
     @SerializedName("updatedAt") val updatedAt: String
+)
+
+data class InvoiceFileItem(
+    val id: Int,
+    @SerializedName("sunatFileType") val sunatFileType: String,
+    @SerializedName("fileName") val fileName: String,
+    @SerializedName("fileSize") val fileSize: Int?,
+    @SerializedName("uploadedAt") val uploadedAt: String
 )

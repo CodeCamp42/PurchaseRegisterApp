@@ -30,7 +30,7 @@ data class RegisterInvoicesRequest(
 
 data class SaveSunatCredentialsRequest(
     val ruc: String? = null,
-    val solUsername: String? = null,
+    val solUser: String? = null,
     val solPassword: String? = null,
     val clientId: String? = null,
     val clientSecret: String? = null
@@ -42,7 +42,7 @@ data class ForgotPasswordRequest(
 
 data class UpdateSunatCredentialsRequest(
     val ruc: String? = null,
-    @SerializedName("solUsername") val solUsername: String? = null,
+    @SerializedName("solUser") val solUser: String? = null,
     @SerializedName("solPassword") val solPassword: String? = null,
     @SerializedName("clientId") val clientId: String? = null,
     @SerializedName("clientSecret") val clientSecret: String? = null

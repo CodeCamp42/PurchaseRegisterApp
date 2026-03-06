@@ -21,7 +21,7 @@ interface InvoiceRepository {
         periodEnd: String,
         isPurchase: Boolean,
         ruc: String,
-        solUsername: String,
+        solUser: String,
         solPassword: String,
         clientId: String,
         clientSecret: String
@@ -64,7 +64,7 @@ interface InvoiceRepository {
     // Validación
     suspend fun validateSunatCredentials(
         ruc: String,
-        solUsername: String,
+        solUser: String,
         solPassword: String,
         clientId: String,
         clientSecret: String
@@ -82,7 +82,7 @@ interface InvoiceRepository {
 
     suspend fun downloadSunatDocument(
         invoiceId: Int,
-        documentType: String,  // "pdf", "xml", "cdr"
+        fileId: Int,
         context: Context
     ): Result<DownloadDocumentResponse>
 }

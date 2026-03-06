@@ -143,11 +143,7 @@ fun DetailScreen(
     if (showDocumentsDialog && invoiceDetails != null) {
         DocumentModal(
             invoiceId = invoiceId,
-            documents = createDocumentsForInvoice(
-                series = invoiceDetails!!.series,
-                documentNumber = "${invoiceDetails!!.series}-${invoiceDetails!!.number}",
-                date = invoiceDetails!!.issueDate
-            ),
+            documents = createDocumentsForInvoice(invoiceDetails!!),
             onDismiss = { showDocumentsDialog = false },
             viewModel = viewModel
         )
@@ -167,7 +163,7 @@ fun DetailContent(
             description = detail.description,
             quantity = detail.quantity,
             unitCost = detail.unitCost,
-            unitOfMeasure = detail.unitOfMeasure
+            unitOfMeasure = detail.unitOfMeasureCode
         )
     }
 

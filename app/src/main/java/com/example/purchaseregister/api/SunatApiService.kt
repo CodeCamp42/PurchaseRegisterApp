@@ -55,10 +55,17 @@ interface SunatApiService {
         @Path("id") invoiceId: Int
     ): Response<InvoiceDetailsResponse>
 
-    @GET("api/export-invoices/sunat")
+    @GET("api/export-invoices/{invoiceId}/{fileId}")
     suspend fun downloadSunatDocument(
-        @Query("invoiceId") invoiceId: Int,
-        @Query("documentType") documentType: String  // "pdf", "xml", "cdr"
+        @Path("invoiceId") invoiceId: Int,
+        @Path("fileId") fileId: Int
+    ): Response<ResponseBody>
+
+    @GET("api/export-invoices")
+    suspend fun downloadInvoicesCsv(
+        @Query("startDate") startDate: String,
+        @Query("endDate") endDate: String,
+        @Query("format") format: String = "json"
     ): Response<ResponseBody>
 
     @POST("factura/procesarFactura")

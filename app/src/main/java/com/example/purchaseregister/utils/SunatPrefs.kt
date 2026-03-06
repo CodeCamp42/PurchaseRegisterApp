@@ -6,7 +6,7 @@ import android.util.Base64
 object SunatPrefs {
     private const val PREFS_NAME = "auth_prefs"
     private const val KEY_RUC = "sunat_ruc"
-    private const val KEY_SOL_USERNAME = "sunat_usuario"
+    private const val KEY_SOL_USER = "sunat_usuario"
     private const val KEY_SOL_PASSWORD = "sunat_clave_sol"
     private const val KEY_CLIENT_ID = "sunat_client_id"
     private const val KEY_CLIENT_SECRET = "sunat_client_secret"
@@ -35,14 +35,14 @@ object SunatPrefs {
         }
     }
 
-    fun saveSolUsername(context: Context, solUsername: String) {
+    fun saveSolUser(context: Context, solUser: String) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(KEY_SOL_USERNAME, solUsername).apply()
+            .edit().putString(KEY_SOL_USER, solUser).apply()
     }
 
-    fun getSolUsername(context: Context): String? {
+    fun getSolUser(context: Context): String? {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_SOL_USERNAME, null)
+            .getString(KEY_SOL_USER, null)
     }
 
     fun saveRuc(context: Context, ruc: String) {
@@ -98,10 +98,10 @@ object SunatPrefs {
         }
     }
 
-    fun saveSolUsernameSync(context: Context, solUsername: String): Boolean {
+    fun saveSolUserSync(context: Context, solUser: String): Boolean {
         return try {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit().putString(KEY_SOL_USERNAME, solUsername).commit()
+                .edit().putString(KEY_SOL_USER, solUser).commit()
         } catch (e: Exception) {
             false
         }

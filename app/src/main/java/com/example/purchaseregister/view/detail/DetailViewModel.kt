@@ -6,7 +6,7 @@ import android.content.Context
 import com.example.purchaseregister.api.responses.InvoiceDetailsResponse
 import com.example.purchaseregister.data.repository.InvoiceRepository
 import com.example.purchaseregister.data.repository.InvoiceRepositoryImpl
-import com.example.purchaseregister.utils.DocumentDownloadHelper
+import com.example.purchaseregister.utils.DocumentUrlDownloadHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -68,6 +68,7 @@ class DetailViewModel : ViewModel() {
     fun downloadDocument(
         context: Context,
         invoiceId: Int,
+        fileId: Int,
         documentType: String,
         onStart: () -> Unit = {},
         onSuccess: (String) -> Unit = {},
@@ -79,14 +80,19 @@ class DetailViewModel : ViewModel() {
             onStart()
 
             try {
-                val result = repository.downloadSunatDocument(invoiceId, documentType, context)
+                val result = repository.downloadSunatDocument(
+                    invoiceId = invoiceId,
+                    fileId = fileId,
+                    context = context
+                )
 
                 result.fold(
                     onSuccess = { response ->
-                        DocumentDownloadHelper.processDownloadResponse(
+                        val fileName = extractFileNameFromUrl(response.url, documentType)
+                        DocumentUrlDownloadHelper.downloadFromUrl(
                             context = context,
-                            fileName = response.fileName,
-                            fileContentBase64 = response.fileContent,
+                            url = response.url,
+                            fileName = fileName,
                             onSuccess = { filePath ->
                                 _isDownloading.value = false
                                 _downloadingDocument.value = null
@@ -110,6 +116,15 @@ class DetailViewModel : ViewModel() {
                 _downloadingDocument.value = null
                 onError(e.message ?: "Error de conexión")
             }
+        }
+    }
+
+    private fun extractFileNameFromUrl(url: String, documentType: String): String {
+        return try {
+            val fileNameMatch = Regex("([^/]+\\.zip)").find(url)
+            fileNameMatch?.groupValues?.get(1) ?: "documento_${System.currentTimeMillis()}.${documentType}.zip"
+        } catch (e: Exception) {
+            "documento_${System.currentTimeMillis()}.${documentType}.zip"
         }
     }
 }

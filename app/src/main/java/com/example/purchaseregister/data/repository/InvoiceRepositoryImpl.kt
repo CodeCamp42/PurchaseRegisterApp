@@ -18,6 +18,11 @@ import com.example.purchaseregister.api.responses.SaveSunatCredentialsResponse
 import com.example.purchaseregister.api.responses.InvoiceDetailsResponse
 import com.example.purchaseregister.utils.TokenPrefs
 import com.example.purchaseregister.api.responses.DownloadDocumentResponse
+import okhttp3.ResponseBody
+import java.io.File
+import android.os.Environment
+import android.net.Uri
+import android.widget.Toast
 
 class InvoiceRepositoryImpl : InvoiceRepository {
 
@@ -121,49 +126,94 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         context: Context
     ): Result<Unit> {
         return try {
-            val baseUrl = RetrofitClient.getBaseUrl()
-            val url = "${baseUrl}api/export-invoices?startDate=$startDate&endDate=$endDate"
-
-            val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-
             val token = TokenPrefs.getToken(context)
-
-            val uri = android.net.Uri.parse(url)
-            val fileName = "facturas_${startDate.replace("/", "-")}_${endDate.replace("/", "-")}.csv"
-
-            val request = DownloadManager.Request(uri)
-                .setTitle("Exportando facturas")
-                .setDescription("Descargando facturas del $startDate al $endDate")
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
-                .setAllowedOverMetered(true)
-                .setAllowedOverRoaming(true)
-
-            if (!token.isNullOrEmpty()) {
-                request.addRequestHeader("Authorization", "Bearer $token")
+            if (token == null) {
+                return Result.failure(Exception("Usuario no autenticado"))
             }
 
-            val downloadId = downloadManager.enqueue(request)
-            println("✅ Download enqueued with ID: $downloadId")
+            val response = apiService.downloadInvoicesCsv(
+                startDate = startDate,
+                endDate = endDate,
+                format = "json"
+            )
 
-            Result.success(Unit)
+            if (response.isSuccessful && response.body() != null) {
+                val responseBody = response.body()!!
+
+                val cleanStartDate = startDate.replace("/", "-").replace("\\", "-")
+                val cleanEndDate = endDate.replace("/", "-").replace("\\", "-")
+                val fileName = "facturas_${cleanStartDate}_${cleanEndDate}.json"
+
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    val resolver = context.contentResolver
+                    val contentValues = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/json")
+                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                    }
+
+                    val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+
+                    uri?.let {
+                        resolver.openOutputStream(it)?.use { outputStream ->
+                            val jsonString = responseBody.string()
+                            outputStream.write(jsonString.toByteArray())
+
+                            showDownloadNotification(context, fileName)
+                        }
+                    }
+                } else {
+                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    if (!downloadsDir.exists()) {
+                        downloadsDir.mkdirs()
+                    }
+
+                    val file = File(downloadsDir, fileName)
+
+                    file.outputStream().use { outputStream ->
+                        val jsonString = responseBody.string()
+                        outputStream.write(jsonString.toByteArray())
+                    }
+
+                    showDownloadNotification(context, fileName)
+                }
+
+                Result.success(Unit)
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Result.failure(Exception(errorBody ?: "Error ${response.code()}"))
+            }
         } catch (e: Exception) {
-            println("❌ Error en descarga: ${e.message}")
-            e.printStackTrace()
+            println("❌ Error: ${e.message}")
             Result.failure(e)
         }
     }
 
+    private fun showDownloadNotification(context: Context, fileName: String) {
+        Toast.makeText(
+            context,
+            "✅ Archivo guardado en Descargas:",
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
     override suspend fun downloadSunatDocument(
         invoiceId: Int,
-        documentType: String,
+        fileId: Int,
         context: Context
     ): Result<DownloadDocumentResponse> {
         return try {
-            val response = apiService.downloadSunatDocument(invoiceId, documentType)
+            val token = TokenPrefs.getToken(context)
+            if (token == null) {
+                return Result.failure(Exception("Usuario no autenticado"))
+            }
+
+            val response = apiService.downloadSunatDocument(
+                invoiceId = invoiceId,
+                fileId = fileId
+            )
 
             if (response.isSuccessful && response.body() != null) {
-                // Convertir ResponseBody a String (JSON)
                 val jsonString = response.body()?.string()
                 val gson = com.google.gson.Gson()
                 val downloadResponse = gson.fromJson(jsonString, DownloadDocumentResponse::class.java)
@@ -189,7 +239,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         periodEnd: String,
         isPurchase: Boolean,
         ruc: String,
-        solUsername: String,
+        solUser: String,
         solPassword: String,
         clientId: String,
         clientSecret: String
@@ -362,7 +412,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
 
     override suspend fun validateSunatCredentials(
         ruc: String,
-        solUsername: String,
+        solUser: String,
         solPassword: String,
         clientId: String,
         clientSecret: String
@@ -371,7 +421,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
             val response = apiService.saveSunatCredentials(
                 SaveSunatCredentialsRequest(
                     ruc = ruc,
-                    solUsername = solUsername,
+                    solUser = solUser,
                     solPassword = solPassword,
                     clientId = clientId,
                     clientSecret = clientSecret

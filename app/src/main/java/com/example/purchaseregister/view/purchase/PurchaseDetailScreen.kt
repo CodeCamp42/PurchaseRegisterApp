@@ -113,7 +113,7 @@ fun PurchaseDetailScreen(
         derivedStateOf {
             isAppLoggedIn && (
                     SunatPrefs.getRuc(context) != null &&
-                            SunatPrefs.getSolUsername(context) != null &&
+                            SunatPrefs.getSolUser(context) != null &&
                             SunatPrefs.getSolPassword(context) != null &&
                             SunatPrefs.getClientId(context) != null &&
                             SunatPrefs.getClientSecret(context) != null
@@ -431,13 +431,8 @@ fun PurchaseDetailScreen(
                             startDate = startDate,
                             endDate = endDate,
                             context = context
-                        ) { success, error ->
+                        ) { success, filePath, error ->
                             if (success) {
-                                Toast.makeText(
-                                    context,
-                                    "✅ Descarga iniciada",
-                                    Toast.LENGTH_SHORT
-                                ).show()
                             } else {
                                 Toast.makeText(
                                     context,
@@ -562,10 +557,10 @@ fun PurchaseDetailScreen(
             externalClientSecret = clientSecretInput,
             onExternalCredentialsUpdated = {
             },
-            onSaveToBackend = { ruc, solUsername, solPassword, clientId, clientSecret, onResult ->
+            onSaveToBackend = { ruc, solUser, solPassword, clientId, clientSecret, onResult ->
                 viewModel.updateSunatCredentials(
                     ruc = ruc,
-                    solUsername = solUsername,
+                    solUser = solUser,
                     solPassword = solPassword,
                     clientId = clientId,
                     clientSecret = clientSecret,
@@ -619,9 +614,9 @@ fun PurchaseDetailScreen(
             externalClientSecret = clientSecretInput,
             onExternalCredentialsUpdated = {
             },
-            onSaveToBackend = { ruc, solUsername, solPassword, clientId, clientSecret, onResult ->
+            onSaveToBackend = { ruc, solUser, solPassword, clientId, clientSecret, onResult ->
                 viewModel.saveSunatCredentials(
-                    ruc, solUsername, solPassword, clientId, clientSecret,
+                    ruc, solUser = solUser, solPassword, clientId, clientSecret,
                     onResult = onResult
                 )
             },
@@ -650,13 +645,13 @@ fun PurchaseDetailScreen(
                 viewModel.signOut(
                     context,
                     onComplete = { success, message ->
-                        if (!success) {
-                            Toast.makeText(
-                                context,
-                                message ?: "Error al cerrar sesión",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
+//                        if (!success) {
+//                            Toast.makeText(
+//                                context,
+//                                message ?: "Error al cerrar sesión",
+//                                Toast.LENGTH_SHORT
+//                            ).show()
+//                        }
                         isAppLoggedIn = false
                         isListVisible = false
                         showLogoutDialog = false

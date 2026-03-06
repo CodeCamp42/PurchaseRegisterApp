@@ -21,9 +21,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import android.widget.Toast
-import androidx.compose.material3.HorizontalDivider
+import com.example.purchaseregister.utils.formatDateFromISO
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
+import com.example.purchaseregister.api.responses.InvoiceDetailsResponse
 
 data class DocumentItem(
     val name: String,
@@ -32,49 +33,28 @@ data class DocumentItem(
     val status: String? = null,
     val url: String? = null,
     val type: String,
-    val documentNumber: String
+    val documentNumber: String,
+    val fileId: Int
 )
 
 fun createDocumentsForInvoice(
-    series: String,
-    documentNumber: String,
-    date: String
+    invoiceDetails: InvoiceDetailsResponse
 ): List<DocumentItem> {
-    val documents = mutableListOf<DocumentItem>()
-
-    documents.add(
+    return invoiceDetails.invoiceFiles.map { file ->
         DocumentItem(
-            name = "Documento PDF",
-            date = date,
+            name = when (file.sunatFileType.lowercase()) {
+                "pdf" -> "Documento PDF"
+                "xml" -> "Archivo XML"
+                "cdr" -> "Constancia CDR"
+                else -> "Documento ${file.sunatFileType}"
+            },
+            date = file.uploadedAt,
             status = "DISPONIBLE",
-            type = "pdf",
-            documentNumber = documentNumber
-        )
-    )
-
-    documents.add(
-        DocumentItem(
-            name = "Archivo XML",
-            date = date,
-            status = "DISPONIBLE",
-            type = "xml",
-            documentNumber = documentNumber
-        )
-    )
-
-    if (series.startsWith("F", ignoreCase = true)) {
-        documents.add(
-            DocumentItem(
-                name = "Constancia CDR",
-                date = date,
-                status = "DISPONIBLE",
-                type = "cdr",
-                documentNumber = documentNumber
-            )
+            type = file.sunatFileType.lowercase(),
+            documentNumber = "${invoiceDetails.series}-${invoiceDetails.number}",
+            fileId = file.id
         )
     }
-
-    return documents
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -175,7 +155,7 @@ fun DocumentModal(
                                     )
                                     if (document.date.isNotBlank()) {
                                         Text(
-                                            text = "Fecha: ${document.date}",
+                                            text = "Fecha: ${formatDateFromISO(document.date)}",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = Color.Gray,
                                             modifier = Modifier.padding(top = 2.dp)
@@ -230,6 +210,7 @@ fun DocumentModal(
                                                     viewModel.downloadDocument(
                                                         context = context,
                                                         invoiceId = invoiceId,
+                                                        fileId = document.fileId,
                                                         documentType = document.type,
                                                         onStart = {
                                                             println("📥 Iniciando descarga: ${document.documentNumber}-${document.type}")
