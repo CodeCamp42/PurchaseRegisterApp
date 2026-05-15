@@ -13,7 +13,7 @@ interface SunatApiService {
         @Body request: LoginRequest
     ): Response<AuthResponse>
 
-    @POST("api/users/me/fcm-token")
+    @POST("api/users/me/get-session")
     suspend fun sendFcmToken(
         @Header("Authorization") authorization: String?,
         @Body request: FcmTokenRequest
@@ -46,9 +46,15 @@ interface SunatApiService {
 
     @GET("api/invoices")
     suspend fun getInvoices(
-        @Query("startDate") periodStart: String,
-        @Query("endDate") periodEnd: String,
-    ): List<SunatResponse>
+        @Query("documentType") documentType: String = "RCE",
+        @Query("search") search: String = "",
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 50,
+        @Query("filterMode") filterMode: String = "period",
+        @Query("startDate") startDate: String,
+        @Query("endDate") endDate: String,
+        @Query("period") period: String
+    ): Response<SunatResponse>
 
     @GET("api/invoices/{id}")
     suspend fun getInvoiceDetails(
@@ -63,10 +69,18 @@ interface SunatApiService {
 
     @GET("api/export-invoices")
     suspend fun downloadInvoicesCsv(
+        @Query("period") period: String,
+        @Query("documentType") documentType: String = "RCE",
         @Query("startDate") startDate: String,
         @Query("endDate") endDate: String,
-        @Query("format") format: String = "json"
+        @Query("format") format: String = "json",
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 50
     ): Response<ResponseBody>
+
+    @GET("api/users/me/sunat-credentials")
+    suspend fun getSunatCredentials(
+    ): Response<SunatCredentialsResponse>
 
     @POST("factura/procesarFactura")
     @Headers("Content-Type: application/json")

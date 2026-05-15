@@ -23,6 +23,7 @@ import java.io.File
 import android.os.Environment
 import android.net.Uri
 import android.widget.Toast
+import com.example.purchaseregister.api.responses.InvoiceData
 
 class InvoiceRepositoryImpl : InvoiceRepository {
 
@@ -131,10 +132,16 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 return Result.failure(Exception("Usuario no autenticado"))
             }
 
+            val period = startDate.replace("-", "").substring(0, 6)
+
             val response = apiService.downloadInvoicesCsv(
+                period = period,
+                documentType = "RCE",
                 startDate = startDate,
                 endDate = endDate,
-                format = "json"
+                format = "json",
+                page = 1,
+                limit = 50
             )
 
             if (response.isSuccessful && response.body() != null) {
@@ -245,13 +252,22 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         clientSecret: String
     ): List<Invoice> {
         try {
+            val period = periodStart.replace("-", "").substring(0, 6)
+
             val response = apiService.getInvoices(
-                periodStart,
-                periodEnd,
+                documentType = "RCE",
+                search = "",
+                page = 1,
+                limit = 50,
+                filterMode = "period",
+                startDate = periodStart,
+                endDate = periodEnd,
+                period = period
             )
 
-            return if (response.isNotEmpty()) {
-                val apiInvoices = parseSunatContent(response, isPurchase)
+            return if (response.isSuccessful && response.body() != null) {
+                val invoicesResponse = response.body()!!
+                val apiInvoices = parseSunatContent(invoicesResponse.invoices, isPurchase)
                 apiInvoices
             } else {
                 emptyList()
@@ -448,7 +464,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
     }
 
     private suspend fun parseSunatContent(
-        items: List<SunatResponse>,
+        items: List<InvoiceData>,
         isPurchase: Boolean
     ): List<Invoice> {
         val invoices = mutableListOf<Invoice>()
@@ -475,13 +491,13 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 "PENDING_DETAILS" -> "EN PROCESO"
                 "WITH_DETAILS" -> "CON DETALLE"
                 "REGISTERED" -> "REGISTRADO"
-                else -> ""
+                else -> item.invoiceStatus
             }
 
             val invoice = Invoice(
                 id = id,
-                ruc = if (isPurchase) item.receiverDocNumber else item.issuerRuc,
-                businessName = if (isPurchase) item.receiverName else item.issuerName,
+                ruc = if (isPurchase) item.issuerRuc else item.receiverDocNumber,
+                businessName = if (isPurchase) item.issuerName else item.receiverName,
                 series = item.series,
                 number = item.number,
                 issueDate = formattedDate,
@@ -502,7 +518,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 isSelected = false,
                 products = emptyList(),
                 year = item.period.take(4),
-                exchangeRate = item.exchangeRate.toString()
+                exchangeRate = item.exchangeRate
             )
             invoices.add(invoice)
         }

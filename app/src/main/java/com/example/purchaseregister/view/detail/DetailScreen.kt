@@ -160,10 +160,10 @@ fun DetailContent(
 ) {
     val products = invoiceDetails.invoiceDetails.map { detail ->
         ProductItem(
-            description = detail.description,
-            quantity = detail.quantity,
-            unitCost = detail.unitCost,
-            unitOfMeasure = detail.unitOfMeasureCode
+            description = detail.description ?: "Sin descripción",
+            quantity = detail.quantity ?: "0",
+            unitCost = detail.unitPrice ?: "0",
+            unitOfMeasure = detail.unitOfMeasure ?: "UNID"
         )
     }
 
@@ -256,7 +256,7 @@ fun DetailContent(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             ReadOnlyField(
-                value = if (isPurchase) invoiceDetails.receiverDocNumber else invoiceDetails.issuerRuc,
+                value = if (isPurchase) invoiceDetails.issuerRuc else invoiceDetails.receiverDocNumber,
                 onValueChange = { },
                 label = "RUC ${if (isPurchase) "Proveedor" else "Cliente"}",
                 modifier = Modifier
@@ -265,7 +265,7 @@ fun DetailContent(
                 textAlign = TextAlign.Center
             )
             ReadOnlyField(
-                value = if (isPurchase) invoiceDetails.receiverName else invoiceDetails.issuerName,
+                value = if (isPurchase) invoiceDetails.issuerName else invoiceDetails.receiverName,
                 onValueChange = { },
                 label = "Razón Social",
                 modifier = Modifier

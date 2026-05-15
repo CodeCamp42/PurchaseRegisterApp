@@ -3,26 +3,49 @@ package com.example.purchaseregister.api.responses
 import com.google.gson.annotations.SerializedName
 
 data class SunatResponse(
+    val invoices: List<InvoiceData>,
+    val total: Int,
+    val page: Int,
+    val limit: Int,
+    val totalPages: Int,
+    val stats: StatsData,
+    val syncStatus: String
+)
+
+data class InvoiceData(
     val id: Int,
     val issuerRuc: String,
     val issuerName: String,
     val period: String,
-    val sunatCar: String,
+    val sireCar: String,
     val issueDate: String,
     val docType: String,
     val series: String,
     val number: String,
-    val receiverDocType: String,
     val receiverDocNumber: String,
     val receiverName: String,
-    val taxableAmount: Double,
-    val igv: Double,
-    val nonTaxableAmount: Double,
-    val totalAmount: Double,
+    val taxableAmount: String,
+    val igv: String,
+    val nonTaxableAmount: String,
+    val totalAmount: String,
     val currency: String,
-    val exchangeRate: Double,
+    val exchangeRate: String,
     val status: String,
     val invoiceStatus: String
+)
+
+data class StatsData(
+    val total: Int,
+    val withDetails: Int,
+    val pending: Int,
+    val withDetraction: Int,
+    val taxableAmount: Double,
+    val igv: Double,
+    val totalAmount: Double,
+    val isc: Double,
+    val nonTaxableAmount: Double,
+    val otherCharges: Double,
+    val icbper: Double
 )
 
 data class RegisterInvoicesResponse(

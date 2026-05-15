@@ -1,58 +1,66 @@
 package com.example.purchaseregister.api.responses
 
-import com.google.gson.annotations.SerializedName
-
 data class InvoiceDetailsResponse(
     val id: Int,
     val userId: String,
-    @SerializedName("issuerRuc") val issuerRuc: String,
-    @SerializedName("issuerName") val issuerName: String,
+    val issuerRuc: String,
+    val issuerName: String,
     val period: String,
-    @SerializedName("sireCar") val sireCar: String,
-    @SerializedName("issueDate") val issueDate: String,
-    @SerializedName("docType") val docType: String,
+    val sireCar: String,
+    val issueDate: String,
+    val docType: String,
     val series: String,
     val number: String,
-    @SerializedName("receiverDocType") val receiverDocType: String,
-    @SerializedName("receiverDocNumber") val receiverDocNumber: String,
-    @SerializedName("receiverName") val receiverName: String,
-    @SerializedName("taxableAmount") val taxableAmount: String,
+    val receiverDocType: String,
+    val receiverDocNumber: String,
+    val receiverName: String,
+    val taxableAmount: String,
     val igv: String,
-    @SerializedName("nonTaxableAmount") val nonTaxableAmount: String,
-    @SerializedName("totalAmount") val totalAmount: String,
+    val nonTaxableAmount: String,
+    val totalAmount: String,
     val currency: String,
-    @SerializedName("exchangeRate") val exchangeRate: String,
+    val exchangeRate: String,
     val status: String,
-    @SerializedName("invoiceStatus") val invoiceStatus: String,
-    @SerializedName("createdAt") val createdAt: String,
-    @SerializedName("updatedAt") val updatedAt: String,
-    @SerializedName("invoiceDetails") val invoiceDetails: List<InvoiceDetailItem>,
-    @SerializedName("invoiceFiles") val invoiceFiles: List<InvoiceFileItem>
+    val invoiceStatus: String,
+    val createdAt: String,
+    val updatedAt: String,
+    val invoiceDetails: List<InvoiceDetailItem>,
+    val invoiceFiles: List<InvoiceFileItem>
 )
 
 data class InvoiceDetailItem(
     val id: Int,
-    @SerializedName("invoiceId") val invoiceId: Int,
-    @SerializedName("productDescription") val description: String,
-    @SerializedName("productCode") val productCode: String? = null,
-    @SerializedName("quantity") val quantity: String,
-    @SerializedName("unitCost") val unitCost: String,
-    @SerializedName("unitOfMeasureCode") val unitOfMeasureCode: String,
-    @SerializedName("unitOfMeasureDescription") val unitOfMeasureDescription: String? = null,
-    @SerializedName("taxAmount") val taxAmount: String,
-    @SerializedName("taxRate") val taxRate: String,
-    @SerializedName("unitPriceWithTax") val unitPriceWithTax: String,
-    @SerializedName("totalAmount") val totalAmount: String,
-    @SerializedName("discountAmount") val discountAmount: String,
-    @SerializedName("icbper") val icbper: String,
-    @SerializedName("createdAt") val createdAt: String,
-    @SerializedName("updatedAt") val updatedAt: String
+    val invoiceId: Int,
+    val description: String,
+    val quantity: String,
+    val unitPrice: String,
+    val unitOfMeasure: String,
+    val lineExtensionAmount: String,
+    val referencePriceAmount: String? = null,
+    val referencePriceTypeCode: String? = null,
+    val isFree: Boolean = false,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+    val invoiceDetailTaxes: List<InvoiceDetailTax> = emptyList()
 )
 
 data class InvoiceFileItem(
     val id: Int,
-    @SerializedName("sunatFileType") val sunatFileType: String,
-    @SerializedName("fileName") val fileName: String,
-    @SerializedName("fileSize") val fileSize: Int?,
-    @SerializedName("uploadedAt") val uploadedAt: String
+    val sunatFileType: String,
+    val fileName: String,
+    val fileSize: Int?,
+    val uploadedAt: String
+)
+
+data class InvoiceDetailTax(
+    val id: Int,
+    val invoiceDetailId: Int,
+    val taxableAmount: String,
+    val taxAmount: String,
+    val taxCategoryId: String,
+    val taxPercent: String,
+    val taxExemptionReasonCode: String,
+    val taxId: String,
+    val taxName: String,
+    val taxTypeCode: String
 )

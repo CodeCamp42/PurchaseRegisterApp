@@ -108,17 +108,16 @@ fun PurchaseDetailScreen(
     var lastReportedReadyCount by remember { mutableStateOf(0) }
     var totalPendingToProcess by remember { mutableStateOf(0) }
     var isProcessingComplete by remember { mutableStateOf(false) }
+    var hasSunatCredentials by remember { mutableStateOf(false) }
 
-    val hasSunatCredentials by remember {
-        derivedStateOf {
-            isAppLoggedIn && (
-                    SunatPrefs.getRuc(context) != null &&
-                            SunatPrefs.getSolUser(context) != null &&
-                            SunatPrefs.getSolPassword(context) != null &&
-                            SunatPrefs.getClientId(context) != null &&
-                            SunatPrefs.getClientSecret(context) != null
-                    )
-        }
+    fun updateCredentialsStatus() {
+        hasSunatCredentials = isAppLoggedIn && (
+                SunatPrefs.getRuc(context) != null &&
+                        SunatPrefs.getSolUser(context) != null &&
+                        SunatPrefs.getSolPassword(context) != null &&
+                        SunatPrefs.getClientId(context) != null &&
+                        SunatPrefs.getClientSecret(context) != null
+                )
     }
 
     val currentPeriodKeyValue = remember(selectedStartMillis, selectedEndMillis) {
@@ -238,6 +237,10 @@ fun PurchaseDetailScreen(
         isListVisible = true
     }
 
+    LaunchedEffect(isAppLoggedIn) {
+        updateCredentialsStatus()
+    }
+
     // LÓGICA DE CARGA INICIAL
     LaunchedEffect(Unit) {
         if (!isInitialLoadDone) {
@@ -245,18 +248,24 @@ fun PurchaseDetailScreen(
             delay(500)
 
             when {
-                !isAppLoggedIn -> showProfileDialog = true
-                isAppLoggedIn && !hasSunatCredentials -> {
-                    consultAfterLogin = true
-                    showCredentialsDialog = true
+                !isAppLoggedIn -> {
+                    showProfileDialog = true
                 }
+                isAppLoggedIn -> {
+                    viewModel.loadSunatCredentialsFromBackend(context)
+                    delay(500)
+                    updateCredentialsStatus()
 
-                isAppLoggedIn && hasSunatCredentials -> {
-                    executeConsult()
+                    val hasCredentials = hasSunatCredentials
 
-                    delay(1000)
-
-                    checkForPendingInvoices()
+                    if (hasCredentials) {
+                        executeConsult()
+                        delay(1000)
+                        checkForPendingInvoices()
+                    } else {
+                        consultAfterLogin = true
+                        showCredentialsDialog = true
+                    }
                 }
             }
             isInitialLoadDone = true
@@ -424,8 +433,8 @@ fun PurchaseDetailScreen(
                 isDownloadButtonEnabled = isDownloadButtonEnabled,
                 onDownloadClick = {
                     if (isDownloadButtonEnabled) {
-                        val startDate = convertDateToDownload(selectedStartMillis ?: todayMillis)
-                        val endDate = convertDateToDownload(selectedEndMillis ?: todayMillis)
+                        val startDate = convertDateToDownloadYYYYMMDD(selectedStartMillis ?: todayMillis)
+                        val endDate = convertDateToDownloadYYYYMMDD(selectedEndMillis ?: todayMillis)
 
                         viewModel.exportInvoices(
                             startDate = startDate,
@@ -743,19 +752,27 @@ fun PurchaseDetailScreen(
                 Toast.makeText(context, "✅ Sesión iniciada", Toast.LENGTH_SHORT).show()
                 showProfileDialog = false
                 isAppLoggedIn = true
-                if (!hasSunatCredentials) {
-                    consultAfterLogin = true
-                    showCredentialsDialog = true
-                } else {
-                    val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
-                    val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
-                    viewModel.loadInvoicesFromAPI(
-                        periodStart,
-                        periodEnd,
-                        sectionActive == Section.PURCHASES,
-                        context
-                    )
-                    isListVisible = true
+                viewModel.loadSunatCredentialsFromBackend(context)
+
+                coroutineScope.launch {
+                    delay(500)
+                    updateCredentialsStatus()
+                    val hasCredentials = hasSunatCredentials
+
+                    if (hasCredentials) {
+                        val periodStart = convertDateToPeriod(selectedStartMillis ?: todayMillis)
+                        val periodEnd = convertDateToPeriod(selectedEndMillis ?: todayMillis)
+                        viewModel.loadInvoicesFromAPI(
+                            periodStart,
+                            periodEnd,
+                            sectionActive == Section.PURCHASES,
+                            context
+                        )
+                        isListVisible = true
+                    } else {
+                        consultAfterLogin = true
+                        showCredentialsDialog = true
+                    }
                 }
             },
             onRegisterSuccess = {

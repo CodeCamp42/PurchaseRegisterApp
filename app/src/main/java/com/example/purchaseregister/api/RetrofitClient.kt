@@ -28,18 +28,27 @@ object RetrofitClient {
         val newRequest = originalRequest.newBuilder()
             .addHeader("Origin", "RCTM://")
             .build()
-
         chain.proceed(newRequest)
     }
 
     private val authInterceptor = Interceptor { chain ->
         val originalRequest = chain.request()
-        val token = TokenPrefs.getToken(appContext)
+        val url = originalRequest.url.toString()
 
-        val newRequest = if (!token.isNullOrEmpty()) {
-            originalRequest.newBuilder()
-                .addHeader("Authorization", "Bearer $token")
-                .build()
+        // No agregar token para endpoints de autenticación
+        val shouldSkipAuth = url.contains("/api/auth/sign-in") ||
+                url.contains("/api/auth/sign-up") ||
+                url.contains("/api/auth/forget-password")
+
+        val newRequest = if (!shouldSkipAuth) {
+            val token = TokenPrefs.getToken(appContext)
+            if (!token.isNullOrEmpty()) {
+                originalRequest.newBuilder()
+                    .addHeader("Authorization", "Bearer $token")
+                    .build()
+            } else {
+                originalRequest
+            }
         } else {
             originalRequest
         }

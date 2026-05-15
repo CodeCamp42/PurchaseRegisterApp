@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.purchaseregister.api.RetrofitClient.sunatApiService
 import com.example.purchaseregister.api.responses.AuthResponse
 import com.example.purchaseregister.data.repository.InvoiceRepository
 import com.example.purchaseregister.data.repository.InvoiceRepositoryImpl
@@ -175,8 +176,8 @@ class InvoiceListViewModel : ViewModel() {
                                         ProductItem(
                                             description = detail.description ?: "",
                                             quantity = detail.quantity ?: "0",
-                                            unitCost = detail.unitCost ?: "0",
-                                            unitOfMeasure = detail.unitOfMeasureCode ?: ""
+                                            unitCost = detail.unitPrice ?: "0",
+                                            unitOfMeasure = detail.unitOfMeasure ?: ""
                                         )
                                     }
 
@@ -511,6 +512,36 @@ class InvoiceListViewModel : ViewModel() {
                 _forgotPasswordState.value = ForgotPasswordState.Error(
                     e.message ?: "Error de conexión"
                 )
+            }
+        }
+    }
+
+    fun loadSunatCredentialsFromBackend(context: Context) {
+        viewModelScope.launch {
+            try {
+                val token = TokenPrefs.getToken(context)
+                if (token.isNullOrEmpty()) {
+                    return@launch
+                }
+                val response = sunatApiService.getSunatCredentials()
+
+                if (response.isSuccessful && response.body() != null) {
+                    val creds = response.body()!!
+
+                    SunatPrefs.saveRuc(context, creds.ruc)
+                    SunatPrefs.saveSolUser(context, creds.solUser)
+                    SunatPrefs.saveSolPassword(context, creds.solPassword)
+                    SunatPrefs.saveClientId(context, creds.clientId)
+                    SunatPrefs.saveClientSecret(context, creds.clientSecret)
+                } else {
+                    when (response.code()) {
+                        401 -> println("   - Error 401: Token inválido o expirado")
+                        404 -> println("   - Error 404: Endpoint no encontrado")
+                        500 -> println("   - Error 500: Error interno del servidor")
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
