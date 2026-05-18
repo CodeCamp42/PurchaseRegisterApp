@@ -22,6 +22,8 @@ import okhttp3.ResponseBody
 import java.io.File
 import android.os.Environment
 import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import android.widget.Toast
 import com.example.purchaseregister.api.responses.InvoiceData
 
@@ -151,15 +153,15 @@ class InvoiceRepositoryImpl : InvoiceRepository {
                 val cleanEndDate = endDate.replace("/", "-").replace("\\", "-")
                 val fileName = "facturas_${cleanStartDate}_${cleanEndDate}.json"
 
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     val resolver = context.contentResolver
                     val contentValues = android.content.ContentValues().apply {
-                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/json")
-                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
                     }
 
-                    val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                    val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
 
                     uri?.let {
                         resolver.openOutputStream(it)?.use { outputStream ->
@@ -253,32 +255,60 @@ class InvoiceRepositoryImpl : InvoiceRepository {
     ): List<Invoice> {
         try {
             val period = periodStart.replace("-", "").substring(0, 6)
+            val documentType = if (isPurchase) "RCE" else "RVIE"
 
-            val response = apiService.getInvoices(
-                documentType = "RCE",
-                search = "",
-                page = 1,
-                limit = 50,
-                filterMode = "period",
-                startDate = periodStart,
-                endDate = periodEnd,
-                period = period
-            )
+            var currentPage = 1
+            var hasMorePages = true
+            val allInvoiceData = mutableListOf<InvoiceData>()
 
-            return if (response.isSuccessful && response.body() != null) {
-                val invoicesResponse = response.body()!!
-                val apiInvoices = parseSunatContent(invoicesResponse.invoices, isPurchase)
+            while (hasMorePages) {
+                val response = apiService.getInvoices(
+                    documentType = documentType,
+                    search = "",
+                    page = currentPage,
+                    limit = 50,
+                    filterMode = "period",
+                    startDate = periodStart,
+                    endDate = periodEnd,
+                    period = period
+                )
+
+                if (response.isSuccessful && response.body() != null) {
+                    val invoicesResponse = response.body()!!
+                    val currentInvoices = invoicesResponse.invoices
+
+                    if (currentInvoices.isNotEmpty()) {
+                        allInvoiceData.addAll(currentInvoices)
+
+                        if (currentInvoices.size == 50) {
+                            currentPage++
+                            kotlinx.coroutines.delay(100)
+                        } else {
+                            hasMorePages = false
+                        }
+                    } else {
+                        hasMorePages = false
+                    }
+                } else {
+                    if (currentPage == 1) {
+                        return emptyList()
+                    }
+                    hasMorePages = false
+                }
+            }
+
+            return if (allInvoiceData.isNotEmpty()) {
+                val apiInvoices = parseSunatContent(allInvoiceData, isPurchase)
                 apiInvoices
             } else {
                 emptyList()
             }
+
         } catch (e: retrofit2.HttpException) {
             val errorBody = e.response()?.errorBody()?.string()
-
             val errorMessage = try {
                 val gson = com.google.gson.Gson()
                 val errorResponse = gson.fromJson(errorBody, Map::class.java)
-
                 if (errorResponse["code"] == "SIRE_AUTH_ERROR") {
                     "${errorResponse["message"]}"
                 } else {
@@ -287,9 +317,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
             } catch (jsonEx: Exception) {
                 "Error al autenticar con SUNAT: ${e.message}"
             }
-
             throw Exception(errorMessage)
-
         } catch (e: Exception) {
             throw Exception("Error de conexión: ${e.message}")
         }
