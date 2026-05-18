@@ -26,7 +26,6 @@ fun StatusLegend(
     onDownloadClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -126,7 +125,7 @@ fun StatusLegend(
                     .height(40.dp)
                     .width(180.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isDownloadButtonEnabled) Color(0xFF1FB8B9) else Color.Gray
+                    containerColor = Color(0xFF1FB8B9)
                 ),
                 shape = RoundedCornerShape(14.dp)
             ) {

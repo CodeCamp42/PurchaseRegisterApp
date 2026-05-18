@@ -1,6 +1,9 @@
 package com.example.purchaseregister.viewmodel
 
 import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -20,6 +23,7 @@ import kotlinx.coroutines.launch
 import com.example.purchaseregister.model.ProductItem
 import com.google.firebase.messaging.FirebaseMessaging
 import com.example.purchaseregister.api.request.UpdateSunatCredentialsRequest
+import java.io.File
 
 class InvoiceListViewModel : ViewModel() {
 
@@ -342,6 +346,7 @@ class InvoiceListViewModel : ViewModel() {
     }
 
     fun exportInvoices(
+        invoicesToExport: List<Invoice>? = null,  // Nuevo parámetro opcional
         startDate: String,
         endDate: String,
         context: Context,
@@ -350,21 +355,115 @@ class InvoiceListViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val result = repository.exportInvoicesToCsv(startDate, endDate, context)
-                result.fold(
-                    onSuccess = {
-                        onResult(true, "Archivo guardado en: $it", null)
-                    },
-                    onFailure = { exception ->
-                        onResult(false, null, exception.message)
-                    }
-                )
+                if (invoicesToExport != null) {
+                    val result = exportSpecificInvoicesToCsv(invoicesToExport, startDate, endDate, context)
+                    result.fold(
+                        onSuccess = { filePath ->
+                            onResult(true, filePath, null)
+                        },
+                        onFailure = { exception ->
+                            onResult(false, null, exception.message)
+                        }
+                    )
+                } else {
+                    val result = repository.exportInvoicesToCsv(startDate, endDate, context)
+                    result.fold(
+                        onSuccess = {
+                            onResult(true, "Archivo guardado en Descargas", null)
+                        },
+                        onFailure = { exception ->
+                            onResult(false, null, exception.message)
+                        }
+                    )
+                }
             } catch (e: Exception) {
                 onResult(false, null, e.message)
             } finally {
                 _isLoading.value = false
             }
         }
+    }
+
+    private suspend fun exportSpecificInvoicesToCsv(
+        invoices: List<Invoice>,
+        startDate: String,
+        endDate: String,
+        context: Context
+    ): Result<String> {
+        return try {
+            val fileName = "facturas_${startDate}_${endDate}.csv"
+            val csvContent = generateCsvFromInvoices(invoices)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val resolver = context.contentResolver
+                val contentValues = android.content.ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                }
+
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                uri?.let {
+                    resolver.openOutputStream(it)?.use { outputStream ->
+                        outputStream.write(csvContent.toByteArray())
+                    }
+                    Result.success("Descargas/$fileName")
+                } ?: Result.failure(Exception("No se pudo crear el archivo"))
+            } else {
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) {
+                    downloadsDir.mkdirs()
+                }
+
+                val file = File(downloadsDir, fileName)
+                file.writeText(csvContent)
+                Result.success("Descargas/$fileName")
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun generateCsvFromInvoices(invoices: List<Invoice>): String {
+        val headers = listOf(
+            "RUC", "Razón Social", "Serie", "Número", "Fecha Emisión",
+            "Tipo Documento", "Moneda", "Costo Total", "IGV", "Monto Total",
+            "Estado", "Productos"
+        )
+
+        val csvString = StringBuilder()
+        csvString.append(headers.joinToString(",")).append("\n")
+
+        invoices.forEach { invoice ->
+            val productsStr = invoice.products.joinToString(";") { product ->
+                "${product.description}|${product.quantity}|${product.unitCost}|${product.unitOfMeasure}"
+            }
+
+            val row = listOf(
+                escapeCsv(invoice.ruc),
+                escapeCsv(invoice.businessName),
+                escapeCsv(invoice.series),
+                escapeCsv(invoice.number),
+                escapeCsv(invoice.issueDate),
+                escapeCsv(invoice.documentType),
+                escapeCsv(invoice.currency),
+                escapeCsv(invoice.totalCost),
+                escapeCsv(invoice.igv),
+                escapeCsv(invoice.totalAmount),
+                escapeCsv(invoice.invoiceStatus),
+                escapeCsv(productsStr)
+            )
+            csvString.append(row.joinToString(",")).append("\n")
+        }
+
+        return csvString.toString()
+    }
+
+    private fun escapeCsv(value: String): String {
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"${value.replace("\"", "\"\"")}\""
+        }
+        return value
     }
 
     fun registerInvoicesInDatabase(

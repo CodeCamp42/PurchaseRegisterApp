@@ -358,7 +358,6 @@ fun PurchaseDetailScreen(
         it.invoiceStatus == "CON DETALLE" || it.invoiceStatus == "REGISTRADO"
     }
     val pendingInvoices = totalInvoices - readyInvoices
-    val isDownloadButtonEnabled = pendingInvoices == 0
 
     val hasInvoicesInProcess = filteredList.any { it.invoiceStatus == "EN PROCESO" }
 
@@ -431,32 +430,44 @@ fun PurchaseDetailScreen(
                 totalInvoices = totalInvoices,
                 readyInvoices = readyInvoices,
                 pendingInvoices = pendingInvoices,
-                isDownloadButtonEnabled = isDownloadButtonEnabled,
+                isDownloadButtonEnabled = true,
                 onDownloadClick = {
-                    if (isDownloadButtonEnabled) {
-                        val startDate = convertDateToDownloadYYYYMMDD(selectedStartMillis ?: todayMillis)
-                        val endDate = convertDateToDownloadYYYYMMDD(selectedEndMillis ?: todayMillis)
+                    // Filtrar SOLO facturas con detalle
+                    val readyInvoicesList = filteredList.filter {
+                        it.invoiceStatus == "CON DETALLE" || it.invoiceStatus == "REGISTRADO"
+                    }
 
-                        viewModel.exportInvoices(
-                            startDate = startDate,
-                            endDate = endDate,
-                            context = context
-                        ) { success, filePath, error ->
-                            if (success) {
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "Error: ${error ?: "Error desconocido"}",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
-                    } else {
+                    if (readyInvoicesList.isEmpty()) {
                         Toast.makeText(
                             context,
-                            "Pending details for $pendingInvoices invoices",
+                            "No hay facturas con detalle para descargar",
                             Toast.LENGTH_LONG
                         ).show()
+                        return@StatusLegend
+                    }
+
+                    val startDate = convertDateToDownloadYYYYMMDD(selectedStartMillis ?: todayMillis)
+                    val endDate = convertDateToDownloadYYYYMMDD(selectedEndMillis ?: todayMillis)
+
+                    viewModel.exportInvoices(
+                        invoicesToExport = readyInvoicesList,
+                        startDate = startDate,
+                        endDate = endDate,
+                        context = context
+                    ) { success, filePath, error ->
+                        if (success) {
+                            Toast.makeText(
+                                context,
+                                "✅ Se descargaron ${readyInvoicesList.size} facturas",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Error: ${error ?: "Error desconocido"}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     }
                 }
             )
