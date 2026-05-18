@@ -5,12 +5,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,11 +39,29 @@ fun InvoiceTable(
     isListVisible: Boolean,
     onInvoiceClick: (Invoice, Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
+    isLoadingMore: Boolean = false,
+    onLoadMore: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val horizontalScrollState = rememberScrollState()
     val totalWidth = 470.dp
+
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(listState, invoices, isLoadingMore) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .collect { lastVisibleIndex ->
+                if (lastVisibleIndex != null &&
+                    lastVisibleIndex >= invoices.size - 3 &&
+                    invoices.isNotEmpty() &&
+                    !isLoading &&
+                    !isLoadingMore
+                ) {
+                    onLoadMore()
+                }
+            }
+    }
 
     Box(
         modifier = modifier
@@ -46,7 +69,7 @@ fun InvoiceTable(
             .border(1.dp, Color.LightGray),
         contentAlignment = Alignment.Center
     ) {
-        if (isLoading) {
+        if (isLoading && invoices.isEmpty()) {
             Column(
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -78,171 +101,217 @@ fun InvoiceTable(
                 }
 
                 // Cuerpo de la tabla
-                Column(
-                    modifier = Modifier
-                        .width(totalWidth)
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    if (!isListVisible) {
+                if (!isListVisible) {
+                    Box(
+                        modifier = Modifier
+                            .width(totalWidth)
+                            .height(300.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
                             "Presione CONSULTAR para iniciar sesión",
-                            modifier = Modifier
-                                .width(totalWidth)
-                                .padding(20.dp),
                             textAlign = TextAlign.Center,
                             color = Color.Gray
                         )
-                    } else if (invoices.isEmpty()) {
+                    }
+                } else if (invoices.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .width(totalWidth)
+                            .height(300.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
                             "No hay facturas para mostrar",
-                            modifier = Modifier
-                                .width(totalWidth)
-                                .padding(20.dp),
                             textAlign = TextAlign.Center,
                             color = Color.Gray
                         )
-                    } else {
-                        invoices.forEachIndexed { index, invoice ->
-                            Column(
-                                modifier = Modifier.width(totalWidth)
-                            ) {
-                                // Fila de razón social
-                                Row(
-                                    modifier = Modifier
-                                        .width(totalWidth)
-                                        .background(Color(0xFFB0C4DE))
-                                        .padding(vertical = 8.dp, horizontal = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.width(totalWidth)
+                    ) {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .width(totalWidth)
+                                .weight(1f)
+                        ) {
+                            itemsIndexed(invoices) { index, invoice ->
+                                Column(
+                                    modifier = Modifier.width(totalWidth)
                                 ) {
-                                    Box(
+                                    // Fila de razón social
+                                    Row(
                                         modifier = Modifier
-                                            .weight(1f)
-                                            .horizontalScroll(rememberScrollState())
+                                            .width(totalWidth)
+                                            .background(Color(0xFFB0C4DE))
+                                            .padding(vertical = 8.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .horizontalScroll(rememberScrollState())
+                                        ) {
+                                            Text(
+                                                text = invoice.businessName,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Black,
+                                                modifier = Modifier.padding(
+                                                    start = 8.dp,
+                                                    end = 8.dp
+                                                )
+                                            )
+                                        }
+
+                                        // Monto fijo a la derecha
                                         Text(
-                                            text = invoice.businessName,
+                                            text = "S/ ${invoice.totalAmount}",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.Black,
-                                            modifier = Modifier.padding(start = 8.dp, end = 8.dp)
+                                            textAlign = TextAlign.End,
+                                            modifier = Modifier.padding(start = 8.dp)
                                         )
                                     }
 
-                                    // Monto fijo a la derecha
-                                    Text(
-                                        text = "S/ ${invoice.totalAmount}",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.Black,
-                                        textAlign = TextAlign.End,
-                                        modifier = Modifier.padding(start = 8.dp)
-                                    )
-                                }
+                                    // Fila de factura
+                                    Row(
+                                        modifier = Modifier
+                                            .width(totalWidth)
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Columna Estado (con ícono y círculo)
+                                        Box(
+                                            modifier = Modifier.width(100.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                IconButton(
+                                                    onClick = {
+                                                        val ruc = SunatPrefs.getRuc(context)
+                                                        val solUser =
+                                                            SunatPrefs.getSolUser(context)
+                                                        val solPassword =
+                                                            SunatPrefs.getSolPassword(context)
 
-                                // Fila de factura
-                                Row(
-                                    modifier = Modifier
-                                        .width(totalWidth)
-                                        .padding(vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Columna Estado (con ícono y círculo)
+                                                        if (ruc == null || solUser == null || solPassword == null) {
+                                                            Toast.makeText(
+                                                                context,
+                                                                "⚠️ Primero configure sus credenciales SUNAT en el botón CONSULTAR",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                            return@IconButton
+                                                        }
+
+                                                        onInvoiceClick(
+                                                            invoice,
+                                                            sectionActive == Section.PURCHASES
+                                                        )
+                                                    },
+                                                    modifier = Modifier.size(24.dp),
+                                                    enabled = invoice.invoiceStatus == "CON DETALLE" || invoice.invoiceStatus == "REGISTRADO"
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Visibility,
+                                                        contentDescription = "Ver detalle",
+                                                        modifier = Modifier.size(20.dp),
+                                                        tint = if (invoice.invoiceStatus == "CON DETALLE" || invoice.invoiceStatus == "REGISTRADO")
+                                                            Color.Black
+                                                        else
+                                                            Color.Gray
+                                                    )
+                                                }
+                                                InvoiceStatusCircle(
+                                                    invoice.invoiceStatus,
+                                                    size = 14.dp
+                                                )
+                                            }
+                                        }
+
+                                        // RUC
+                                        SimpleTableCell(invoice.ruc, 110.dp)
+
+                                        // Serie - Número
+                                        Box(
+                                            modifier = Modifier.width(160.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "${invoice.series} - ${invoice.number}",
+                                                fontSize = 13.sp,
+                                                color = Color.Black
+                                            )
+                                        }
+
+                                        // Fecha
+                                        SimpleTableCell(invoice.issueDate, 100.dp)
+                                    }
+
+                                    // Divisor entre facturas
+                                    if (index < invoices.size - 1) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.width(totalWidth),
+                                            thickness = 0.5.dp,
+                                            color = Color.LightGray
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (isLoadingMore) {
+                                item {
                                     Box(
-                                        modifier = Modifier.width(100.dp),
+                                        modifier = Modifier
+                                            .width(totalWidth)
+                                            .padding(16.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Row(
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            horizontalArrangement = Arrangement.Center,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            IconButton(
-                                                onClick = {
-                                                    val ruc = SunatPrefs.getRuc(context)
-                                                    val solUser =
-                                                        SunatPrefs.getSolUser(context)
-                                                    val solPassword =
-                                                        SunatPrefs.getSolPassword(context)
-
-                                                    if (ruc == null || solUser == null || solPassword == null) {
-                                                        Toast.makeText(
-                                                            context,
-                                                            "⚠️ Primero configure sus credenciales SUNAT en el botón CONSULTAR",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
-                                                        return@IconButton
-                                                    }
-
-                                                    onInvoiceClick(
-                                                        invoice,
-                                                        sectionActive == Section.PURCHASES
-                                                    )
-                                                },
-                                                modifier = Modifier.size(24.dp),
-                                                enabled = invoice.invoiceStatus == "CON DETALLE" || invoice.invoiceStatus == "REGISTRADO"
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Filled.Visibility,
-                                                    contentDescription = "Ver detalle",
-                                                    modifier = Modifier.size(20.dp),
-                                                    tint = if (invoice.invoiceStatus == "CON DETALLE" || invoice.invoiceStatus == "REGISTRADO")
-                                                        Color.Black
-                                                    else
-                                                        Color.Gray
-                                                )
-                                            }
-                                            InvoiceStatusCircle(invoice.invoiceStatus, size = 14.dp)
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                color = Color(0xFF1FB8B9),
+                                                strokeWidth = 2.dp
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Cargando más facturas...",
+                                                fontSize = 12.sp,
+                                                color = Color.Gray
+                                            )
                                         }
                                     }
-
-                                    // RUC
-                                    SimpleTableCell(invoice.ruc, 110.dp)
-
-                                    // Serie - Número
-                                    Box(
-                                        modifier = Modifier.width(160.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "${invoice.series} - ${invoice.number}",
-                                            fontSize = 13.sp,
-                                            color = Color.Black
-                                        )
-                                    }
-
-                                    // Fecha
-                                    SimpleTableCell(invoice.issueDate, 100.dp)
-                                }
-
-                                // Divisor entre facturas
-                                if (index < invoices.size - 1) {
-                                    HorizontalDivider(
-                                        modifier = Modifier.width(totalWidth),
-                                        thickness = 0.5.dp,
-                                        color = Color.LightGray
-                                    )
                                 }
                             }
                         }
-                    }
-                }
 
-                // Pie de tabla
-                if (isListVisible && invoices.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .width(totalWidth)
-                            .background(Color.LightGray)
-                            .padding(vertical = 10.dp, horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.Start
-                    ) {
-                        Text(
-                            text = "Facturas registradas: ${invoices.size}",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
+                        // Pie de tabla
+                        if (isListVisible && invoices.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier
+                                    .width(totalWidth)
+                                    .background(Color.LightGray)
+                                    .padding(vertical = 10.dp, horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Text(
+                                    text = "Facturas registradas: ${invoices.size}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                            }
+                        }
                     }
                 }
             }

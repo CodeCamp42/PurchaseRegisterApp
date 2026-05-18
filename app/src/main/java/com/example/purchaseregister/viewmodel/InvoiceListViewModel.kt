@@ -12,24 +12,40 @@ import com.example.purchaseregister.model.Invoice
 import com.example.purchaseregister.utils.SunatPrefs
 import com.example.purchaseregister.utils.SessionPrefs
 import com.example.purchaseregister.utils.TokenPrefs
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import com.example.purchaseregister.model.ProductItem
-import java.util.Locale
 import com.google.firebase.messaging.FirebaseMessaging
 import com.example.purchaseregister.api.request.UpdateSunatCredentialsRequest
 
 class InvoiceListViewModel : ViewModel() {
 
-    // Dependencia del repositorio
     private val repository: InvoiceRepository = InvoiceRepositoryImpl()
 
-    // Estados observables desde la UI
     val purchaseInvoices: StateFlow<List<Invoice>> = repository.purchaseInvoices
     val salesInvoices: StateFlow<List<Invoice>> = repository.salesInvoices
+
+    private val _allPurchaseInvoices = mutableStateOf<List<Invoice>>(emptyList())
+    private val _allSalesInvoices = mutableStateOf<List<Invoice>>(emptyList())
+
+    private val _paginatedPurchaseInvoices = MutableStateFlow<List<Invoice>>(emptyList())
+    val paginatedPurchaseInvoices: StateFlow<List<Invoice>> = _paginatedPurchaseInvoices.asStateFlow()
+
+    private val _paginatedSalesInvoices = MutableStateFlow<List<Invoice>>(emptyList())
+    val paginatedSalesInvoices: StateFlow<List<Invoice>> = _paginatedSalesInvoices.asStateFlow()
+
+    private var currentPurchasePage = 0
+    private var currentSalesPage = 0
+    private val pageSize = 20
+
+    private var hasMorePurchaseInvoices = true
+    private var hasMoreSalesInvoices = true
+
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -40,7 +56,6 @@ class InvoiceListViewModel : ViewModel() {
     private val _registrationCompleted = MutableStateFlow(false)
     val registrationCompleted: StateFlow<Boolean> = _registrationCompleted.asStateFlow()
 
-    // Estados específicos de la pantalla de lista
     private val _isDetailingAll = MutableStateFlow(false)
     val isDetailingAll: StateFlow<Boolean> = _isDetailingAll.asStateFlow()
 
@@ -96,6 +111,8 @@ class InvoiceListViewModel : ViewModel() {
 
             _isLoading.value = true
             _errorMessage.value = null
+            resetPagination(isPurchase)
+
             try {
                 repository.loadInvoicesFromAPI(
                     periodStart,
@@ -107,6 +124,26 @@ class InvoiceListViewModel : ViewModel() {
                     clientId,
                     clientSecret
                 )
+                delay(500)
+
+                if (isPurchase) {
+                    val allInvoices = purchaseInvoices.value
+                    _allPurchaseInvoices.value = allInvoices
+
+                    val firstPage = allInvoices.take(pageSize)
+                    _paginatedPurchaseInvoices.value = firstPage
+                    currentPurchasePage = 0
+                    hasMorePurchaseInvoices = allInvoices.size > pageSize
+                } else {
+                    val allInvoices = salesInvoices.value
+                    _allSalesInvoices.value = allInvoices
+
+                    val firstPage = allInvoices.take(pageSize)
+                    _paginatedSalesInvoices.value = firstPage
+                    currentSalesPage = 0
+                    hasMoreSalesInvoices = allInvoices.size > pageSize
+                }
+
             } catch (e: Exception) {
                 val errorMsg = e.message ?: "Error al conectar con SUNAT"
                 if (errorMsg.contains("No fue posible autenticar con SUNAT SIRE") ||
@@ -123,7 +160,77 @@ class InvoiceListViewModel : ViewModel() {
         }
     }
 
-    // Funciones de interacción con facturas
+    fun loadMoreInvoices(isPurchase: Boolean) {
+        if (_isLoadingMore.value) return
+
+        if (isPurchase) {
+            if (!hasMorePurchaseInvoices) return
+
+            val startIndex = (currentPurchasePage + 1) * pageSize
+            val endIndex = minOf(startIndex + pageSize, _allPurchaseInvoices.value.size)
+
+            if (startIndex < _allPurchaseInvoices.value.size) {
+                _isLoadingMore.value = true
+
+                viewModelScope.launch {
+                    delay(300)
+
+                    val currentList = _paginatedPurchaseInvoices.value.toMutableList()
+                    val newItems = _allPurchaseInvoices.value.subList(startIndex, endIndex)
+                    currentList.addAll(newItems)
+                    _paginatedPurchaseInvoices.value = currentList
+
+                    currentPurchasePage++
+                    hasMorePurchaseInvoices = endIndex < _allPurchaseInvoices.value.size
+
+                    _isLoadingMore.value = false
+                }
+            } else {
+                hasMorePurchaseInvoices = false
+            }
+        } else {
+            if (!hasMoreSalesInvoices) return
+
+            val startIndex = (currentSalesPage + 1) * pageSize
+            val endIndex = minOf(startIndex + pageSize, _allSalesInvoices.value.size)
+
+            if (startIndex < _allSalesInvoices.value.size) {
+                _isLoadingMore.value = true
+
+                viewModelScope.launch {
+                    delay(300)
+
+                    val currentList = _paginatedSalesInvoices.value.toMutableList()
+                    val newItems = _allSalesInvoices.value.subList(startIndex, endIndex)
+                    currentList.addAll(newItems)
+                    _paginatedSalesInvoices.value = currentList
+
+                    currentSalesPage++
+                    hasMoreSalesInvoices = endIndex < _allSalesInvoices.value.size
+
+                    _isLoadingMore.value = false
+                }
+            } else {
+                hasMoreSalesInvoices = false
+            }
+        }
+    }
+
+    fun resetPagination(isPurchase: Boolean) {
+        if (isPurchase) {
+            _paginatedPurchaseInvoices.value = emptyList()
+            _allPurchaseInvoices.value = emptyList()
+            currentPurchasePage = 0
+            hasMorePurchaseInvoices = true
+        } else {
+            _paginatedSalesInvoices.value = emptyList()
+            _allSalesInvoices.value = emptyList()
+            currentSalesPage = 0
+            hasMoreSalesInvoices = true
+        }
+        _isLoadingMore.value = false
+    }
+
     fun getInvoiceDetails(
         invoiceId: Int,
         onResult: (success: Boolean, error: String?) -> Unit
@@ -170,7 +277,6 @@ class InvoiceListViewModel : ViewModel() {
                             }
 
                             "COMPLETED", "WITH_DETAILS" -> {
-                                // Verificar si tiene detalles usando invoiceDetails
                                 if (response.invoiceDetails.isNotEmpty()) {
                                     val products = response.invoiceDetails.map { detail ->
                                         ProductItem(
@@ -320,7 +426,6 @@ class InvoiceListViewModel : ViewModel() {
                             email,
                             name
                         )
-                        // Guardar el token
                         TokenPrefs.saveToken(context, response.token)
                         getAndSendFcmToken(context)
                         _registerState.value = AuthState.Success(response)
@@ -457,7 +562,6 @@ class InvoiceListViewModel : ViewModel() {
         viewModelScope.launch {
             val token = TokenPrefs.getToken(context)
             if (token == null) {
-                // Si no hay token, solo limpiamos localmente
                 performLocalLogout(context)
                 onComplete(true, null)
                 return@launch
@@ -551,7 +655,7 @@ class InvoiceListViewModel : ViewModel() {
     }
 
     fun applyFilters(businessName: String?, ruc: String?, status: String?, isPurchase: Boolean) {
-        val sourceList = if (isPurchase) purchaseInvoices.value else salesInvoices.value
+        val sourceList = if (isPurchase) _allPurchaseInvoices.value else _allSalesInvoices.value
 
         val filtered = sourceList.filter { invoice ->
             (businessName == null || invoice.businessName.contains(
@@ -573,9 +677,9 @@ class InvoiceListViewModel : ViewModel() {
 
     fun clearFilters(isPurchase: Boolean) {
         if (isPurchase) {
-            _filteredPurchaseInvoices.value = purchaseInvoices.value
+            _filteredPurchaseInvoices.value = _allPurchaseInvoices.value
         } else {
-            _filteredSalesInvoices.value = salesInvoices.value
+            _filteredSalesInvoices.value = _allSalesInvoices.value
         }
         isFilterActive.value = false
     }

@@ -76,8 +76,9 @@ fun PurchaseDetailScreen(
     var clientSecretInput by remember { mutableStateOf("") }
 
     // Observar estados del ViewModel
-    val purchaseInvoices by viewModel.purchaseInvoices.collectAsStateWithLifecycle()
-    val salesInvoices by viewModel.salesInvoices.collectAsStateWithLifecycle()
+    val purchaseInvoices by viewModel.paginatedPurchaseInvoices.collectAsStateWithLifecycle()
+    val salesInvoices by viewModel.paginatedSalesInvoices.collectAsStateWithLifecycle()
+    val isLoadingMore by viewModel.isLoadingMore.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val isDetailingAll by viewModel.isDetailingAll.collectAsStateWithLifecycle()
@@ -505,7 +506,11 @@ fun PurchaseDetailScreen(
                     }
                 },
                 isLoading = isLoading,
-                modifier = Modifier.weight(1f)
+                isLoadingMore = isLoadingMore,
+                modifier = Modifier.weight(1f),
+                onLoadMore = {
+                    viewModel.loadMoreInvoices(sectionActive == Section.PURCHASES)
+                }
             )
 
             Spacer(modifier = Modifier.height(10.dp))
