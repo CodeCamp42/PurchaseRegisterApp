@@ -8,13 +8,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.purchaseregister"
+    namespace = "com.rctm.rctm"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.example.purchaseregister"
+        applicationId = "com.rctm.rctm"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
