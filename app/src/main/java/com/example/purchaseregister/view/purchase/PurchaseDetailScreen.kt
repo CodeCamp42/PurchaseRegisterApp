@@ -320,14 +320,14 @@ fun PurchaseDetailScreen(
     // Calcular lista filtrada
     val filteredList = remember(
         sectionActive, isListVisible, selectedStartMillis, selectedEndMillis,
-        if (isFilterActive) filteredPurchaseInvoices else purchaseInvoices,
-        if (isFilterActive) filteredSalesInvoices else salesInvoices,
+        purchaseInvoices,
+        salesInvoices,
         isFilterActive
     ) {
         val baseList = if (sectionActive == Section.PURCHASES) {
-            if (isFilterActive) filteredPurchaseInvoices else purchaseInvoices
+            purchaseInvoices
         } else {
-            if (isFilterActive) filteredSalesInvoices else salesInvoices
+            salesInvoices
         }
         val start = selectedStartMillis ?: todayMillis
         val end = selectedEndMillis ?: start

@@ -767,8 +767,18 @@ class InvoiceListViewModel : ViewModel() {
 
         if (isPurchase) {
             _filteredPurchaseInvoices.value = filtered
+            val firstPage = filtered.take(pageSize)
+            _paginatedPurchaseInvoices.value = firstPage
+            currentPurchasePage = 0
+            hasMorePurchaseInvoices = filtered.size > pageSize
+            _allPurchaseInvoices.value = filtered
         } else {
             _filteredSalesInvoices.value = filtered
+            val firstPage = filtered.take(pageSize)
+            _paginatedSalesInvoices.value = firstPage
+            currentSalesPage = 0
+            hasMoreSalesInvoices = filtered.size > pageSize
+            _allSalesInvoices.value = filtered
         }
 
         isFilterActive.value = (businessName != null || ruc != null || status != null)
