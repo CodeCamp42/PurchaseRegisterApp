@@ -25,13 +25,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.purchaseregister.BuildConfig
 import com.example.purchaseregister.model.ProductItem
 import com.example.purchaseregister.service.GeminiService
 import com.example.purchaseregister.utils.FormatUtils
 import com.example.purchaseregister.utils.CurrencyUtils
 import com.example.purchaseregister.utils.SunatPrefs
 import com.example.purchaseregister.view.components.ReadOnlyField
+import com.rctm.rctm.BuildConfig
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.File
