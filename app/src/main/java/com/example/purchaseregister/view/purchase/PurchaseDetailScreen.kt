@@ -550,7 +550,7 @@ fun PurchaseDetailScreen(
                     }
                 },
                 sectionActive = sectionActive,
-                onNavigateToRegister = onNavigateToRegister
+//                onNavigateToRegister = onNavigateToRegister
             )
         }
     }
