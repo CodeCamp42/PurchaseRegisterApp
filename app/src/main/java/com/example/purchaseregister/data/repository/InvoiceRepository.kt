@@ -28,7 +28,7 @@ interface InvoiceRepository {
     ): List<Invoice>
 
     suspend fun checkInvoiceStatus(
-        invoiceId: Int
+        invoiceId: String
     ): Result<InvoiceDetailsResponse>
 
     suspend fun registerInvoicesInDatabase(
@@ -39,9 +39,9 @@ interface InvoiceRepository {
     suspend fun registerNewPurchaseInvoice(invoiceData: Map<String, Any>): Invoice?
 
     // Actualizaciones locales
-    suspend fun updateInvoiceStatus(invoiceId: Int, newStatus: String, isPurchase: Boolean)
+    suspend fun updateInvoiceStatus(invoiceId: String, newStatus: String, isPurchase: Boolean)
     suspend fun updateInvoiceProducts(
-        invoiceId: Int,
+        invoiceId: String,
         products: List<ProductItem>,
         isPurchase: Boolean
     )
@@ -55,10 +55,10 @@ interface InvoiceRepository {
 
     suspend fun sendFcmToken(context: Context, token: String): Result<Unit>
 
-    suspend fun getInvoiceDetails(invoiceId: Int): Result<InvoiceDetailsResponse>
+    suspend fun getInvoiceDetails(invoiceId: String): Result<InvoiceDetailsResponse>
 
     // Getters auxiliares
-    fun getIssuerRuc(invoiceId: Int): String?
+    fun getIssuerRuc(invoiceId: String): String?
     fun clearAll()
 
     // Validación
@@ -81,8 +81,8 @@ interface InvoiceRepository {
     ): Result<Unit>
 
     suspend fun downloadSunatDocument(
-        invoiceId: Int,
-        fileId: Int,
+        invoiceId: String,
+        fileId: String,
         context: Context
     ): Result<DownloadDocumentResponse>
 }

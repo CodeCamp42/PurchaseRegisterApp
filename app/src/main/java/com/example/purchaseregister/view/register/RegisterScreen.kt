@@ -27,6 +27,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.purchaseregister.model.ProductItem
 import com.example.purchaseregister.service.GeminiService
+import com.example.purchaseregister.service.MLKitOCRService
 import com.example.purchaseregister.utils.FormatUtils
 import com.example.purchaseregister.utils.CurrencyUtils
 import com.example.purchaseregister.utils.SunatPrefs
@@ -106,65 +107,19 @@ fun RegisterPurchaseScreen(
         photoTaken = true
         editMode = false
 
-        val prompt = """
-        Analiza esta factura/boleta peruana y extrae los datos.
-        La factura es de una COMPRA que YO (mi empresa) estoy haciendo a un PROVEEDOR.
-        
-        Identifica claramente:
-        - PROVEEDOR/VENDEDOR: Quien me vende (sus datos van en ruc_provider y razon_social)
-        - YO/COMPRADOR: Mi empresa (no incluir aquí, esos datos los tengo yo)
-        
-        INSTRUCCIONES ESPECÍFICAS:
-        - Para moneda: escribir solo "Soles" o "Dólares" (sin códigos PEN/USD)
-        - SI ES DÓLARES: Extraer el tipo_cambio NUMÉRICO que aparece en la factura (ej: 3.85, 3.75, 4.10)
-        - El tipo_cambio NO es fijo, varía según la fecha de la factura
-        
-        JSON REQUERIDO (datos del PROVEEDOR/VENDEDOR):
-        {
-          "tipo_documento": "Factura, Boleta o Nota de Venta",
-          "ruc_provider": "RUC del PROVEEDOR/VENDEDOR (11 dígitos)",
-          "razon_social": "Nombre completo del PROVEEDOR/VENDEDOR",
-          "serie": "Serie del documento",
-          "numero": "Número del documento",
-          "fecha": "DD/MM/YYYY",
-          "moneda": "Dólares",  // o "Soles"
-          "tipo_cambio": "3.85",  // ← EXTRAER EL VALOR REAL DE LA FACTURA
-          "productos": [
-            {
-              "descripcion": "Nombre del producto",
-              "cantidad": "Cantidad (solo números)",
-              "unidad_medida": "KG, L, UN, etc",
-              "costo_unitario": "Precio unitario (solo números)"
-            }
-          ],
-          "costo_total": "Total sin IGV (solo números)",
-          "igv": "IGV (18%) (solo números)",
-          "importe_total": "Total con IGV (solo números)"
-        }
-        
-        IMPORTANTE: 
-        - ruc_provider es el RUC del que ME VENDE (proveedor/vendedor)
-        - No incluir MI RUC (comprador) en la respuesta
-        - Las cantidades y montos deben ser solo números, sin símbolos
-        """.trimIndent()
+        Log.d("MLKIT_APP", "📸 Foto tomada, procesando con ML Kit...")
 
-        Log.d("GEMINI_APP", "📸 Foto tomada, llamando a Gemini...")
-
-        GeminiService.analyzeInvoice(
+        MLKitOCRService.analyzeInvoice(
             bitmap = bitmap,
-            prompt = prompt,
-            apiKey = BuildConfig.GEMINI_API_KEY,
             onSuccess = { response ->
                 scope.launch {
                     try {
-                        Log.d("GEMINI_APP", "✅ Respuesta recibida, procesando...")
+                        Log.d("MLKIT_APP", "✅ OCR completado, procesando JSON...")
 
-                        val jsonText = GeminiService.extractJsonFromResponse(response)
-                        Log.d("GEMINI_APP", "📄 JSON extraído: ${jsonText.take(300)}...")
+                        val json = JSONObject(response)
+                        Log.d("MLKIT_JSON", "Claves en JSON: ${json.keys().asSequence().toList()}")
 
-                        val json = JSONObject(jsonText)
-                        Log.d("GEMINI_JSON_KEYS", "Claves en JSON: ${json.keys().asSequence().toList()}")
-
+                        // Extraer todos los campos igual que antes
                         documentType = json.optString("tipo_documento")
                         providerRuc = json.optString("ruc_provider")
                         providerBusinessName = json.optString("razon_social")
@@ -175,18 +130,29 @@ fun RegisterPurchaseScreen(
                         currency = CurrencyUtils.formatCurrency(extractedCurrency)
                         val extractedExchangeRate = json.optString("tipo_cambio")
 
+                        // Procesar productos
                         json.optJSONArray("productos")?.let { productsArray ->
-                            Log.d("GEMINI_PRODUCTOS", "Número de productos: ${productsArray.length()}")
+                            Log.d("MLKIT_PRODUCTOS", "Número de productos: ${productsArray.length()}")
 
+                            productList.clear()
                             for (i in 0 until productsArray.length()) {
-                                val product = productsArray.getJSONObject(i)
-                                Log.d("GEMINI_PRODUCTOS",
-                                    "Producto $i: desc=${product.optString("descripcion")}, " +
-                                            "costo=${product.optString("costo_unitario")}, " +
-                                            "cant=${product.optString("cantidad")}")
+                                val p = productsArray.getJSONObject(i)
+                                productList.add(
+                                    ProductItem(
+                                        p.optString("descripcion"),
+                                        p.optString("costo_unitario"),
+                                        p.optString("cantidad"),
+                                        unitOfMeasure = p.optString("unidad_medida")
+                                    )
+                                )
+                            }
+
+                            if (productList.isEmpty()) {
+                                productList.add(ProductItem("", "", ""))
                             }
                         }
 
+                        // Procesar tipo de cambio
                         if (CurrencyUtils.isDollarCurrency(currency)) {
                             exchangeRate = when {
                                 extractedExchangeRate.matches(Regex("[0-9]+(\\.[0-9]+)?")) -> extractedExchangeRate
@@ -204,41 +170,17 @@ fun RegisterPurchaseScreen(
                             exchangeRate = ""
                         }
 
+                        // Totales
                         totalCost = FormatUtils.cleanAmount(json.optString("costo_total"))
                         igv = FormatUtils.cleanAmount(json.optString("igv"))
                         totalAmount = FormatUtils.cleanAmount(json.optString("importe_total"))
                         myRuc = SunatPrefs.getRuc(context) ?: ""
 
-                        Log.d("GEMINI_MONTOS",
-                            "CostoTotal: $totalCost, IGV: $igv, ImporteTotal: $totalAmount")
-
-                        productList.clear()
-                        json.optJSONArray("productos")?.let { arr ->
-                            for (i in 0 until arr.length()) {
-                                val p = arr.getJSONObject(i)
-                                productList.add(
-                                    ProductItem(
-                                        p.optString("descripcion"),
-                                        p.optString("costo_unitario"),
-                                        p.optString("cantidad"),
-                                        unitOfMeasure = p.optString("unidad_medida")
-                                    )
-                                )
-                            }
-                            Log.d("GEMINI_PRODUCTOS", "Productos agregados a lista: ${productList.size}")
-                        }
-
-                        if (productList.isEmpty()) {
-                            Log.w("GEMINI_PRODUCTOS", "⚠️ Lista de productos vacía, agregando uno vacío")
-                            productList.add(ProductItem("", "", ""))
-                        }
-
-                        Toast.makeText(context, "✅ Factura analizada!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "✅ Factura analizada con ML Kit!", Toast.LENGTH_LONG).show()
 
                     } catch (e: Exception) {
-                        Log.e("GEMINI_APP", "❌ Error procesando: ${e.message}")
-                        Log.e("GEMINI_APP", "Stack: ${e.stackTraceToString()}")
-                        Toast.makeText(context, "Error: ${e.message?.take(50)}...", Toast.LENGTH_LONG).show()
+                        Log.e("MLKIT_APP", "❌ Error procesando: ${e.message}")
+                        Toast.makeText(context, "Error al procesar OCR: ${e.message?.take(50)}", Toast.LENGTH_LONG).show()
                     } finally {
                         isLoading = false
                     }
@@ -247,7 +189,7 @@ fun RegisterPurchaseScreen(
             onError = { errorMsg ->
                 scope.launch {
                     isLoading = false
-                    Log.e("GEMINI_APP", "❌ Error: $errorMsg")
+                    Log.e("MLKIT_APP", "❌ Error ML Kit: $errorMsg")
                     Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
                 }
             }

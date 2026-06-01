@@ -1,7 +1,7 @@
 package com.example.purchaseregister.api.responses
 
 data class SunatCredentialsResponse(
-    val id: Int? = null,
+    val id: String? = null,
     val userId: String? = null,
     val ruc: String,
     val solUser: String,

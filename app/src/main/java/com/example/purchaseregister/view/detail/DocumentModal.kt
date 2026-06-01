@@ -34,7 +34,7 @@ data class DocumentItem(
     val url: String? = null,
     val type: String,
     val documentNumber: String,
-    val fileId: Int
+    val fileId: String
 )
 
 fun createDocumentsForInvoice(
@@ -60,7 +60,7 @@ fun createDocumentsForInvoice(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentModal(
-    invoiceId: Int,
+    invoiceId: String,
     documents: List<DocumentItem>,
     onDismiss: () -> Unit,
     viewModel: DetailViewModel = viewModel()

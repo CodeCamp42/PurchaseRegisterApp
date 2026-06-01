@@ -30,7 +30,7 @@ import com.example.purchaseregister.utils.formatDateFromISO
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
-    invoiceId: Int,
+    invoiceId: String,
     isPurchase: Boolean,
     onBack: () -> Unit,
     viewModel: DetailViewModel = viewModel()

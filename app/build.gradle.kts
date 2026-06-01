@@ -45,8 +45,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
     buildFeatures {
         compose = true
@@ -87,6 +87,12 @@ dependencies {
     implementation(libs.androidx.compose.ui.text)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.ui.text)
+
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("androidx.camera:camera-core:1.4.0-alpha04")
+    implementation("androidx.camera:camera-camera2:1.4.0-alpha04")
+    implementation("androidx.camera:camera-lifecycle:1.4.0-alpha04")
+    implementation("androidx.camera:camera-view:1.4.0-alpha04")
 
     implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     implementation("com.google.firebase:firebase-messaging")

@@ -34,7 +34,7 @@ class DetailViewModel : ViewModel() {
     val downloadingDocument: StateFlow<String?> = _downloadingDocument.asStateFlow()
 
     // Función para cargar detalles de la factura
-    fun loadInvoiceDetails(invoiceId: Int) {
+    fun loadInvoiceDetails(invoiceId: String) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
@@ -67,8 +67,8 @@ class DetailViewModel : ViewModel() {
     // Funciones de descarga
     fun downloadDocument(
         context: Context,
-        invoiceId: Int,
-        fileId: Int,
+        invoiceId: String,
+        fileId: String,
         documentType: String,
         onStart: () -> Unit = {},
         onSuccess: (String) -> Unit = {},

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.ui.Modifier
 import com.example.purchaseregister.navigation.AppNavHost
+import com.example.purchaseregister.service.MLKitOCRService
 import com.example.purchaseregister.ui.theme.PurchaseRegisterTheme
 
 class MainActivity : ComponentActivity() {
@@ -25,6 +26,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MLKitOCRService.initialize()
         enableEdgeToEdge()
         requestNotificationPermission()
         setContent {

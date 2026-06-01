@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class Invoice(
-    val id: Int,
+    val id: String,
     val ruc: String,
     val businessName: String,
     val series: String,

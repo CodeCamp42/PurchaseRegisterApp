@@ -1,7 +1,7 @@
 package com.example.purchaseregister.api.responses
 
 data class InvoiceDetailsResponse(
-    val id: Int,
+    val id: String,
     val userId: String,
     val issuerRuc: String,
     val issuerName: String,
@@ -25,12 +25,14 @@ data class InvoiceDetailsResponse(
     val createdAt: String,
     val updatedAt: String,
     val invoiceDetails: List<InvoiceDetailItem>,
-    val invoiceFiles: List<InvoiceFileItem>
+    val invoiceFiles: List<InvoiceFileItem>,
+    val detraction: DetractionItem? = null,
+    val paymentMethod: PaymentMethodItem? = null
 )
 
 data class InvoiceDetailItem(
-    val id: Int,
-    val invoiceId: Int,
+    val id: String,
+    val invoiceId: String,
     val description: String,
     val quantity: String,
     val unitPrice: String,
@@ -45,7 +47,7 @@ data class InvoiceDetailItem(
 )
 
 data class InvoiceFileItem(
-    val id: Int,
+    val id: String,
     val sunatFileType: String,
     val fileName: String,
     val fileSize: Int?,
@@ -53,8 +55,8 @@ data class InvoiceFileItem(
 )
 
 data class InvoiceDetailTax(
-    val id: Int,
-    val invoiceDetailId: Int,
+    val id: String,
+    val invoiceDetailId: String,
     val taxableAmount: String,
     val taxAmount: String,
     val taxCategoryId: String,
@@ -63,4 +65,20 @@ data class InvoiceDetailTax(
     val taxId: String,
     val taxName: String,
     val taxTypeCode: String
+)
+
+data class DetractionItem(
+    val id: String,
+    val invoiceId: String,
+    val bankAccount: String,
+    val code: String,
+    val percentage: String,
+    val amount: String
+)
+
+data class PaymentMethodItem(
+    val id: String,
+    val invoiceId: String,
+    val type: String,
+    val amount: String? = null
 )
