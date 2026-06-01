@@ -208,7 +208,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
 
     override suspend fun downloadSunatDocument(
         invoiceId: String,
-        fileId: Int,
+        fileId: String,
         context: Context
     ): Result<DownloadDocumentResponse> {
         return try {

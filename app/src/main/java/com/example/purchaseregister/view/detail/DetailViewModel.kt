@@ -68,7 +68,7 @@ class DetailViewModel : ViewModel() {
     fun downloadDocument(
         context: Context,
         invoiceId: String,
-        fileId: Int,
+        fileId: String,
         documentType: String,
         onStart: () -> Unit = {},
         onSuccess: (String) -> Unit = {},
