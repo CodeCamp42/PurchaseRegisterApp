@@ -13,7 +13,7 @@ data class SunatResponse(
 )
 
 data class InvoiceData(
-    val id: Int,
+    val id: String,
     val issuerRuc: String,
     val issuerName: String,
     val period: String,
@@ -55,12 +55,12 @@ data class RegisterInvoicesResponse(
 
 data class RegistrationResult(
     val success: Boolean? = null,
-    val id: Int? = null,
+    val id: String? = null,
     val documentNumber: String? = null
 )
 
 data class RegisteredInvoiceResponse(
-    val invoiceId: Int? = null,
+    val invoiceId: String? = null,
     val documentNumber: String? = null,
     val issueDate: String? = null,
     val status: String? = null,

@@ -236,7 +236,7 @@ class InvoiceListViewModel : ViewModel() {
     }
 
     fun getInvoiceDetails(
-        invoiceId: Int,
+        invoiceId: String,
         onResult: (success: Boolean, error: String?) -> Unit
     ) {
         viewModelScope.launch {
@@ -260,7 +260,7 @@ class InvoiceListViewModel : ViewModel() {
     }
 
     fun checkInvoiceStatus(
-        invoiceId: Int,
+        invoiceId: String,
         isPurchase: Boolean,
         context: Context,
         onResult: (success: Boolean, shouldNavigate: Boolean, message: String?) -> Unit
@@ -500,7 +500,7 @@ class InvoiceListViewModel : ViewModel() {
         }
     }
 
-    fun updateInvoiceStatus(invoiceId: Int, newStatus: String, isPurchase: Boolean) {
+    fun updateInvoiceStatus(invoiceId: String, newStatus: String, isPurchase: Boolean) {
         viewModelScope.launch {
             repository.updateInvoiceStatus(invoiceId, newStatus, isPurchase)
         }

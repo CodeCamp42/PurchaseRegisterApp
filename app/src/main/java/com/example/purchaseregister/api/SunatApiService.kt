@@ -58,12 +58,12 @@ interface SunatApiService {
 
     @GET("api/invoices/{id}")
     suspend fun getInvoiceDetails(
-        @Path("id") invoiceId: Int
+        @Path("id") invoiceId: String
     ): Response<InvoiceDetailsResponse>
 
     @GET("api/export-invoices/{invoiceId}/{fileId}")
     suspend fun downloadSunatDocument(
-        @Path("invoiceId") invoiceId: Int,
+        @Path("invoiceId") invoiceId: String  ,
         @Path("fileId") fileId: Int
     ): Response<ResponseBody>
 

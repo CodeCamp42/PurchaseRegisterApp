@@ -60,7 +60,7 @@ fun createDocumentsForInvoice(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentModal(
-    invoiceId: Int,
+    invoiceId: String,
     documents: List<DocumentItem>,
     onDismiss: () -> Unit,
     viewModel: DetailViewModel = viewModel()

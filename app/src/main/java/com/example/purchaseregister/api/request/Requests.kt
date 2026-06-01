@@ -10,7 +10,7 @@ data class ProductToRegister(
 )
 
 data class InvoiceToRegister(
-    val id: Int? = null,
+    val id: String? = null,
     val issuerRuc: String? = null,
     val series: String? = null,
     val number: String? = null,
