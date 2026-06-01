@@ -27,9 +27,11 @@ fun BottomActionButtons(
 ) {
     val context = LocalContext.current
 
-    Box(
+//    Row(
+        Box(
         modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center
+//        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                contentAlignment = Alignment.Center
     ) {
         Button(
             onClick = {
@@ -47,6 +49,7 @@ fun BottomActionButtons(
                 }
             },
             modifier = Modifier
+//                .weight(1f)
                 .wrapContentSize()
                 .height(45.dp),
             shape = MaterialTheme.shapes.medium,

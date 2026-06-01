@@ -38,7 +38,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
     private val _salesInvoices = MutableStateFlow<List<Invoice>>(emptyList())
     override val salesInvoices: StateFlow<List<Invoice>> = _salesInvoices.asStateFlow()
 
-    private val _issuerRucs = mutableMapOf<Int, String>()
+    private val _issuerRucs = mutableMapOf<String, String>()
     private val _invoicesCache = mutableMapOf<String, List<Invoice>>()
 
     // Helper privados
@@ -53,9 +53,9 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         _salesInvoices.update { update(it) }
     }
 
-    override fun getIssuerRuc(invoiceId: Int): String? = _issuerRucs[invoiceId]
+    override fun getIssuerRuc(invoiceId: String): String? = _issuerRucs[invoiceId]
 
-    private fun setIssuerRuc(invoiceId: Int, ruc: String) {
+    private fun setIssuerRuc(invoiceId: String, ruc: String) {
         _issuerRucs[invoiceId] = ruc
     }
 
@@ -207,8 +207,8 @@ class InvoiceRepositoryImpl : InvoiceRepository {
     }
 
     override suspend fun downloadSunatDocument(
-        invoiceId: Int,
-        fileId: Int,
+        invoiceId: String,
+        fileId: String,
         context: Context
     ): Result<DownloadDocumentResponse> {
         return try {
@@ -324,7 +324,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
     }
 
     override suspend fun checkInvoiceStatus(
-        invoiceId: Int
+        invoiceId: String
     ): Result<InvoiceDetailsResponse> {
         return try {
             val response = apiService.getInvoiceDetails(invoiceId)
@@ -340,7 +340,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
         }
     }
 
-    override suspend fun getInvoiceDetails(invoiceId: Int): Result<InvoiceDetailsResponse> {
+    override suspend fun getInvoiceDetails(invoiceId: String): Result<InvoiceDetailsResponse> {
         return try {
             val response = apiService.getInvoiceDetails(invoiceId)
 
@@ -409,7 +409,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
     }
 
     override suspend fun updateInvoiceStatus(
-        invoiceId: Int,
+        invoiceId: String,
         newStatus: String,
         isPurchase: Boolean
     ) {
@@ -435,7 +435,7 @@ class InvoiceRepositoryImpl : InvoiceRepository {
     }
 
     override suspend fun updateInvoiceProducts(
-        invoiceId: Int,
+        invoiceId: String,
         products: List<ProductItem>,
         isPurchase: Boolean
     ) {
