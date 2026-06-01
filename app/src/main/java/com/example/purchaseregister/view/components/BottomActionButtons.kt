@@ -7,7 +7,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -23,13 +22,13 @@ fun BottomActionButtons(
     onShowProfile: () -> Unit,
     onShowCredentials: () -> Unit,
     sectionActive: Section,
-//    onNavigateToRegister: () -> Unit,
+    onNavigateToRegister: () -> Unit,
 ) {
     val context = LocalContext.current
 
-    Box(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Button(
             onClick = {
@@ -47,7 +46,7 @@ fun BottomActionButtons(
                 }
             },
             modifier = Modifier
-                .wrapContentSize()
+                .weight(1f)
                 .height(45.dp),
             shape = MaterialTheme.shapes.medium,
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9))
@@ -55,30 +54,30 @@ fun BottomActionButtons(
             Text("Consultar")
         }
 
-//        if (sectionActive == Section.PURCHASES) {
-//            Button(
-//                onClick = {
-//                    if (!isAppLoggedIn) {
-//                        Toast.makeText(context, "Debes iniciar sesión primero", Toast.LENGTH_SHORT).show()
-//                        onShowProfile()
-//                    } else if (!hasSunatCredentials) {
-//                        Toast.makeText(context, "Debes configurar tus credenciales SUNAT", Toast.LENGTH_SHORT).show()
-//                        onShowCredentials()
-//                    } else if (hasCredentialError) {
-//                        Toast.makeText(context, "Corrige tus credenciales SUNAT primero", Toast.LENGTH_SHORT).show()
-//                        onShowCredentials()
-//                    } else {
-//                        onNavigateToRegister()
-//                    }
-//                },
-//                modifier = Modifier
-//                    .weight(1f)
-//                    .height(45.dp),
-//                shape = MaterialTheme.shapes.medium,
-//                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9))
-//            ) {
-//                Text("Subir Factura")
-//            }
-//        }
+        if (sectionActive == Section.PURCHASES) {
+            Button(
+                onClick = {
+                    if (!isAppLoggedIn) {
+                        Toast.makeText(context, "Debes iniciar sesión primero", Toast.LENGTH_SHORT).show()
+                        onShowProfile()
+                    } else if (!hasSunatCredentials) {
+                        Toast.makeText(context, "Debes configurar tus credenciales SUNAT", Toast.LENGTH_SHORT).show()
+                        onShowCredentials()
+                    } else if (hasCredentialError) {
+                        Toast.makeText(context, "Corrige tus credenciales SUNAT primero", Toast.LENGTH_SHORT).show()
+                        onShowCredentials()
+                    } else {
+                        onNavigateToRegister()
+                    }
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(45.dp),
+                shape = MaterialTheme.shapes.medium,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1FB8B9))
+            ) {
+                Text("Subir Factura")
+            }
+        }
     }
 }
